@@ -1,4 +1,4 @@
-"""Real Assamese corpus sources for ``data/collect.py`` (pipeline, Kaggle-ready).
+"""Real Assamese corpus sources for ``data/collect.py`` (Agent-A, Kaggle-ready).
 
 Mirror of ``hindi/data/sources.py`` for Assamese — same infrastructure, different
 corpora and language paths (no imports from ``hindi``).
@@ -246,11 +246,15 @@ def pdf_manifest_source(
                     if not text or not _script_fraction_ok(text):
                         # Try OCR fallback on scanned PDF
                         try:
-                            from scripts.ocr import ocr_pdf
+                            try:
+                                from common.ocr import ocr_pdf
+                            except ImportError:
+                                from scripts.ocr import ocr_pdf
 
-                            ocr_text = ocr_pdf(str(pdf), lang=LANG).strip()
-                            if ocr_text and _script_fraction_ok(ocr_text):
-                                text = ocr_text
+                            if ocr_pdf is not None:
+                                ocr_text = ocr_pdf(str(pdf), lang=LANG).strip()
+                                if ocr_text and _script_fraction_ok(ocr_text):
+                                    text = ocr_text
                         except Exception:
                             pass
 

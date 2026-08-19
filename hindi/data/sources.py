@@ -1,4 +1,4 @@
-"""Real Hindi corpus sources for ``data/collect.py`` (pipeline, Kaggle-ready).
+"""Real Hindi corpus sources for ``data/collect.py`` (Agent-A, Kaggle-ready).
 
 ``--source-module hindi.data.sources`` loads ``SOURCES`` below. Every source is
 either a :class:`KaggleDatasetSource` (public Kaggle Dataset, pulled via the
@@ -244,11 +244,15 @@ def pdf_manifest_source(
                     if not text or not _script_fraction_ok(text):
                         # Try OCR fallback on scanned PDF
                         try:
-                            from scripts.ocr import ocr_pdf
+                            try:
+                                from common.ocr import ocr_pdf
+                            except ImportError:
+                                from scripts.ocr import ocr_pdf
 
-                            ocr_text = ocr_pdf(str(pdf), lang=LANG).strip()
-                            if ocr_text and _script_fraction_ok(ocr_text):
-                                text = ocr_text
+                            if ocr_pdf is not None:
+                                ocr_text = ocr_pdf(str(pdf), lang=LANG).strip()
+                                if ocr_text and _script_fraction_ok(ocr_text):
+                                    text = ocr_text
                         except Exception:
                             pass
 

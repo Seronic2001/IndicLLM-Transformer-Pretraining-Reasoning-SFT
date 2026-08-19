@@ -1,0 +1,25 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Caches
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Environments
+.venv/
+venv/
+ENV/
+
+# Large data binaries & raw corpora (stored in Kaggle/Drive artifacts)
+*.bin
+*.pt
+raw/
+clean/
+splits/
+
+# OS specific
+.DS_Store
+Thumbs.db
