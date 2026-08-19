@@ -22,7 +22,7 @@ import unicodedata
 from pathlib import Path
 from typing import Iterable, Optional
 
-from common.script_utils import (  # noqa: E402
+from common.script_utils import ( 
     clean_indic_text,
     is_high_quality_indic_document,
     is_script_char,
