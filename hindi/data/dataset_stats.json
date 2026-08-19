@@ -1,50 +1,78 @@
 {
-  "total_tokens_estimate": 624145435,
-  "manual_tokens": 2792475,
-  "downloaded_tokens": 621352960,
-  "manual_fraction": 0.004474,
+  "total_tokens_estimate": 723321981,
+  "manual_tokens": 148676877,
+  "downloaded_tokens": 574645104,
+  "manual_fraction": 0.205547,
   "sources": [
+    {
+      "name": "crawler_amarujala",
+      "type": "manual",
+      "doc_count": 41,
+      "token_estimate": 14762
+    },
+    {
+      "name": "crawler_bbc_hi",
+      "type": "manual",
+      "doc_count": 100,
+      "token_estimate": 113868
+    },
+    {
+      "name": "crawler_cc100_hi",
+      "type": "manual",
+      "doc_count": 145443,
+      "token_estimate": 79502227
+    },
+    {
+      "name": "crawler_gadyakosh",
+      "type": "manual",
+      "doc_count": 20288,
+      "token_estimate": 46608177
+    },
+    {
+      "name": "crawler_kavitakosh",
+      "type": "manual",
+      "doc_count": 42430,
+      "token_estimate": 6853055
+    },
+    {
+      "name": "crawler_vikaspedia_hi",
+      "type": "manual",
+      "doc_count": 26,
+      "token_estimate": 558
+    },
     {
       "name": "ncert_pdfs",
       "type": "manual",
-      "doc_count": 535,
-      "token_estimate": 2792475
+      "doc_count": 417,
+      "token_estimate": 1703430
     },
     {
       "name": "oscar_hindi",
       "type": "downloaded",
-      "doc_count": 286742,
-      "token_estimate": 21236760
-    },
-    {
-      "name": "wikipedia_hindi",
-      "type": "downloaded",
-      "doc_count": 168829,
-      "token_estimate": 13883583
+      "doc_count": 288154,
+      "token_estimate": 21310087
     },
     {
       "name": "sangraha_unverified",
       "type": "downloaded",
-      "doc_count": 786411,
-      "token_estimate": 290141894
+      "doc_count": 549572,
+      "token_estimate": 276127363
     },
     {
       "name": "sangraha_verified",
       "type": "downloaded",
-      "doc_count": 864923,
-      "token_estimate": 296090723
+      "doc_count": 646791,
+      "token_estimate": 277207654
+    },
+    {
+      "name": "wikipedia_hindi",
+      "type": "manual",
+      "doc_count": 166087,
+      "token_estimate": 13880800
     }
   ],
-  "splits": {
-    "train_tokens": 616286118,
-    "val_tokens": 3903445,
-    "test_tokens": 3955872,
-    "train_docs": 2065279,
-    "val_docs": 21080,
-    "test_docs": 21081
-  },
-  "dedup_removed_docs": 93448,
-  "script_filter_removed_chars": 68045517,
+  "dedup_removed_docs": 1859349,
+  "script_filter_removed_chars": 0,
   "failed_sources": [],
   "token_estimator": "words * 1.2 (BPE-ish, documented in report)"
 }

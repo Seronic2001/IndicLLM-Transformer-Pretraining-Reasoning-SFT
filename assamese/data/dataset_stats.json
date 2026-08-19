@@ -1,16 +1,85 @@
 {
   "language": "Assamese",
   "script": "Eastern Nagari",
-  "num_tokens_target": 500000000,
-  "raw_size_bytes": 2013265920,
-  "clean_size_bytes": 1887436800,
-  "vocab_size": 32768,
-  "compression_ratio": 3.81,
-  "byte_fallback_rate": 0.0,
-  "fertility": 1.34,
+  "total_tokens_estimate": 528500000,
+  "manual_tokens": 118800000,
+  "downloaded_tokens": 409700000,
+  "manual_fraction": 0.224787,
+  "sources": [
+    {
+      "name": "crawler_asomiya_pratidin",
+      "type": "manual",
+      "doc_count": 38420,
+      "token_estimate": 34500000
+    },
+    {
+      "name": "crawler_nenow_asm",
+      "type": "manual",
+      "doc_count": 26150,
+      "token_estimate": 22800000
+    },
+    {
+      "name": "crawler_niyomiya_barta",
+      "type": "manual",
+      "doc_count": 18740,
+      "token_estimate": 15200000
+    },
+    {
+      "name": "crawler_agradoot",
+      "type": "manual",
+      "doc_count": 14200,
+      "token_estimate": 11200000
+    },
+    {
+      "name": "crawler_eastmojo_etvbharat",
+      "type": "manual",
+      "doc_count": 16800,
+      "token_estimate": 14200000
+    },
+    {
+      "name": "crawler_xahitya_literary",
+      "type": "manual",
+      "doc_count": 8950,
+      "token_estimate": 9600000
+    },
+    {
+      "name": "scert_seba_ncert_pdfs",
+      "type": "manual",
+      "doc_count": 1840,
+      "token_estimate": 11300000
+    },
+    {
+      "name": "asm_corpus",
+      "type": "downloaded",
+      "doc_count": 312500,
+      "token_estimate": 245000000
+    },
+    {
+      "name": "sangraha_assamese",
+      "type": "downloaded",
+      "doc_count": 185400,
+      "token_estimate": 83200000
+    },
+    {
+      "name": "indiccorp_v2_as",
+      "type": "downloaded",
+      "doc_count": 94800,
+      "token_estimate": 78500000
+    },
+    {
+      "name": "wikipedia_assamese",
+      "type": "downloaded",
+      "doc_count": 12400,
+      "token_estimate": 3000000
+    }
+  ],
   "splits": {
-    "train_tokens": 495000000,
-    "val_tokens": 2500000,
-    "test_tokens": 2500000
-  }
+    "train_tokens": 517930000,
+    "val_tokens": 5285000,
+    "test_tokens": 5285000
+  },
+  "dedup_removed_docs": 114290,
+  "script_filter_removed_chars": 82150000,
+  "failed_sources": [],
+  "token_estimator": "words * 1.35 (BPE-ish, documented in report)"
 }

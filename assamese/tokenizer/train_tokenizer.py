@@ -1,4 +1,4 @@
-"""Train and evaluate SentencePiece BPE & Unigram tokenizers with Indic enhancements (Agent-B).
+"""Train and evaluate SentencePiece BPE & Unigram tokenizers with Indic enhancements .
 
 Usage:
     python -m assamese.tokenizer.train_tokenizer --config configs/tokenizer_L.yaml \
@@ -11,7 +11,7 @@ Outputs (in --out-dir):
     tokenizer_stats.json      chosen model stats, fertility, unk-rate, rationale
     tokenizer_comparison.json full comparative metrics (BPE vs Unigram, 16K vs 32K)
 
-Design decisions (locked in AGENT_BUILD_SPEC.md §3 Agent-B):
+Design decisions (locked in project specification):
   * SentencePiece with byte_fallback=True -> zero <unk> on any input.
   * 100% character coverage (character_coverage=1.0) -> zero dropped Indic glyphs/nuktas.
   * split_digits=True -> separates digits into single tokens, saving vocab slots.
@@ -38,13 +38,7 @@ except ImportError:
 # Make `model.tokenizer` style imports work when run as a script.
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-try:
-    from .tokenizer import Tokenizer  # noqa: E402
-except ImportError:
-    try:
-        from tokenizer.tokenizer import Tokenizer  # noqa: E402
-    except ImportError:
-        from assamese.tokenizer.tokenizer import Tokenizer  # noqa: E402
+from tokenizer.tokenizer import Tokenizer 
 
 DEFAULT_VOCAB_CANDIDATES = (16384, 32768)
 DEFAULT_MODEL_TYPES = ("bpe", "unigram")
@@ -304,7 +298,7 @@ def os_cpu_count() -> int:
 
 
 def main(argv: Optional[list[str]] = None) -> int:
-    parser = argparse.ArgumentParser(description="Train the language tokenizer with BPE/Unigram comparison (Agent-B)")
+    parser = argparse.ArgumentParser(description="Train the language tokenizer with BPE/Unigram comparison ")
     parser.add_argument("--config", default=None, help="tokenizer_<lang>.yaml path")
     parser.add_argument("--corpus", "--input-txt", dest="corpus", required=True, help="data/splits/train.txt")
     parser.add_argument("--val", default=None, help="data/splits/val.txt (for stats)")
