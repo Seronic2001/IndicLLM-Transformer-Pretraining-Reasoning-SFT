@@ -1,0 +1,13 @@
+{
+  "language": "Assamese",
+  "vocab_size": 32768,
+  "model_type": "bpe",
+  "character_coverage": 0.9995,
+  "byte_fallback": true,
+  "unk_id": 1,
+  "bos_id": 2,
+  "eos_id": 3,
+  "pad_id": 0,
+  "fertility": 1.34,
+  "byte_fallback_rate": 0.0
+}

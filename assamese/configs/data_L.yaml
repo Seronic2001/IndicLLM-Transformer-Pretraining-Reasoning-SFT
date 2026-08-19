@@ -1,0 +1,21 @@
+# Assamese Data Processing & Split Configuration
+language: "assamese"
+script: "eastern_nagari"
+unicode_range: [0x0980, 0x09FF]
+min_script_ratio: 0.80
+
+splits:
+  train: 0.98
+  val: 0.01
+  test: 0.01
+  seed: 1337
+
+clean:
+  nfkc_normalization: true
+  nukta_canonicalization: true
+  purna_viram_healing: true
+  dedup_sha256: true
+
+token_bin:
+  dtype: "uint16"
+  append_eos: true

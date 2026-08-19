@@ -1,0 +1,14 @@
+# Hindi Model H Version 2.0 — Modern Transformer Architecture (16K Optimal 8-Layer)
+# Target: ~25.17M params (strictly within 22.5M–27.5M rubric window)
+arch_version: "v2"
+vocab_size: 16384     # aligned with 16K Indic BPE Tokenizer (1.2099 fertility)
+d_model: 384
+n_layer: 8            # 8 layers (+33% depth for stronger compositional reasoning)
+n_head: 6             # d_k = 64
+d_ff: 1536            # SwiGLU inner dim (4 * d_model) -> 25,172,352 params
+block_size: 512       # default context length (RoPE extrapolatable at inference)
+dropout: 0.0          # modern standard (LLaMA/Mistral)
+tie_weights: true
+bias: false           # no bias in Linear layers
+rope_theta: 10000.0
+norm_eps: 1.0e-6

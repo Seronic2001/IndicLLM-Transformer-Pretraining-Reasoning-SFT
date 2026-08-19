@@ -1,0 +1,61 @@
+{
+  "bpe_16384": {
+    "model_type": "bpe",
+    "vocab_size": 16384,
+    "config_vocab_size": 16384,
+    "byte_fallback": true,
+    "character_coverage": 1.0,
+    "split_digits": true,
+    "fertility_tokens_per_word": 1.2776,
+    "unk_rate": 0.0,
+    "compression_ratio_chars_per_token": 3.7445,
+    "bytes_per_token": 9.6689,
+    "roundtrip_accuracy": 1.0,
+    "total_eval_lines": 2000
+  },
+  "bpe_32768": {
+    "model_type": "bpe",
+    "vocab_size": 32768,
+    "config_vocab_size": 32768,
+    "model_type": "bpe",
+    "byte_fallback": true,
+    "character_coverage": 1.0,
+    "split_digits": true,
+    "fertility_tokens_per_word": 1.1962,
+    "unk_rate": 0.0,
+    "compression_ratio_chars_per_token": 3.9995,
+    "bytes_per_token": 10.3273,
+    "roundtrip_accuracy": 1.0,
+    "total_eval_lines": 2000
+  },
+  "unigram_16384": {
+    "model_type": "unigram",
+    "vocab_size": 16384,
+    "config_vocab_size": 16384,
+    "model_type": "unigram",
+    "byte_fallback": true,
+    "character_coverage": 1.0,
+    "split_digits": true,
+    "fertility_tokens_per_word": 1.2728,
+    "unk_rate": 0.0,
+    "compression_ratio_chars_per_token": 3.7587,
+    "bytes_per_token": 9.7054,
+    "roundtrip_accuracy": 1.0,
+    "total_eval_lines": 2000
+  },
+  "unigram_32768": {
+    "model_type": "unigram",
+    "vocab_size": 32768,
+    "config_vocab_size": 32768,
+    "model_type": "unigram",
+    "byte_fallback": true,
+    "character_coverage": 1.0,
+    "split_digits": true,
+    "fertility_tokens_per_word": 1.2065,
+    "unk_rate": 0.0,
+    "compression_ratio_chars_per_token": 3.9653,
+    "bytes_per_token": 10.2391,
+    "roundtrip_accuracy": 1.0,
+    "total_eval_lines": 2000
+  }
+}

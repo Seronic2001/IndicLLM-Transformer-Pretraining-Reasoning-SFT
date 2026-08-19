@@ -1,0 +1,16 @@
+{
+  "language": "Assamese",
+  "script": "Eastern Nagari",
+  "num_tokens_target": 500000000,
+  "raw_size_bytes": 2013265920,
+  "clean_size_bytes": 1887436800,
+  "vocab_size": 32768,
+  "compression_ratio": 3.81,
+  "byte_fallback_rate": 0.0,
+  "fertility": 1.34,
+  "splits": {
+    "train_tokens": 495000000,
+    "val_tokens": 2500000,
+    "test_tokens": 2500000
+  }
+}

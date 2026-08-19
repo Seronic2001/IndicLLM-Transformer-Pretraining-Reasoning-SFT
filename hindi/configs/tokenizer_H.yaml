@@ -1,0 +1,16 @@
+# Hindi tokenizer — SentencePiece with Indic Enhancements & BPE/Unigram Support (AGENT_BUILD_SPEC §3 Agent-B)
+model_type: bpe                 # default baseline; overridden or compared in train_tokenizer.py
+vocab_size: 32768               # matches model_H.yaml; candidate {16384, 32768} decided via fertility
+byte_fallback: true             # zero <unk> on anything, even unseen conjuncts
+character_coverage: 1.0         # 100% coverage guarantees zero dropped Indic glyphs
+split_digits: true              # isolate digits to save thousands of vocabulary slots
+split_by_unicode_script: true   # prevent cross-script token merges
+split_by_whitespace: true       # treat whitespace as token boundary
+normalization_rule_name: nfkc   # canonical Unicode normalization
+pad_id: 0
+unk_id: 1
+bos_id: 2
+eos_id: 3
+input_sentence_size: 2000000    # SentencePiece subsample cap; standard practice, noted in report
+candidate_vocab_sizes: [16384, 32768]
+candidate_model_types: ["bpe", "unigram"]

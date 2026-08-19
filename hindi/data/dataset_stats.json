@@ -1,0 +1,50 @@
+{
+  "total_tokens_estimate": 624145435,
+  "manual_tokens": 2792475,
+  "downloaded_tokens": 621352960,
+  "manual_fraction": 0.004474,
+  "sources": [
+    {
+      "name": "ncert_pdfs",
+      "type": "manual",
+      "doc_count": 535,
+      "token_estimate": 2792475
+    },
+    {
+      "name": "oscar_hindi",
+      "type": "downloaded",
+      "doc_count": 286742,
+      "token_estimate": 21236760
+    },
+    {
+      "name": "wikipedia_hindi",
+      "type": "downloaded",
+      "doc_count": 168829,
+      "token_estimate": 13883583
+    },
+    {
+      "name": "sangraha_unverified",
+      "type": "downloaded",
+      "doc_count": 786411,
+      "token_estimate": 290141894
+    },
+    {
+      "name": "sangraha_verified",
+      "type": "downloaded",
+      "doc_count": 864923,
+      "token_estimate": 296090723
+    }
+  ],
+  "splits": {
+    "train_tokens": 616286118,
+    "val_tokens": 3903445,
+    "test_tokens": 3955872,
+    "train_docs": 2065279,
+    "val_docs": 21080,
+    "test_docs": 21081
+  },
+  "dedup_removed_docs": 93448,
+  "script_filter_removed_chars": 68045517,
+  "failed_sources": [],
+  "token_estimator": "words * 1.2 (BPE-ish, documented in report)"
+}
