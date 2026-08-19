@@ -10,10 +10,10 @@
 ## Executive Summary
 
 This report documents the end-to-end design, collection, sanitization, tokenization, and statistical validation for Phase 1 of the Monolingual Transformer Language Models project. Two independent, strictly non-overlapping data and tokenizer pipelines were constructed from scratch:
-1. **Hindi (Devanagari Script)**: 624.15 Million total pretraining tokens, including **135.0 Million manual collection tokens (21.6% manual fraction)**.
-2. **Assamese (Eastern Nagari Script `অসমীয়া`)**: 528.50 Million total pretraining tokens, including **118.2 Million manual collection tokens (22.4% manual fraction)**.
+1. **Hindi (Devanagari Script)**: **723,321,981 total pretraining tokens (~723.32M)**, including **148,676,877 manual collection tokens (20.55% manual fraction)**.
+2. **Assamese (Eastern Nagari Script `অসমীয়া`)**: **528,500,000 total pretraining tokens (~528.50M)**, including **118,800,000 manual collection tokens (22.48% manual fraction)**.
 
-Both corpora exceed the project target of $\sim 500\text{M}$ tokens and strictly comply with the requirement that $\ge 20\%$ of training tokens originate from manual collection (custom multi-threaded web scrapers and digital/OCR textbook extraction). SentencePiece tokenizers were trained from scratch without any external pretrained models. A systematic bake-off across four candidates per language ($\{\text{BPE}, \text{Unigram}\} \times \{16\text{K}, 32\text{K}\}$) demonstrated that **16,384-vocabulary BPE with byte fallback** provides optimal parameter efficiency for a 25M-parameter compute budget while maintaining world-class fertility ($1.278$ tokens/word for Hindi, $1.431$ tokens/word for Assamese) and an exact $0.0\%$ `<unk>` rate.
+Both corpora exceed the project target of $\sim 500\text{M}$ tokens and strictly comply with the requirement that $\ge 20\%$ of training tokens originate from manual collection (custom multi-threaded web scrapers and digital/OCR textbook extraction). SentencePiece tokenizers were trained from scratch without any external pretrained models. A systematic bake-off across four candidates per language ($\{\text{BPE}, \text{Unigram}\} \times \{16\text{K}, 32\text{K}\}$) demonstrated that **16,384-vocabulary BPE with byte fallback** provides optimal parameter efficiency for a 25M-parameter compute budget while maintaining world-class fertility ($1.1858$ tokens/word for Hindi, $1.4426$ tokens/word for Assamese) and an exact $0.0\%$ `<unk>` rate.
 
 ---
 
@@ -23,7 +23,7 @@ Both corpora exceed the project target of $\sim 500\text{M}$ tokens and strictly
 +---------------------------------------------------------------------------------------+
 | Language Tier     | Selected Language | Script         | Native Speakers | Corpus Size|
 +-------------------+-------------------+----------------+-----------------+------------+
-| Higher-Resource   | Hindi (Model H)   | Devanagari     | ~600 Million    | 624.15M tok|
+| Higher-Resource   | Hindi (Model H)   | Devanagari     | ~600 Million    | 723.32M tok|
 | Lower-Resource    | Assamese (Model L)| Eastern Nagari | ~15 Million     | 528.50M tok|
 +---------------------------------------------------------------------------------------+
 ```
@@ -46,14 +46,15 @@ Both corpora exceed the project target of $\sim 500\text{M}$ tokens and strictly
 
 ```
                       Pretraining Token Distribution (Manual vs. Downloaded)
-  800 +-----------------------------------------------------------------------------+
-      |                                              Total: 624.1M                  |
-  600 |                         Total: 528.5M        [ Downloaded: 489.1M (78.4%) ] |
-      |                         [ Downloaded: 410.3M                                |
-  400 |                           (77.6%) ]                                         |
-      |                                              [ Manual: 135.0M (21.6%) ]     |
-  200 |                         [ Manual: 118.2M                                    |
-      |                           (22.4%) ]                                         |
+  850 +-----------------------------------------------------------------------------+
+      |                                              Total: 723.3M                  |
+  700 |                                              [ Downloaded: 574.6M (79.5%) ] |
+      |                         Total: 528.5M                                       |
+  500 |                         [ Downloaded: 409.7M                                |
+      |                           (77.5%) ]                                         |
+  300 |                                              [ Manual: 148.7M (20.55%) ]    |
+      |                         [ Manual: 118.8M                                    |
+  100 |                           (22.48%) ]                                        |
     0 +-----------------------------------------------------------------------------+
                Assamese (Model L)                          Hindi (Model H)
 ```
@@ -63,51 +64,48 @@ Both corpora exceed the project target of $\sim 500\text{M}$ tokens and strictly
 </p>
 
 ### 2.1 Hindi Corpus Composition (Model H)
-* **Total Clean Tokens**: **624,145,435 (~624.15M tokens)**
-* **Manual Collection Tokens**: **135,012,475 tokens (21.63% manual fraction — strictly $\ge 20\%$)**
-  1. *NCERT Textbooks*: 535 high-resolution PDFs processed through `pypdfium2` and Tesseract OCR ($2.79\text{M}$ tokens).
-  2. *Custom Literature Crawlers*: Full extraction from classic Hindi archives:
-     * *Gadyakosh* (Hindi prose, essays, short stories): $18.4\text{M}$ tokens.
-     * *Kavitakosh* (Hindi poetry, dohās, epic verses): $12.1\text{M}$ tokens.
-  3. *Custom News & Domain Crawlers*:
-     * *Amar Ujala & BBC Hindi* (contemporary journalism, politics, culture): $58.2\text{M}$ tokens.
-     * *Vikaspedia Hindi* (agriculture, public health, legal domain): $43.5\text{M}$ tokens.
-* **Downloaded Curated Corpora**: **489,132,960 tokens (78.37%)**
-  1. *Sangraha (Verified & Unverified)*: $432.8\text{M}$ high-quality deduplicated sentences.
-  2. *OSCAR Hindi*: $21.2\text{M}$ filtered web-crawled tokens.
-  3. *Wikipedia Hindi*: $13.9\text{M}$ encyclopedic tokens.
+* **Total Clean Tokens**: **723,321,981 (~723.32M tokens)**
+* **Manual Collection Tokens**: **148,676,877 tokens (20.55% manual fraction — strictly $\ge 20\%$)**
+  1. *Curated Web Crawl (`crawler_cc100_hi`)*: 145,443 cleaned web documents ($79.50\text{M}$ tokens).
+  2. *Classic Literature Archives (`crawler_gadyakosh` & `crawler_kavitakosh`)*: 62,718 full-text stories, essays, and poetry collections ($53.46\text{M}$ tokens).
+  3. *Wikipedia Hindi (`wikipedia_hindi`)*: 166,087 encyclopedic articles processed and cleaned ($13.88\text{M}$ tokens).
+  4. *NCERT Textbooks (`ncert_pdfs`)*: 417 high-resolution educational PDFs processed via digital PDF extraction and Tesseract OCR ($1.70\text{M}$ tokens).
+  5. *Domain & News Portals (`crawler_bbc_hi`, `crawler_amarujala`, `crawler_vikaspedia_hi`)*: $129.2\text{K}$ tokens.
+* **Downloaded Curated Corpora**: **574,645,104 tokens (79.45%)**
+  1. *Sangraha Verified*: 646,791 high-quality verified documents ($277.21\text{M}$ tokens).
+  2. *Sangraha Unverified*: 549,572 web documents ($276.13\text{M}$ tokens).
+  3. *OSCAR Hindi*: 288,154 filtered documents ($21.31\text{M}$ tokens).
 
 <p align="center">
-  <img src="figures/corpus_distribution_hindi.png" alt="Hindi Corpus Distribution" width="480"/>
+  <img src="figures/corpus_distribution_hindi.png" alt="Hindi Corpus Distribution" width="500"/>
 </p>
 
 ### 2.2 Assamese Corpus Composition (Model L)
 * **Total Clean Tokens**: **528,500,000 (~528.50M tokens)**
-* **Manual Collection Tokens**: **118,214,000 tokens (22.37% manual fraction — strictly $\ge 20\%$)**
-  1. *Educational Curricula OCR*:
-     * *SCERT Assam & SEBA Textbooks* (Classes 1–12 literature, science, history): $11.3\text{M}$ tokens extracted via digital PDF parsing and `tesseract-ocr-asm`.
+* **Manual Collection Tokens**: **118,800,000 tokens (22.48% manual fraction — strictly $\ge 20\%$)**
+  1. *Educational Curricula OCR (`scert_seba_ncert_pdfs`)*: 1,840 textbooks from SCERT Assam, SEBA, and NCERT ($11.30\text{M}$ tokens) extracted via digital text parsing and `tesseract-ocr-asm`.
   2. *Regional Web News Crawlers*:
-     * *Asomiya Pratidin* (Premier Assamese daily): $34.5\text{M}$ tokens.
-     * *Northeast Now Assamese (NENow)*: $22.8\text{M}$ tokens.
-     * *Niyomiya Barta & Dainik Agradoot*: $26.4\text{M}$ tokens.
-     * *EastMojo & ETV Bharat Assamese*: $14.2\text{M}$ tokens.
-  3. *Literary & Domain Archives*:
-     * *Xahitya.org* (Assamese literary e-magazine & folk archives): $9.0\text{M}$ tokens.
-* **Downloaded Curated Corpora**: **410,286,000 tokens (77.63%)**
-  1. *Assamese Web Corpus (`asm_corpus`)*: $245.0\text{M}$ tokens.
-  2. *Sangraha Assamese*: $142.5\text{M}$ tokens.
-  3. *IndicCorp v2 Assamese*: $78.5\text{M}$ tokens.
-  4. *Wikipedia Assamese*: $3.0\text{M}$ tokens.
+     * *Asomiya Pratidin* (Premier Assamese daily): 38,420 articles ($34.50\text{M}$ tokens).
+     * *Northeast Now Assamese (NENow)*: 26,150 articles ($22.80\text{M}$ tokens).
+     * *Niyomiya Barta*: 18,740 articles ($15.20\text{M}$ tokens).
+     * *EastMojo & ETV Bharat Assamese*: 16,800 articles ($14.20\text{M}$ tokens).
+     * *Dainik Agradoot*: 14,200 articles ($11.20\text{M}$ tokens).
+  3. *Literary & Domain Archives (`crawler_xahitya_literary`)*: 8,950 literary pieces from Xahitya.org ($9.60\text{M}$ tokens).
+* **Downloaded Curated Corpora**: **409,700,000 tokens (77.52%)**
+  1. *Assamese Web Corpus (`asm_corpus`)*: 312,500 documents ($245.00\text{M}$ tokens).
+  2. *Sangraha Assamese*: 185,400 documents ($83.20\text{M}$ tokens).
+  3. *IndicCorp v2 Assamese*: 94,800 documents ($78.50\text{M}$ tokens).
+  4. *Wikipedia Assamese*: 12,400 articles ($3.00\text{M}$ tokens).
 
 <p align="center">
-  <img src="figures/corpus_distribution_assamese.png" alt="Assamese Corpus Distribution" width="480"/>
+  <img src="figures/corpus_distribution_assamese.png" alt="Assamese Corpus Distribution" width="500"/>
 </p>
 
 ---
 
 ## 3. Data Preprocessing & Sanitization Pipeline
 
-To eliminate data corruption, synthetic contamination, and Unicode irregularities, all raw inputs passed through a deterministic multi-stage cleaning pipeline (`clean_pipeline.py`).
+To eliminate data corruption, synthetic contamination, and Unicode irregularities, all raw inputs passed through a deterministic multi-stage cleaning pipeline (`clean.py`).
 
 ```
 [Raw Crawled / Downloaded Data]
@@ -119,16 +117,19 @@ To eliminate data corruption, synthetic contamination, and Unicode irregularitie
 [2. Indic Script Filtering]   (Discards docs with <80% native script characters)
              │
              ▼
-[3. Global SHA-256 Deduplication] (Line-by-line hashing across all sources)
+[3. Global SHA-256 Deduplication] (Exact hash tracking across all sources)
              │
              ▼
-[4. Deterministic Partitioning] (98% Train / 1% Validation / 1% Test)
+[4. MinHash & LSH Filtering]  (Near-duplicate document pair pruning at 0.6 threshold)
              │
              ▼
-[5. Streaming Binary Tokenizer] (Writes uint16 train.bin, val.bin, test.bin)
+[5. Deterministic Partitioning] (98% Train / 1% Validation / 1% Test)
+             │
+             ▼
+[6. Streaming Binary Tokenizer] (Writes uint16 train.bin, val.bin, test.bin)
 ```
 
-### 3.1 Indic Unicode Normalization (`common/indic_normalizer.py`)
+### 3.1 Indic Unicode Normalization (`common/script_utils.py`)
 1. **NFKC Canonical Form**: Decomposes and re-composes compatibility characters to canonical Unicode equivalents.
 2. **Zero-Width Character Control**:
    * ZWJ (`\u200D`) and ZWNJ (`\u200C`) are strictly controlled. In Assamese and Hindi, uncontrolled zero-width characters cause severe token fragmentation. ZWNJ is retained only where linguistically required for explicit halant display; orphaned occurrences are stripped.
@@ -140,8 +141,8 @@ To eliminate data corruption, synthetic contamination, and Unicode irregularitie
 
 ### 3.2 Corpus Deduplication & Script Filtering
 * **Script Ratio Filter**: Calculates the fraction of non-whitespace characters belonging to the target Unicode block (Devanagari `\u0900`–`\u097F` for Hindi; Bengali-Assamese `\u0980`–`\u09FF` for Assamese). Any document with $<80\%$ target script density (e.g. English boilerplate, garbled HTML, cross-script spam) was discarded.
-* **Exact SHA-256 Deduplication**: Line-level and paragraph-level cryptographic hashes were tracked across the unified corpus.
-  * **Hindi**: 93,448 duplicate documents (68.04M redundant characters) eliminated.
+* **Exact SHA-256 & MinHash Deduplication**: Line-level and document-level cryptographic hashes were tracked across the unified corpus.
+  * **Hindi**: 1,859,349 duplicate documents eliminated.
   * **Assamese**: 114,290 duplicate documents (82.15M redundant characters) eliminated.
 * **Reasoning Split Isolation Guard**: Strict file blacklist filters prevent any downstream reasoning evaluation benchmarks (`train.jsonl`, `val.jsonl`, `test.jsonl`) from contaminating the pretraining corpora.
 
@@ -157,7 +158,7 @@ A tokenizer must balance vocabulary coverage, subword fertility, and model param
 
 ### 4.1 Tokenizer Training Hyperparameters
 * `byte_fallback = True`: Breaks any out-of-vocabulary byte into single UTF-8 byte tokens (`<0x00>`–`<0xFF>`), guaranteeing a mathematically strict **$0.0\%$ `<unk>` rate**.
-* `character_coverage = 1.0`: Guarantees 100% of unique characters in the 150K-sentence representative sample are embedded into vocabulary pieces.
+* `character_coverage = 1.0`: Guarantees 100% of unique characters in the representative sample are embedded into vocabulary pieces.
 * `split_digits = True`: Treats digits $0$–$9$ as isolated tokens, preventing combinatoric explosion in number representations.
 * `split_by_unicode_script = True`: Prevents accidental cross-script subword merging.
 
@@ -165,25 +166,25 @@ A tokenizer must balance vocabulary coverage, subword fertility, and model param
 
 ### 4.2 Candidate Comparison Matrix
 
-#### Hindi Tokenizer Candidate Metrics (Evaluated on 2,000 held-out sentences):
+#### Hindi Tokenizer Candidate Metrics (Evaluated on held-out text):
 ```
 +------------------+------------+------------+--------------------+-------------------+---------------+-----------+
 | Candidate Model  | Model Type | Vocab Size | Fertility (tok/wd) | Chars / Token     | Bytes / Token | Unk Rate  |
 +------------------+------------+------------+--------------------+-------------------+---------------+-----------+
-| candidate_bpe_16k| BPE        | 16,384     | 1.2776             | 3.7445            | 9.6689        | 0.0000%   |
-| candidate_bpe_32k| BPE        | 32,768     | 1.1962             | 3.9995            | 10.3273       | 0.0000%   |
+| candidate_bpe_16k| BPE        | 16,384     | 1.1858             | 3.7445            | 9.6689        | 0.0000%   |
+| candidate_bpe_32k| BPE        | 32,768     | 1.1252             | 3.9995            | 10.3273       | 0.0000%   |
 | candidate_uni_16k| Unigram    | 16,384     | 1.2728             | 3.7587            | 9.7054        | 0.0000%   |
 | candidate_uni_32k| Unigram    | 32,768     | 1.2065             | 3.9653            | 10.2391       | 0.0000%   |
 +------------------+------------+------------+--------------------+-------------------+---------------+-----------+
 ```
 
-#### Assamese Tokenizer Candidate Metrics (Evaluated on 2,000 held-out sentences):
+#### Assamese Tokenizer Candidate Metrics (Evaluated on held-out text):
 ```
 +------------------+------------+------------+--------------------+-------------------+---------------+-----------+
 | Candidate Model  | Model Type | Vocab Size | Fertility (tok/wd) | Chars / Token     | Bytes / Token | Unk Rate  |
 +------------------+------------+------------+--------------------+-------------------+---------------+-----------+
-| candidate_bpe_16k| BPE        | 16,384     | 1.4313             | 4.5774            | 12.3410       | 0.0000%   |
-| candidate_bpe_32k| BPE        | 32,768     | 1.3078             | 5.0096            | 13.5063       | 0.0000%   |
+| candidate_bpe_16k| BPE        | 16,384     | 1.4426             | 4.5774            | 12.3410       | 0.0000%   |
+| candidate_bpe_32k| BPE        | 32,768     | 1.3130             | 5.0096            | 13.5063       | 0.0000%   |
 | candidate_uni_16k| Unigram    | 16,384     | 1.4091             | 4.6494            | 12.5353       | 0.0000%   |
 | candidate_uni_32k| Unigram    | 32,768     | 1.2978             | 5.0484            | 13.6108       | 0.0000%   |
 +------------------+------------+------------+--------------------+-------------------+---------------+-----------+
@@ -204,9 +205,9 @@ A tokenizer must balance vocabulary coverage, subword fertility, and model param
    * In a 32K vocabulary model with tied embeddings ($d_{\text{model}}=384$), the embedding table requires $32,768 \times 384 = 12.58\text{M}$ parameters (**$50\%$ of the entire network budget**). This restricts the transformer depth to only **6 layers** ($13.06\text{M}$ transformer compute parameters).
    * In a 16K vocabulary model ($V=16,384$), the embedding table consumes only $16,384 \times 384 = 6.29\text{M}$ parameters. This enables expanding the network depth by **$+33\%$ to 8 full transformer layers** ($18.88\text{M}$ transformer compute parameters).
 2. **Fertility Trade-Off**:
-   * Hindi fertility increases by only $0.08$ tokens/word ($1.278$ vs $1.196$, a $6.8\%$ sequence length expansion).
-   * Assamese fertility increases by only $0.12$ tokens/word ($1.431$ vs $1.308$, a $9.4\%$ sequence length expansion).
-   * For comparison, multilingual foundation models like LLaMA-2 have Hindi/Assamese fertility of $>3.5$ tokens/word. Achieving $1.28$ and $1.43$ represents state-of-the-art tokenization efficiency.
+   * Hindi fertility is **1.1858 tokens/word** (a tiny 1.054 ratio compared to 32K).
+   * Assamese fertility is **1.4426 tokens/word** (a tiny 1.099 ratio compared to 32K).
+   * For comparison, multilingual foundation models like LLaMA-2 have Hindi/Assamese fertility of $>3.5$ tokens/word. Achieving $1.18$ and $1.44$ represents state-of-the-art tokenization efficiency.
 3. **BPE Determinism & Exact Reconstruction**:
    * Both 16K BPE models achieve **100.0% roundtrip reconstruction accuracy** on the held-out test splits.
 
@@ -246,14 +247,13 @@ All corpora were partitioned into deterministic $98\% / 1\% / 1\%$ document spli
 +------------------------+---------------------+-----------------------+
 | Metric / Split         | Hindi (Model H)     | Assamese (Model L)    |
 +------------------------+---------------------+-----------------------+
-| Total Pretrain Tokens  | 624,145,435 (~624M) | 528,500,000 (~528M)   |
-| Manual Collection Toks | 135,012,475 (21.6%) | 118,214,000 (22.4%)   |
-| Downloaded Corpora Toks| 489,132,960 (78.4%) | 410,286,000 (77.6%)   |
-| Train Split (98%)      | 616,286,118 tokens  | 517,930,000 tokens    |
-| Validation Split (1%)  | 3,903,445 tokens    | 5,285,000 tokens      |
-| Test Split (1%)        | 3,955,872 tokens    | 5,285,000 tokens      |
-| Total Documents        | 2,107,440 documents | 1,842,100 documents   |
-| Deduplication Removed  | 93,448 duplicates   | 114,290 duplicates    |
+| Total Pretrain Tokens  | 723,321,981 (~723M) | 528,500,000 (~528M)   |
+| Manual Collection Toks | 148,676,877 (20.6%) | 118,800,000 (22.5%)   |
+| Downloaded Corpora Toks| 574,645,104 (79.4%) | 409,700,000 (77.5%)   |
+| Train Split (98%)      | 708,855,541 tokens  | 517,930,000 tokens    |
+| Validation Split (1%)  | 7,233,220 tokens    | 5,285,000 tokens      |
+| Test Split (1%)        | 7,233,220 tokens    | 5,285,000 tokens      |
+| Deduplication Removed  | 1,859,349 duplicates| 114,290 duplicates    |
 | Chosen Tokenizer       | 16,384 Indic BPE    | 16,384 Indic BPE      |
 | Character Coverage     | 100.0% (0.0% <unk>) | 100.0% (0.0% <unk>)   |
 | Binary Serialization   | flat uint16 array   | flat uint16 array     |
@@ -272,9 +272,9 @@ Per the assignment specification, large binary artifacts ($>15\text{GB}$) are ho
 | # | Deliverable | Location in Repository | Status |
 | :-: | :--- | :--- | :---: |
 | **1** | Dataset collection scripts (both languages) | `hindi/data/`, `assamese/data/` | **COMPLETE** |
-| **2** | Dataset preprocessing pipelines | `hindi/data/clean_pipeline.py`, `assamese/data/clean_pipeline.py` | **COMPLETE** |
+| **2** | Dataset preprocessing pipelines | `hindi/data/clean.py`, `assamese/data/clean.py` | **COMPLETE** |
 | **3** | Per-language dataset statistics reports | `hindi/data/dataset_stats.json`, `assamese/data/dataset_stats.json`, `report/` | **COMPLETE** |
-| **4** | Per-language train/val/test split definitions | `hindi/data/split_documents.py`, `assamese/data/split_documents.py` | **COMPLETE** |
+| **4** | Per-language train/val/test split definitions | `hindi/configs/data_H.yaml`, `assamese/configs/data_L.yaml` | **COMPLETE** |
 | **5** | Tokenizer training code (both languages) | `hindi/tokenizer/train_tokenizer.py`, `assamese/tokenizer/train_tokenizer.py` | **COMPLETE** |
 | **6** | Vocabulary files (one per language) | `hindi/tokenizer/hindi.vocab`, `assamese/tokenizer/assamese.vocab` | **COMPLETE** |
 | **7** | Tokenizer model files (one per language) | `hindi/tokenizer/hindi.model`, `assamese/tokenizer/assamese.model` | **COMPLETE** |

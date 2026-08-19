@@ -27,15 +27,15 @@ This repository contains the complete, independent data collection, preprocessin
 | Metric / Attribute       | Hindi (Model H)            | Assamese (Model L)         |
 +--------------------------+----------------------------+----------------------------+
 | Script                   | Devanagari (U+0900-U+097F) | Eastern Nagari (U+0980..)  |
-| Total Pretraining Tokens | 624,145,435 (~624.15M)     | 528,500,000 (~528.50M)     |
-| Manual Collection Tokens | 135,012,475 (21.63%)       | 118,214,000 (22.37%)       |
-| Downloaded Corpora Tokens| 489,132,960 (78.37%)       | 410,286,000 (77.63%)       |
+| Total Pretraining Tokens | 723,321,981 (~723.32M)     | 528,500,000 (~528.50M)     |
+| Manual Collection Tokens | 148,676,877 (20.55%)       | 118,800,000 (22.48%)       |
+| Downloaded Corpora Tokens| 574,645,104 (79.45%)       | 409,700,000 (77.52%)       |
 | Manual Requirement Met?  | YES (>= 20.0% required)    | YES (>= 20.0% required)    |
 | Train / Val / Test Split | 98% / 1% / 1%              | 98% / 1% / 1%              |
 | Tokenizer Algorithm      | SentencePiece BPE          | SentencePiece BPE          |
 | Vocabulary Size          | 16,384 pieces              | 16,384 pieces              |
 | Unknown Token Rate (<unk>| 0.000000%                  | 0.000000%                  |
-| Subword Fertility        | 1.2776 tokens / word       | 1.4313 tokens / word       |
+| Subword Fertility        | 1.1858 tokens / word       | 1.4426 tokens / word       |
 | Compression Ratio        | 3.7445 chars / token       | 4.5774 chars / token       |
 | Roundtrip Accuracy       | 100.0% exact               | 100.0% exact               |
 +--------------------------+----------------------------+----------------------------+
@@ -48,7 +48,7 @@ This repository contains the complete, independent data collection, preprocessin
 Per the course instructions, large binary artifacts ($>15\text{ GB}$ raw corpora, flat memmap `train.bin`, `val.bin`, `test.bin`) are hosted in public Kaggle artifact datasets to prevent git repository bloat:
 
 * **Hindi Artifacts Dataset**: [https://www.kaggle.com/datasets/shubhadeepmandal/lma-hindi-artifacts](https://www.kaggle.com/datasets/shubhadeepmandal/lma-hindi-artifacts)
-  * Contains: Clean deduplicated JSONL files, `hindi.model`, `hindi.vocab`, `train.bin` (1.2 GB), `val.bin`, `test.bin`.
+  * Contains: Clean deduplicated JSONL files, `hindi.model`, `hindi.vocab`, `train.bin` (1.4 GB), `val.bin`, `test.bin`.
 * **Assamese Artifacts Dataset**: [https://www.kaggle.com/datasets/shubhadeepmandal/lma-assamese-artifact](https://www.kaggle.com/datasets/shubhadeepmandal/lma-assamese-artifact)
   * Contains: Clean deduplicated JSONL files, `assamese.model`, `assamese.vocab`, `train.bin` (1.0 GB), `val.bin`, `test.bin`.
 
@@ -75,9 +75,8 @@ Per the course instructions, large binary artifacts ($>15\text{ GB}$ raw corpora
 │   │   └── data_H.yaml                # Preprocessing & split configuration
 │   ├── data/
 │   │   ├── crawler.py                 # Multi-threaded web crawlers (literature & news)
-│   │   ├── download_corpora.py        # Curated public dataset fetchers
-│   │   ├── ocr_extract.py             # NCERT PDF digital extraction & Tesseract OCR
-│   │   ├── clean_pipeline.py          # Indic normalization & SHA-256 deduplication
+│   │   ├── collect.py                 # Automated corpus ingestion & download pipeline
+│   │   ├── clean.py                   # Indic normalization & SHA-256 deduplication
 │   │   ├── split_documents.py         # 98/1/1 document partitioning
 │   │   ├── make_token_bins.py         # Flat uint16 memmap binary encoder
 │   │   ├── dataset_stats.py           # Corpus statistics & audit calculator
@@ -95,9 +94,8 @@ Per the course instructions, large binary artifacts ($>15\text{ GB}$ raw corpora
 │   │   └── data_L.yaml
 │   ├── data/
 │   │   ├── crawler.py
-│   │   ├── download_corpora.py
-│   │   ├── ocr_extract.py
-│   │   ├── clean_pipeline.py
+│   │   ├── collect.py
+│   │   ├── clean.py
 │   │   ├── split_documents.py
 │   │   ├── make_token_bins.py
 │   │   ├── dataset_stats.py
@@ -111,8 +109,13 @@ Per the course instructions, large binary artifacts ($>15\text{ GB}$ raw corpora
 │       └── tokenizer_comparison.json
 └── common/
     ├── __init__.py
-    ├── indic_normalizer.py            # Reusable Indic script normalization engine
-    └── text_utils.py                  # Character coverage & script regex utilities
+    ├── script_utils.py                # Reusable Indic script normalization engine
+    ├── minhash.py                     # MinHash & LSH near-duplicate deduplication
+    ├── ocr.py                         # OCR extraction engine & PDF rasterizer
+    ├── checkpoint.py                  # PyTorch checkpointing engine
+    ├── metrics.py                     # Evaluation metrics (BLEU, chrF, ROUGE-L, PPL, BPB)
+    ├── pdf_io.py                      # PDF downloader and digital parser
+    └── hf_io.py                       # HuggingFace & Kaggle streaming data readers
 ```
 
 ---
@@ -146,10 +149,10 @@ python -m assamese.data.crawler --out-dir assamese/data/raw --workers 8
 ### 3. Running Preprocessing, Normalization & Deduplication
 ```bash
 # Hindi data sanitization & deduplication
-python -m hindi.data.clean_pipeline --raw-dir hindi/data/raw --out-dir hindi/data/clean
+python -m hindi.data.clean --raw-dir hindi/data/raw --out-dir hindi/data/clean
 
 # Assamese data sanitization & deduplication
-python -m assamese.data.clean_pipeline --raw-dir assamese/data/raw --out-dir assamese/data/clean
+python -m assamese.data.clean --raw-dir assamese/data/raw --out-dir assamese/data/clean
 ```
 
 ---
