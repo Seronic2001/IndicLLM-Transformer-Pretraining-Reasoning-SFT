@@ -1,4 +1,4 @@
-"""Evaluation metrics — pure functions, no model code (AGENT_BUILD_SPEC §3 Agent-E).
+"""Evaluation metrics — pure functions, no model code .
 
 BLEU / chrF / ROUGE-L are delegated to the standard libraries (sacrebleu, rouge-score)
 for correctness and reproducibility, pinned in ``requirements.txt``. For Devanagari /

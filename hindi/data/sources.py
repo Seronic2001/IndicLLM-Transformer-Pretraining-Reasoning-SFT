@@ -1,4 +1,4 @@
-"""Real Hindi corpus sources for ``data/collect.py`` (Agent-A, Kaggle-ready).
+"""Real Hindi corpus sources for ``data/collect.py`` (pipeline, Kaggle-ready).
 
 ``--source-module hindi.data.sources`` loads ``SOURCES`` below. Every source is
 either a :class:`KaggleDatasetSource` (public Kaggle Dataset, pulled via the

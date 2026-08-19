@@ -1,4 +1,4 @@
-"""Resumable corpus collection orchestrator (Agent-A).
+"""Resumable corpus collection orchestrator .
 
 Every long-running collection job on Kaggle must survive interruption, so this
 module's core contract is:
@@ -422,7 +422,7 @@ class Collector:
         }
 
     def _write_sources_jsonl(self, sources: list[Source]) -> None:
-        """Companion sources.jsonl (Agent-A): one line per source, tagged type."""
+        """Companion sources.jsonl : one line per source, tagged type."""
         path = self.data_dir / "sources.jsonl"
         self.data_dir.mkdir(parents=True, exist_ok=True)
         with open(path, "w", encoding="utf-8") as f:
@@ -438,7 +438,7 @@ class Collector:
 
 def main(argv: Optional[list[str]] = None) -> int:
     parser = argparse.ArgumentParser(
-        description="Run the resumable corpus collection (Agent-A). Fetchers are "
+        description="Run the resumable corpus collection . Fetchers are "
                     "defined in a notebook/module that imports this; the CLI "
                     "--source-module option loads them."
     )
@@ -478,7 +478,7 @@ def example_sources() -> list[Source]:
 
     Each real fetch should be a resumable downloader (e.g. huggingface_hub /
     requests streaming to a cache dir) yielding (doc_id, text). Implementations
-    live per-language (Agent-A notebooks) and are out of scope for local runs.
+    live per-language (pipelinenotebooks) and are out of scope for local runs.
     """
 
     def _not_implemented() -> list[tuple[str, str]]:

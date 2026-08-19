@@ -1,8 +1,8 @@
-"""Convert splits into flat token-id .bin files (Agent-A output contract).
+"""Convert splits into flat token-id .bin files (pipelineoutput contract).
 
 Reads splits/{train,val,test}.jsonl (or .txt) and the trained tokenizer, writes
 ``{train,val,test}.bin`` as raw uint16 arrays (vocab < 65536) — the exact input
-the Agent-D ``TokenDataset`` consumes via numpy.memmap.
+the pipeline``TokenDataset`` consumes via numpy.memmap.
 
 Resumable: skips a split whose .bin already exists unless --force is given.
 """
@@ -207,7 +207,7 @@ def tokenize_clean_dir_to_bins(
 
 
 def main(argv: Optional[list[str]] = None) -> int:
-    parser = argparse.ArgumentParser(description="Make train/val/test .bin files (Agent-A)")
+    parser = argparse.ArgumentParser(description="Make train/val/test .bin files ")
     parser.add_argument("--tokenizer", required=True, help="path to <lang>.model")
     parser.add_argument("--splits-dir", help="data/splits/")
     parser.add_argument("--clean-dir", help="data/clean/ (direct single-pass streaming without intermediate splits)")

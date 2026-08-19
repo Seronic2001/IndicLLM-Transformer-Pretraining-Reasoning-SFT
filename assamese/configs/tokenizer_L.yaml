@@ -1,4 +1,4 @@
-# Assamese tokenizer — SentencePiece with Indic Enhancements & BPE/Unigram Support (AGENT_BUILD_SPEC §3 Agent-B)
+# Assamese tokenizer — SentencePiece with Indic Enhancements & BPE/Unigram Support 
 model_type: bpe                 # default baseline; overridden or compared in train_tokenizer.py
 vocab_size: 32768               # candidate {16384, 32768}; decided via fertility on val.txt
 byte_fallback: true             # critical for Assamese: smaller corpus, rarer glyphs

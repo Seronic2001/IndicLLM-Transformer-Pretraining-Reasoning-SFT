@@ -1,4 +1,4 @@
-"""Assamese Web Crawler for Manual Corpus (Agent-A / 20% Manual Effort).
+"""Assamese Web Crawler for Manual Corpus (pipeline/ 20% Manual Effort).
 
 Target: Collect authentic, high-quality Assamese text (~100M tokens, ~2-3 GB)
 strictly avoiding Wikipedia (already collected in downloaded/manual dumps).

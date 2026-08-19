@@ -6,11 +6,11 @@ interpreter. Credentials are read from ``~/.kaggle/kaggle.json`` (API key) or
 ``~/.kaggle/credentials.json`` (OAuth — used by ``kaggle auth login``).
 
 Used for two things in this project:
-  * ``datasets download``  — pull public corpora (Agent-A data collection).
+  * ``datasets download``  — pull public corpora (pipelinedata collection).
   * ``datasets version``   — persist training checkpoints across Kaggle sessions
-    by committing them as new versions of a Kaggle Dataset (Agent-D). Commits are
+    by committing them as new versions of a Kaggle Dataset . Commits are
     always explicit (opt-in flag) and recorded in the checkpoint manifest so
-    nothing is pushed silently (spec §3 Agent-D / §5.2).
+    nothing is pushed silently (spec §3 pipeline/ §5.2).
 
 All wrappers are pure subprocess plumbing — easily unit-tested offline by
 monkeypatching ``subprocess.run`` / the credentials lookup.

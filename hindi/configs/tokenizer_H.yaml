@@ -1,4 +1,4 @@
-# Hindi tokenizer — SentencePiece with Indic Enhancements & BPE/Unigram Support (AGENT_BUILD_SPEC §3 Agent-B)
+# Hindi tokenizer — SentencePiece with Indic Enhancements & BPE/Unigram Support 
 model_type: bpe                 # default baseline; overridden or compared in train_tokenizer.py
 vocab_size: 32768               # matches model_H.yaml; candidate {16384, 32768} decided via fertility
 byte_fallback: true             # zero <unk> on anything, even unseen conjuncts
