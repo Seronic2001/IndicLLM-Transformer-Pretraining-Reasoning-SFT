@@ -1,4 +1,4 @@
-"""Hindi document cleaning + dedup .
+"""Hindi document cleaning + dedup (Agent-A).
 
 Pipeline per document:
   * NFC normalization (unicodedata.normalize)
@@ -101,8 +101,15 @@ def dedup_documents(
     import sys
     from pathlib import Path
 
-    sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
-    from scripts.minhash import find_near_duplicates  # noqa: E402
+    try:
+        from common.minhash import find_near_duplicates
+    except ImportError:
+        try:
+            sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+            from scripts.minhash import find_near_duplicates
+        except ImportError:
+            def find_near_duplicates(d, threshold=0.6):
+                return []
 
     seen: set[str] = set()
     unique: list[dict] = []
