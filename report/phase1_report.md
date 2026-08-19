@@ -268,7 +268,6 @@ Per the assignment specification, large binary artifacts ($>15\text{GB}$) are ho
 
 * **Hindi Artifact Dataset**: [`kaggle.com/datasets/shubhadeepmandal/lma-hindi-artifacts`](https://www.kaggle.com/datasets/shubhadeepmandal/lma-hindi-artifacts)
 * **Assamese Artifact Dataset**: [`kaggle.com/datasets/shubhadeepmandal/lma-assamese-artifact`](https://www.kaggle.com/datasets/shubhadeepmandal/lma-assamese-artifact)
-* **Sanitized Decontaminated Sources**: [`kaggle.com/datasets/shubhadeepmandal/lma-clean-hindi-artifacts`](https://www.kaggle.com/datasets/shubhadeepmandal/lma-clean-hindi-artifacts) & [`kaggle.com/datasets/shubhadeepmandal/lma-clean-assamese-artifacts`](https://www.kaggle.com/datasets/shubhadeepmandal/lma-clean-assamese-artifacts)
 
 | # | Deliverable | Location in Repository | Status |
 | :-: | :--- | :--- | :---: |

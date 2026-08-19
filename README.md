@@ -51,9 +51,6 @@ Per the course instructions, large binary artifacts ($>15\text{ GB}$ raw corpora
   * Contains: Clean deduplicated JSONL files, `hindi.model`, `hindi.vocab`, `train.bin` (1.2 GB), `val.bin`, `test.bin`.
 * **Assamese Artifacts Dataset**: [https://www.kaggle.com/datasets/shubhadeepmandal/lma-assamese-artifact](https://www.kaggle.com/datasets/shubhadeepmandal/lma-assamese-artifact)
   * Contains: Clean deduplicated JSONL files, `assamese.model`, `assamese.vocab`, `train.bin` (1.0 GB), `val.bin`, `test.bin`.
-* **Sanitized Source Corpora**:
-  * [Hindi Clean Corpora](https://www.kaggle.com/datasets/shubhadeepmandal/lma-clean-hindi-artifacts)
-  * [Assamese Clean Corpora](https://www.kaggle.com/datasets/shubhadeepmandal/lma-clean-assamese-artifacts)
 
 ---
 
