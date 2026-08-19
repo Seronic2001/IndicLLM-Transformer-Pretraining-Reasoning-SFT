@@ -1,16 +1,18 @@
-# Assamese tokenizer — SentencePiece with Indic Enhancements & BPE/Unigram Support 
-model_type: bpe                 # default baseline; overridden or compared in train_tokenizer.py
-vocab_size: 32768               # candidate {16384, 32768}; decided via fertility on val.txt
-byte_fallback: true             # critical for Assamese: smaller corpus, rarer glyphs
-character_coverage: 1.0         # 100% coverage guarantees zero dropped Indic glyphs
-split_digits: true              # isolate digits to save thousands of vocabulary slots
-split_by_unicode_script: true   # prevent cross-script token merges
-split_by_whitespace: true       # treat whitespace as token boundary
-normalization_rule_name: nfkc   # canonical Unicode normalization
+# Assamese Tokenizer Configuration — SentencePiece BPE with Indic Enhancements
+model_type: bpe                 # Optimal algorithm selected from candidate bake-off
+vocab_size: 16384               # Primary selected vocabulary size (16K Indic BPE)
+byte_fallback: true             # Critical for lower-resource script: guarantees zero <unk> rate
+character_coverage: 1.0         # 100% coverage ensures all Eastern Nagari glyphs are embedded
+split_digits: true              # Isolates numerical digits 0-9 to prevent token fragmentation
+split_by_unicode_script: true   # Prevents cross-script subword merging
+split_by_whitespace: true       # Enforces whitespace as token boundary
+normalization_rule_name: nfkc   # Canonical Unicode normalization
 pad_id: 0
 unk_id: 1
 bos_id: 2
 eos_id: 3
-input_sentence_size: 2000000
+input_sentence_size: 2000000    # Representative corpus subsample cap for SentencePiece training
+
+# Candidate Search Space for Tokenizer Bake-off
 candidate_vocab_sizes: [16384, 32768]
 candidate_model_types: ["bpe", "unigram"]
