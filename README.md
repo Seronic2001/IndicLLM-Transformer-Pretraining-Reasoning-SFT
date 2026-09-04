@@ -67,10 +67,13 @@ Empirical testing proves that **Modern V2-16K** is the best performing model acr
 | **Assamese (Model L)** | **Modern V2-16K (Best)** | **4.1578** | **63.93** | **4.3935** | **80.93** | **0.5049** | **YES (Winner)** |
 | Assamese (Model L) | Baseline V1-16K | 4.5171 | 91.57 | 4.7920 | 120.54 | 0.5641 | Baseline |
 
-* **Pretrained Checkpoint Downloads (Google Drive, anyone-with-link):**
-  * Hindi Modern V2-16K `best.pt`: `TODO-drive-hindi-v2-16k-best`
-  * Assamese Modern V2-16K `best.pt`: `TODO-drive-assamese-v2-16k-best`
-  * Local provenance (pre-upload): `Kaggle outpts/modern architecure/phase216vocabmodelshindi.zip` and `phase216vobabmodelsassamese.zip` → `checkpoints/best.pt`.
+* **Pretrained Checkpoints & Artifacts Dataset (Kaggle Public Dataset):**
+  * **Public Dataset URL:** [https://www.kaggle.com/datasets/shubhadeepmandal/lma-phase2-artifacts](https://www.kaggle.com/datasets/shubhadeepmandal/lma-phase2-artifacts)
+  * **Hindi Modern V2-16K `best.pt`:** `best_checkpoints/hindi_v2_modern_16k_best.pt` (Val Loss: 3.7624, PPL: 43.05)
+  * **Assamese Modern V2-16K `best.pt`:** `best_checkpoints/assamese_v2_modern_16k_best.pt` (Val Loss: 4.1578, PPL: 63.93)
+  * **Hindi Baseline V1-16K `best.pt`:** `best_checkpoints/hindi_v1_baseline_best.pt` (Val Loss: 4.1250, PPL: 61.87)
+  * **Assamese Baseline V1-16K `best.pt`:** `best_checkpoints/assamese_v1_baseline_best.pt` (Val Loss: 4.5171, PPL: 91.57)
+  * *Also includes intermediate trajectory snapshots (`ckpt_500.pt`, `ckpt_1000.pt`, `ckpt_1500.pt`, `ckpt_1907.pt`), step-by-step training logs (`train_log.json`), and comprehensive markdown reports.*
 * **Tokenizers:** Canonical Phase-1 16K BPE tokenizers in `hindi/tokenizer/hindi.model` and `assamese/tokenizer/assamese.model` (exact match to 16K models).
 * **Evaluation Reproduction:**
 ```bash

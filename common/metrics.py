@@ -129,7 +129,11 @@ def rouge_l(
     if len(hypotheses) == 0:
         return 0.0
 
-    scorer = rouge_scorer.RougeScorer(["rougeL"], use_stemmer=False)
+    class _WhitespaceTokenizer:
+        def tokenize(self, text: str) -> list[str]:
+            return text.strip().split()
+
+    scorer = rouge_scorer.RougeScorer(["rougeL"], use_stemmer=False, tokenizer=_WhitespaceTokenizer())
     f1_sum = sum(
         scorer.score(ref, hyp)["rougeL"].fmeasure
         for hyp, ref in zip(hypotheses, references)
