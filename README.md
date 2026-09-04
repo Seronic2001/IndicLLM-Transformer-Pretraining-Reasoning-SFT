@@ -163,10 +163,10 @@ python -m assamese.eval.attention_analysis --checkpoint <assamese-best.pt> \
 
 ### 1. Environment Setup
 ```bash
-# Clone the repository and switch to phase-1 branch
+# Clone the repository and switch to phase-2 branch
 git clone https://github.com/Language-Models-and-Agents-2026/individual-project-Seronic2001.git
 cd individual-project-Seronic2001
-git checkout phase-1
+git checkout phase-2
 
 # Install dependencies
 pip install -r requirements.txt
@@ -239,5 +239,126 @@ python -m assamese.data.make_token_bins --splits-dir assamese/data/splits --toke
 
 ---
 
-## 📑 Full Phase 1 Report
-For the complete technical report with in-depth linguistic justifications, Unicode normalization equations, deduplication graphs, and tokenizer parameter trade-offs, see **[`report/phase1_report.md`](report/phase1_report.md)**.
+### 7. Pretraining 16K Transformer Language Models (500M Tokens)
+
+#### A. Pretrain Modern V2-16K (RoPE + SwiGLU + RMSNorm — Selected Winner)
+```bash
+# Hindi Modern V2-16K (Model H: 8 layers, 25.17M params)
+python -m hindi.train.train \
+    --model-config hindi/configs/model_H_v2.yaml \
+    --train-config hindi/configs/train_H.yaml \
+    --train-data hindi/data/train.bin \
+    --val-data hindi/data/val.bin \
+    --checkpoint-dir hindi/train/checkpoints_v2
+
+# Assamese Modern V2-16K (Model L: 8 layers, 25.17M params)
+python -m assamese.train.train \
+    --model-config assamese/configs/model_L_v2.yaml \
+    --train-config assamese/configs/train_L.yaml \
+    --train-data assamese/data/train.bin \
+    --val-data assamese/data/val.bin \
+    --checkpoint-dir assamese/train/checkpoints_v2
+```
+
+#### B. Pretrain Baseline V1-16K (First-Principles Pre-LN + GELU + Learned Pos)
+```bash
+# Hindi Baseline V1-16K (Model H: 8 layers, 24.98M params)
+python -m hindi.train.train \
+    --model-config hindi/configs/model_H_16k.yaml \
+    --train-config hindi/configs/train_H.yaml \
+    --train-data hindi/data/train.bin \
+    --val-data hindi/data/val.bin \
+    --checkpoint-dir hindi/train/checkpoints_v1
+
+# Assamese Baseline V1-16K (Model L: 8 layers, 24.98M params)
+python -m assamese.train.train \
+    --model-config assamese/configs/model_L_16k.yaml \
+    --train-config assamese/configs/train_L.yaml \
+    --train-data assamese/data/train.bin \
+    --val-data assamese/data/val.bin \
+    --checkpoint-dir assamese/train/checkpoints_v1
+```
+
+#### C. Resuming Training from Checkpoints (Fault-Tolerance)
+```bash
+# Resume training from an intermediate snapshot (restores weights, AdamW states, scheduler, and RNG)
+python -m hindi.train.train \
+    --model-config hindi/configs/model_H_v2.yaml \
+    --train-config hindi/configs/train_H.yaml \
+    --train-data hindi/data/train.bin \
+    --val-data hindi/data/val.bin \
+    --checkpoint-dir hindi/train/checkpoints_v2 \
+    --resume-path hindi/train/checkpoints_v2/ckpt_1000.pt
+```
+
+---
+
+### 8. Intrinsic Evaluation & Generation Quality Diagnostics
+
+#### A. Run Full Evaluation Suite (PPL, BPB, BLEU-4, chrF++, ROUGE-L, Rep-3, Distinct-1/2)
+```bash
+# Hindi Modern V2-16K Evaluation on held-out test split
+python -m hindi.eval.evaluate \
+    --checkpoint hindi/train/checkpoints_v2/best.pt \
+    --model-config hindi/configs/model_H_v2.yaml \
+    --tokenizer hindi/tokenizer/hindi.model \
+    --test-bin hindi/data/test.bin \
+    --out-dir hindi/eval \
+    --n-prompts 100 \
+    --arch v2
+
+# Assamese Modern V2-16K Evaluation on held-out test split
+python -m assamese.eval.evaluate \
+    --checkpoint assamese/train/checkpoints_v2/best.pt \
+    --model-config assamese/configs/model_L_v2.yaml \
+    --tokenizer assamese/tokenizer/assamese.model \
+    --test-bin assamese/data/test.bin \
+    --out-dir assamese/eval \
+    --n-prompts 100 \
+    --arch v2
+```
+
+---
+
+### 9. Attention Map Extraction & Specialization Heatmaps
+```bash
+# Hindi Attention Extraction (Produces native Devanagari heatmaps and entropy/distance metrics)
+python -m hindi.eval.attention_analysis \
+    --checkpoint hindi/train/checkpoints_v2/best.pt \
+    --model-config hindi/configs/model_H_v2.yaml \
+    --tokenizer hindi/tokenizer/hindi.model \
+    --out-dir hindi/eval/attention \
+    --arch v2
+
+# Assamese Attention Extraction (Produces native Eastern Nagari heatmaps and entropy/distance metrics)
+python -m assamese.eval.attention_analysis \
+    --checkpoint assamese/train/checkpoints_v2/best.pt \
+    --model-config assamese/configs/model_L_v2.yaml \
+    --tokenizer assamese/tokenizer/assamese.model \
+    --out-dir assamese/eval/attention \
+    --arch v2
+```
+
+---
+
+### 10. Strict Causality Invariance Verification
+```bash
+# Empirically verify that future tokens t+1 cannot leak into positions <= t
+python -c "
+import torch
+from hindi.model.gpt_v2 import GPTConfigV2, GPTLanguageModelV2
+cfg = GPTConfigV2.from_yaml('hindi/configs/model_H_v2.yaml')
+m = GPTLanguageModelV2(cfg).eval()
+x1 = torch.tensor([[100, 200, 300]])
+x2 = torch.tensor([[100, 200, 999]])
+diff = (m(x1)['logits'][:, :2, :] - m(x2)['logits'][:, :2, :]).abs().max().item()
+print(f'Hindi V2 Causality Invariance Max Diff: {diff:.6e}')
+assert diff == 0.0, 'Future token leaked!'
+"
+```
+
+---
+
+## 📑 Technical Reports
+* **Phase 2 Technical Report (40 Marks):** **[`report/phase2_report.md`](report/phase2_report.md)** — Comprehensive report containing pretraining loss curves, architecture bake-off (Modern V2 vs Baseline V1), intrinsic PPL & BPB tables, generation quality benchmarks across 4 temperatures with real text samples, attention heatmaps with Indic script labels, and parameter accounting.
+* **Phase 1 Technical Report (25 Marks):** **[`report/phase1_report.md`](report/phase1_report.md)** — In-depth linguistic justifications, Unicode normalization equations, deduplication graphs, and tokenizer candidate evaluation.
