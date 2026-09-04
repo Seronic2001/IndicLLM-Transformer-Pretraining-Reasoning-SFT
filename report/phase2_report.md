@@ -7,7 +7,7 @@
 
 ---
 
-## 0. Executive Summary & Core Results
+## Executive Summary & Core Results
 
 In Phase 1 of this project, the **16,384 (16K) SentencePiece BPE tokenizer** was selected for both Hindi and Assamese. As established in the Phase 1 tokenizer analysis:
 - The 16K vocabulary achieved an optimal compression ratio ($3.74$ chars/token in Hindi, $4.58$ chars/token in Assamese) and subword fertility ($1.1858$ tokens/word in Hindi, $1.4426$ in Assamese) with **$0.000\%$ `<unk>` rate** via byte fallback.
@@ -126,7 +126,37 @@ Models were pretrained on Kaggle Cloud GPUs (P100 / T4) over $500\text{M}$ token
 | **Assamese Modern V2-16K** | **4.1578** | **63.93** | 1900 | **4.1777** | 500M |
 | **Assamese Baseline V1-16K** | 4.5171 | 91.57 | 1800 | 4.5188 | 500M |
 
-Loss curves are plotted and saved in [`report/figures/loss_curve_hindi.png`](figures/loss_curve_hindi.png) and [`report/figures/loss_curve_assamese.png`](figures/loss_curve_assamese.png).
+### 2.1 Pretraining Loss Trajectories (Modern V2-16K)
+
+The pretraining curves below illustrate training loss (dashed line) and validation loss (solid line) across all 1,907 optimizer steps. Both models exhibit smooth, steady convergence with no divergence or gradient instability under fp16 mixed-precision pretraining:
+
+<p align="center">
+  <img src="figures/loss_curve_hindi.png" alt="Figure 1: Hindi 16K Transformer Pretraining Loss (Modern V2-16K)" width="680"/>
+  <br/>
+  <em>Figure 1: Hindi 16K Transformer Pretraining Loss — Modern V2-16K (Model H). Cross-entropy loss across 500M tokens (1,907 optimizer steps). The optimal checkpoint is achieved at step 1900 with a validation loss of 3.7624 nats (Val PPL: 43.05).</em>
+</p>
+
+<p align="center">
+  <img src="figures/loss_curve_assamese.png" alt="Figure 2: Assamese 16K Transformer Pretraining Loss (Modern V2-16K)" width="680"/>
+  <br/>
+  <em>Figure 2: Assamese 16K Transformer Pretraining Loss — Modern V2-16K (Model L). Cross-entropy loss across 500M tokens (1,907 optimizer steps). The optimal checkpoint is achieved at step 1900 with a validation loss of 4.1578 nats (Val PPL: 63.93).</em>
+</p>
+
+### 2.2 Empirical Architecture Comparison: Modern V2-16K vs. Baseline V1-16K
+
+To rigorously assess the impact of architectural innovations (RoPE rotary position embeddings, SwiGLU gated activations, and RMSNorm) versus classical first-principles designs (learned absolute positional embeddings, GELU activations, and standard LayerNorm), both models were trained under identical 500M-token regimes with matched 16K vocabularies:
+
+<p align="center">
+  <img src="figures/loss_curve_val_hindi_3way.png" alt="Figure 3: Hindi 16K Architecture Comparison (Modern V2-16K vs Baseline V1-16K)" width="680"/>
+  <br/>
+  <em>Figure 3: Hindi 16K Architecture Comparison — Modern V2-16K vs Baseline V1-16K validation loss trajectory. Modern V2-16K achieves a 0.363 nat lower validation loss and a 30.4% perplexity reduction over the baseline.</em>
+</p>
+
+<p align="center">
+  <img src="figures/loss_curve_val_assamese_3way.png" alt="Figure 4: Assamese 16K Architecture Comparison (Modern V2-16K vs Baseline V1-16K)" width="680"/>
+  <br/>
+  <em>Figure 4: Assamese 16K Architecture Comparison — Modern V2-16K vs Baseline V1-16K validation loss trajectory. Modern V2-16K achieves a 0.359 nat lower validation loss and a 30.2% perplexity reduction over the baseline.</em>
+</p>
 
 ---
 
@@ -176,9 +206,25 @@ Text generation was benchmarked across 100 held-out prompts ($N = 100$, prompt l
 
 ## 5. Attention Pattern Analysis & Specialization (Deliverable 7)
 
-Attention maps were extracted across early, middle, and late layers using [`hindi/eval/attention_analysis.py`](../hindi/eval/attention_analysis.py) and [`assamese/eval/attention_analysis.py`](../assamese/eval/attention_analysis.py). Heatmap plots are archived in [`report/figures/`](figures/).
+Attention maps were extracted across early, middle, and late layers using [`hindi/eval/attention_analysis.py`](../hindi/eval/attention_analysis.py) and [`assamese/eval/attention_analysis.py`](../assamese/eval/attention_analysis.py). Full multi-panel figures and individual head heatmaps are archived in [`report/figures/`](figures/).
 
-### Mean Entropy and Attention Distance
+### 5.1 Hindi Attention Specialization (Model H — Modern V2-16K)
+
+<p align="center">
+  <img src="figures/attn_hindi_panel.png" alt="Figure 5: Hindi Model H (Modern V2-16K) Attention Specialization Panel" width="720"/>
+  <br/>
+  <em>Figure 5: Hindi Model H (Modern V2-16K) Attention Specialization across Layers. (Top-Left) Layer 0, Head 0 exhibits tight local diagonal attention tracking noun-modifier dependencies (e.g., विशाल ↔ देश); (Top-Right) Layer 0, Head 3 aggregates broad unigram context across preceding tokens; (Bottom-Left) Layer 7, Head 1 enforces predicate agreement between distant verbal markers and arguments; (Bottom-Right) Layer 7, Head 2 resolves long-range relative-correlative clausal binding (e.g., जहाँ ↔ संस्कृत). Individual heatmaps: <a href="figures/attn_hindi_early_h0.png">L0H0</a>, <a href="figures/attn_hindi_early_h3.png">L0H3</a>, <a href="figures/attn_hindi_late_h1.png">L7H1</a>, <a href="figures/attn_hindi_late_h2.png">L7H2</a>.</em>
+</p>
+
+### 5.2 Assamese Attention Specialization (Model L — Modern V2-16K)
+
+<p align="center">
+  <img src="figures/attn_assamese_panel.png" alt="Figure 6: Assamese Model L (Modern V2-16K) Attention Specialization Panel" width="720"/>
+  <br/>
+  <em>Figure 6: Assamese Model L (Modern V2-16K) Attention Specialization across Layers. (Top-Left) Layer 0, Head 0 resolves inflectional suffixation and morpheme concatenation (e.g., stem-classifier-vibhakti binding in ঐতিহ্যমণ্ডিত and সংস্কৃতিৰ); (Top-Right) Layer 0, Head 3 performs local phrasal context aggregation; (Bottom-Left) Layer 7, Head 1 detects and aligns subordinate clause boundaries (connecting relative pronoun যি to predicate heads); (Bottom-Right) Layer 7, Head 2 mediates global discourse coreference across the sentence. Individual heatmaps: <a href="figures/attn_assamese_early_h0.png">L0H0</a>, <a href="figures/attn_assamese_early_h3.png">L0H3</a>, <a href="figures/attn_assamese_late_h1.png">L7H1</a>, <a href="figures/attn_assamese_late_h2.png">L7H2</a>.</em>
+</p>
+
+### 5.3 Quantitative Attention Diagnostics: Entropy & Distance
 | Model / Language | Layer Stage | Mean Attention Entropy | Mean Attention Distance (tokens) | Primary Function |
 |---|---|---|---|---|
 | **Hindi (Model H)** | Early (Layer 0–1) | 1.45–1.62 | 2.5–2.8 | Local unigram & bi-gram syntax |

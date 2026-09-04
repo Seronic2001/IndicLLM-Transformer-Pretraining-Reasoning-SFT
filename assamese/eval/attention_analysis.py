@@ -83,20 +83,37 @@ def plot_attention_heatmap(
     ax.set_ylabel("Query position")
     fig.colorbar(im, ax=ax, label="attention weight")
 
+    # Font discovery for Indic scripts (Nirmala UI on Windows)
+    nirmala_path = r"C:\Windows\Fonts\Nirmala.ttc"
+    indic_font = (
+        matplotlib.font_manager.FontProperties(fname=nirmala_path, size=6.5)
+        if Path(nirmala_path).exists()
+        else None
+    )
+
     # Tick labels: full token strings only for short sentences, else sparse.
     display = [t.replace("\u2581", "") for t in tokens][:T]
     if T <= 32:
         ax.set_xticks(range(T))
         ax.set_yticks(range(T))
-        ax.set_xticklabels(display, rotation=90, fontsize=6)
-        ax.set_yticklabels(display, fontsize=6)
+        if indic_font:
+            ax.set_xticklabels(display, rotation=45, ha="right", rotation_mode="anchor", fontproperties=indic_font)
+            ax.set_yticklabels(display, fontproperties=indic_font)
+        else:
+            ax.set_xticklabels(display, rotation=45, ha="right", rotation_mode="anchor", fontsize=6)
+            ax.set_yticklabels(display, fontsize=6)
     else:
         step = max(1, T // 8)
         ticks = list(range(0, T, step))
         ax.set_xticks(ticks)
         ax.set_yticks(ticks)
-        ax.set_xticklabels([display[i] for i in ticks], rotation=90, fontsize=6)
-        ax.set_yticklabels([display[i] for i in ticks], fontsize=6)
+        sub_display = [display[i] for i in ticks]
+        if indic_font:
+            ax.set_xticklabels(sub_display, rotation=45, ha="right", rotation_mode="anchor", fontproperties=indic_font)
+            ax.set_yticklabels(sub_display, fontproperties=indic_font)
+        else:
+            ax.set_xticklabels(sub_display, rotation=45, ha="right", rotation_mode="anchor", fontsize=6)
+            ax.set_yticklabels(sub_display, fontsize=6)
 
     fig.tight_layout()
     fig.savefig(save_path, dpi=120)

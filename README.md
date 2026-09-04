@@ -91,13 +91,20 @@ python -m assamese.eval.attention_analysis --checkpoint <assamese-best.pt> \
 ├── requirements.txt                   # Environment dependencies
 ├── report/
 │   ├── phase1_report.md               # Comprehensive 25-mark Phase 1 Technical Report
+│   ├── phase2_report.md               # Comprehensive 40-mark Phase 2 Technical Report
 │   ├── README.md                      # Report directory overview
 │   └── figures/                       # Rendered publication figures
 │       ├── corpus_distribution_hindi.png
 │       ├── corpus_distribution_assamese.png
 │       ├── manual_vs_downloaded_tokens.png
 │       ├── tokenizer_fertility_comparison.png
-│       └── compression_vs_vocab_size.png
+│       ├── compression_vs_vocab_size.png
+│       ├── loss_curve_hindi.png
+│       ├── loss_curve_assamese.png
+│       ├── loss_curve_comparison_hindi.png
+│       ├── loss_curve_comparison_assamese.png
+│       ├── attn_hindi_panel.png
+│       └── attn_assamese_panel.png
 ├── hindi/
 │   ├── configs/
 │   │   ├── tokenizer_H.yaml           # Tokenizer hyperparameters & candidate specs
