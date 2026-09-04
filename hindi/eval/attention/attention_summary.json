@@ -1,0 +1,304 @@
+{
+  "layers_analyzed": [
+    0,
+    3,
+    5
+  ],
+  "heads_analyzed": [
+    0,
+    1,
+    2,
+    3
+  ],
+  "n_examples": 3,
+  "rows": [
+    {
+      "example": 0,
+      "layer": 0,
+      "head": 0,
+      "entropy": 1.4750680923461914,
+      "mean_distance": 2.655196189880371,
+      "heatmap": "C:\\Users\\Shubh\\AppData\\Local\\Temp\\opencode\\phase2_eval\\results\\older-hindi-32k\\attention\\ex0_layer0_head0.png"
+    },
+    {
+      "example": 0,
+      "layer": 0,
+      "head": 1,
+      "entropy": 1.5963624715805054,
+      "mean_distance": 2.5969936847686768,
+      "heatmap": "C:\\Users\\Shubh\\AppData\\Local\\Temp\\opencode\\phase2_eval\\results\\older-hindi-32k\\attention\\ex0_layer0_head1.png"
+    },
+    {
+      "example": 0,
+      "layer": 0,
+      "head": 2,
+      "entropy": 1.4727786779403687,
+      "mean_distance": 3.0591659545898438,
+      "heatmap": "C:\\Users\\Shubh\\AppData\\Local\\Temp\\opencode\\phase2_eval\\results\\older-hindi-32k\\attention\\ex0_layer0_head2.png"
+    },
+    {
+      "example": 0,
+      "layer": 0,
+      "head": 3,
+      "entropy": 1.4629175662994385,
+      "mean_distance": 2.6512961387634277,
+      "heatmap": "C:\\Users\\Shubh\\AppData\\Local\\Temp\\opencode\\phase2_eval\\results\\older-hindi-32k\\attention\\ex0_layer0_head3.png"
+    },
+    {
+      "example": 0,
+      "layer": 3,
+      "head": 0,
+      "entropy": 1.0125577449798584,
+      "mean_distance": 2.3093385696411133,
+      "heatmap": "C:\\Users\\Shubh\\AppData\\Local\\Temp\\opencode\\phase2_eval\\results\\older-hindi-32k\\attention\\ex0_layer3_head0.png"
+    },
+    {
+      "example": 0,
+      "layer": 3,
+      "head": 1,
+      "entropy": 1.2558317184448242,
+      "mean_distance": 2.4607763290405273,
+      "heatmap": "C:\\Users\\Shubh\\AppData\\Local\\Temp\\opencode\\phase2_eval\\results\\older-hindi-32k\\attention\\ex0_layer3_head1.png"
+    },
+    {
+      "example": 0,
+      "layer": 3,
+      "head": 2,
+      "entropy": 1.2136404514312744,
+      "mean_distance": 2.1318106651306152,
+      "heatmap": "C:\\Users\\Shubh\\AppData\\Local\\Temp\\opencode\\phase2_eval\\results\\older-hindi-32k\\attention\\ex0_layer3_head2.png"
+    },
+    {
+      "example": 0,
+      "layer": 3,
+      "head": 3,
+      "entropy": 1.1437714099884033,
+      "mean_distance": 2.456475019454956,
+      "heatmap": "C:\\Users\\Shubh\\AppData\\Local\\Temp\\opencode\\phase2_eval\\results\\older-hindi-32k\\attention\\ex0_layer3_head3.png"
+    },
+    {
+      "example": 0,
+      "layer": 5,
+      "head": 0,
+      "entropy": 1.1284667253494263,
+      "mean_distance": 3.8112316131591797,
+      "heatmap": "C:\\Users\\Shubh\\AppData\\Local\\Temp\\opencode\\phase2_eval\\results\\older-hindi-32k\\attention\\ex0_layer5_head0.png"
+    },
+    {
+      "example": 0,
+      "layer": 5,
+      "head": 1,
+      "entropy": 1.144345760345459,
+      "mean_distance": 3.4022252559661865,
+      "heatmap": "C:\\Users\\Shubh\\AppData\\Local\\Temp\\opencode\\phase2_eval\\results\\older-hindi-32k\\attention\\ex0_layer5_head1.png"
+    },
+    {
+      "example": 0,
+      "layer": 5,
+      "head": 2,
+      "entropy": 1.36442232131958,
+      "mean_distance": 2.8560702800750732,
+      "heatmap": "C:\\Users\\Shubh\\AppData\\Local\\Temp\\opencode\\phase2_eval\\results\\older-hindi-32k\\attention\\ex0_layer5_head2.png"
+    },
+    {
+      "example": 0,
+      "layer": 5,
+      "head": 3,
+      "entropy": 1.2132782936096191,
+      "mean_distance": 3.503589153289795,
+      "heatmap": "C:\\Users\\Shubh\\AppData\\Local\\Temp\\opencode\\phase2_eval\\results\\older-hindi-32k\\attention\\ex0_layer5_head3.png"
+    },
+    {
+      "example": 1,
+      "layer": 0,
+      "head": 0,
+      "entropy": 1.4794520139694214,
+      "mean_distance": 2.761261463165283,
+      "heatmap": "C:\\Users\\Shubh\\AppData\\Local\\Temp\\opencode\\phase2_eval\\results\\older-hindi-32k\\attention\\ex1_layer0_head0.png"
+    },
+    {
+      "example": 1,
+      "layer": 0,
+      "head": 1,
+      "entropy": 1.6037832498550415,
+      "mean_distance": 2.850512981414795,
+      "heatmap": "C:\\Users\\Shubh\\AppData\\Local\\Temp\\opencode\\phase2_eval\\results\\older-hindi-32k\\attention\\ex1_layer0_head1.png"
+    },
+    {
+      "example": 1,
+      "layer": 0,
+      "head": 2,
+      "entropy": 1.3002052307128906,
+      "mean_distance": 2.4005143642425537,
+      "heatmap": "C:\\Users\\Shubh\\AppData\\Local\\Temp\\opencode\\phase2_eval\\results\\older-hindi-32k\\attention\\ex1_layer0_head2.png"
+    },
+    {
+      "example": 1,
+      "layer": 0,
+      "head": 3,
+      "entropy": 1.5421051979064941,
+      "mean_distance": 2.9436254501342773,
+      "heatmap": "C:\\Users\\Shubh\\AppData\\Local\\Temp\\opencode\\phase2_eval\\results\\older-hindi-32k\\attention\\ex1_layer0_head3.png"
+    },
+    {
+      "example": 1,
+      "layer": 3,
+      "head": 0,
+      "entropy": 0.7427164316177368,
+      "mean_distance": 2.522907018661499,
+      "heatmap": "C:\\Users\\Shubh\\AppData\\Local\\Temp\\opencode\\phase2_eval\\results\\older-hindi-32k\\attention\\ex1_layer3_head0.png"
+    },
+    {
+      "example": 1,
+      "layer": 3,
+      "head": 1,
+      "entropy": 1.2416977882385254,
+      "mean_distance": 2.5971570014953613,
+      "heatmap": "C:\\Users\\Shubh\\AppData\\Local\\Temp\\opencode\\phase2_eval\\results\\older-hindi-32k\\attention\\ex1_layer3_head1.png"
+    },
+    {
+      "example": 1,
+      "layer": 3,
+      "head": 2,
+      "entropy": 1.3187745809555054,
+      "mean_distance": 2.420403480529785,
+      "heatmap": "C:\\Users\\Shubh\\AppData\\Local\\Temp\\opencode\\phase2_eval\\results\\older-hindi-32k\\attention\\ex1_layer3_head2.png"
+    },
+    {
+      "example": 1,
+      "layer": 3,
+      "head": 3,
+      "entropy": 1.0613152980804443,
+      "mean_distance": 1.5261545181274414,
+      "heatmap": "C:\\Users\\Shubh\\AppData\\Local\\Temp\\opencode\\phase2_eval\\results\\older-hindi-32k\\attention\\ex1_layer3_head3.png"
+    },
+    {
+      "example": 1,
+      "layer": 5,
+      "head": 0,
+      "entropy": 1.1195623874664307,
+      "mean_distance": 3.6624977588653564,
+      "heatmap": "C:\\Users\\Shubh\\AppData\\Local\\Temp\\opencode\\phase2_eval\\results\\older-hindi-32k\\attention\\ex1_layer5_head0.png"
+    },
+    {
+      "example": 1,
+      "layer": 5,
+      "head": 1,
+      "entropy": 1.139337420463562,
+      "mean_distance": 3.8736815452575684,
+      "heatmap": "C:\\Users\\Shubh\\AppData\\Local\\Temp\\opencode\\phase2_eval\\results\\older-hindi-32k\\attention\\ex1_layer5_head1.png"
+    },
+    {
+      "example": 1,
+      "layer": 5,
+      "head": 2,
+      "entropy": 1.5092387199401855,
+      "mean_distance": 3.515909194946289,
+      "heatmap": "C:\\Users\\Shubh\\AppData\\Local\\Temp\\opencode\\phase2_eval\\results\\older-hindi-32k\\attention\\ex1_layer5_head2.png"
+    },
+    {
+      "example": 1,
+      "layer": 5,
+      "head": 3,
+      "entropy": 1.2776435613632202,
+      "mean_distance": 3.6054203510284424,
+      "heatmap": "C:\\Users\\Shubh\\AppData\\Local\\Temp\\opencode\\phase2_eval\\results\\older-hindi-32k\\attention\\ex1_layer5_head3.png"
+    },
+    {
+      "example": 2,
+      "layer": 0,
+      "head": 0,
+      "entropy": 1.4966351985931396,
+      "mean_distance": 2.7323131561279297,
+      "heatmap": "C:\\Users\\Shubh\\AppData\\Local\\Temp\\opencode\\phase2_eval\\results\\older-hindi-32k\\attention\\ex2_layer0_head0.png"
+    },
+    {
+      "example": 2,
+      "layer": 0,
+      "head": 1,
+      "entropy": 1.5375398397445679,
+      "mean_distance": 2.69809889793396,
+      "heatmap": "C:\\Users\\Shubh\\AppData\\Local\\Temp\\opencode\\phase2_eval\\results\\older-hindi-32k\\attention\\ex2_layer0_head1.png"
+    },
+    {
+      "example": 2,
+      "layer": 0,
+      "head": 2,
+      "entropy": 1.138025164604187,
+      "mean_distance": 2.1287474632263184,
+      "heatmap": "C:\\Users\\Shubh\\AppData\\Local\\Temp\\opencode\\phase2_eval\\results\\older-hindi-32k\\attention\\ex2_layer0_head2.png"
+    },
+    {
+      "example": 2,
+      "layer": 0,
+      "head": 3,
+      "entropy": 1.4058525562286377,
+      "mean_distance": 2.538351535797119,
+      "heatmap": "C:\\Users\\Shubh\\AppData\\Local\\Temp\\opencode\\phase2_eval\\results\\older-hindi-32k\\attention\\ex2_layer0_head3.png"
+    },
+    {
+      "example": 2,
+      "layer": 3,
+      "head": 0,
+      "entropy": 1.0697022676467896,
+      "mean_distance": 2.0747175216674805,
+      "heatmap": "C:\\Users\\Shubh\\AppData\\Local\\Temp\\opencode\\phase2_eval\\results\\older-hindi-32k\\attention\\ex2_layer3_head0.png"
+    },
+    {
+      "example": 2,
+      "layer": 3,
+      "head": 1,
+      "entropy": 1.2644251585006714,
+      "mean_distance": 2.4632515907287598,
+      "heatmap": "C:\\Users\\Shubh\\AppData\\Local\\Temp\\opencode\\phase2_eval\\results\\older-hindi-32k\\attention\\ex2_layer3_head1.png"
+    },
+    {
+      "example": 2,
+      "layer": 3,
+      "head": 2,
+      "entropy": 1.3579812049865723,
+      "mean_distance": 2.4861059188842773,
+      "heatmap": "C:\\Users\\Shubh\\AppData\\Local\\Temp\\opencode\\phase2_eval\\results\\older-hindi-32k\\attention\\ex2_layer3_head2.png"
+    },
+    {
+      "example": 2,
+      "layer": 3,
+      "head": 3,
+      "entropy": 1.2072935104370117,
+      "mean_distance": 1.7782037258148193,
+      "heatmap": "C:\\Users\\Shubh\\AppData\\Local\\Temp\\opencode\\phase2_eval\\results\\older-hindi-32k\\attention\\ex2_layer3_head3.png"
+    },
+    {
+      "example": 2,
+      "layer": 5,
+      "head": 0,
+      "entropy": 1.2929751873016357,
+      "mean_distance": 3.167820930480957,
+      "heatmap": "C:\\Users\\Shubh\\AppData\\Local\\Temp\\opencode\\phase2_eval\\results\\older-hindi-32k\\attention\\ex2_layer5_head0.png"
+    },
+    {
+      "example": 2,
+      "layer": 5,
+      "head": 1,
+      "entropy": 1.3279229402542114,
+      "mean_distance": 3.1179091930389404,
+      "heatmap": "C:\\Users\\Shubh\\AppData\\Local\\Temp\\opencode\\phase2_eval\\results\\older-hindi-32k\\attention\\ex2_layer5_head1.png"
+    },
+    {
+      "example": 2,
+      "layer": 5,
+      "head": 2,
+      "entropy": 1.3964476585388184,
+      "mean_distance": 2.7869529724121094,
+      "heatmap": "C:\\Users\\Shubh\\AppData\\Local\\Temp\\opencode\\phase2_eval\\results\\older-hindi-32k\\attention\\ex2_layer5_head2.png"
+    },
+    {
+      "example": 2,
+      "layer": 5,
+      "head": 3,
+      "entropy": 1.1424040794372559,
+      "mean_distance": 3.029109001159668,
+      "heatmap": "C:\\Users\\Shubh\\AppData\\Local\\Temp\\opencode\\phase2_eval\\results\\older-hindi-32k\\attention\\ex2_layer5_head3.png"
+    }
+  ]
+}

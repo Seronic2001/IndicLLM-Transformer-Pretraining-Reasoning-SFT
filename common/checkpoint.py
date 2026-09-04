@@ -1,6 +1,6 @@
 """Checkpoint save / load / validate shared by both languages.
 
-A valid checkpoint dict is (see project specification / §3 pipeline):
+A valid checkpoint dict is (see AGENT_BUILD_SPEC.md §0.3 / §3 Agent-D):
 
     {
         "model_state_dict":      OrderedDict,

@@ -1,4 +1,4 @@
-"""HuggingFace corpus plumbing shared by both languages (pipeline).
+"""HuggingFace corpus plumbing shared by both languages (Agent-A sources).
 
 Language-agnostic helpers behind the real corpus fetchers in
 ``hindi/data/sources.py`` / ``assamese/data/sources.py``:

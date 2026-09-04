@@ -52,6 +52,39 @@ Per the course instructions, large binary artifacts ($>15\text{ GB}$ raw corpora
 * **Assamese Artifacts Dataset**: [https://www.kaggle.com/datasets/shubhadeepmandal/lma-assamese-artifact](https://www.kaggle.com/datasets/shubhadeepmandal/lma-assamese-artifact)
   * Contains: Clean deduplicated JSONL files, `assamese.model`, `assamese.vocab`, `train.bin` (1.0 GB), `val.bin`, `test.bin`.
 
+## 🧠 Phase 2 (Model Implementation, Pretraining & Evaluation) — branch `phase-2`
+
+Submitted checkpoints (both **25,765,632 params**, V1: 6 layers, 6 heads, d_model 384,
+GELU d_ff 2048, learned absolute positions, pre-norm LayerNorm, tied embeddings — fully
+hand-written; discussion in [`report/phase2_report.md`](report/phase2_report.md)):
+
+| Model | Test loss | PPL | BPB | Train best val |
+|---|---|---|---|---|
+| Hindi V1-32K (Model H) | 4.2778 | 72.08 | 0.5591 | 3.9766 @ step 1900 |
+| Assamese V1-32K (Model L) | 4.6074 | 100.22 | 0.5429 | 3.9748 @ step 1907 |
+
+* **Pretrained checkpoint downloads (Google Drive, anyone-with-link):**
+  * Hindi V1-32K `best.pt` (step 1900): `TODO-drive-hindi-v1-32k-best`
+  * Assamese V1-32K `best.pt` (step 1907): `TODO-drive-assamese-v1-32k-best`
+  * Local provenance (pre-upload): `Kaggle outpts/older architecure/phase232kvocabmodelshindolderarch.zip`
+    and `phase232kvocabmodelsassameseolderarch.zip` → `checkpoints/best.pt` (+ `ckpt_500/1000/1500/1907.pt`,
+    `train_log.json`, mirrored in-branch at `hindi/train/train_log.json`,
+    `assamese/train/train_log.json`). `*.pt`/`*.bin` are git-ignored by design.
+* **Tokenizers for these checkpoints:** Run-1 16K BPE files in `hindi|assamese/tokenizer/`
+  (revised from Phase-1 on this branch — see report §0; the checkpoints train against these exact
+  tables). Test bins: Run-1-tokenized rebuild of the Phase-1 test text (same text, §0).
+* **Eval artifacts in-branch:** `<lang>/eval/ppl_bpb_table.json`, `generation_metrics.json`,
+  `generated_samples.jsonl` (100 prompts × 4 temps), `attention/attention_summary.json` + 36
+  heatmaps per model; loss curves + selected heatmaps in `report/figures/`.
+* **Reproduce eval** (after downloading checkpoint + rebuilding the Run-1 test bin as in report §8):
+```bash
+python -m hindi.eval.evaluate --checkpoint <hindi-best.pt> \
+  --model-config hindi/configs/model_H.yaml --tokenizer hindi/tokenizer/hindi.model \
+  --test-bin <test_run1.bin> --n-prompts 100
+python -m assamese.eval.attention_analysis --checkpoint <assamese-best.pt> \
+  --model-config assamese/configs/model_L.yaml --tokenizer assamese/tokenizer/assamese.model
+```
+
 ---
 
 ## 📂 Repository Layout
