@@ -164,7 +164,7 @@ python -m assamese.eval.attention_analysis --checkpoint <assamese-best.pt> \
 ### 1. Environment Setup
 ```bash
 # Clone the repository and switch to phase-2 branch
-git clone https://github.com/Language-Models-and-Agents-2026/individual-project-Seronic2001.git
+git clone https://github.com/CL3-410/individual-project-Seronic2001.git
 cd individual-project-Seronic2001
 git checkout phase-2
 
