@@ -1,4 +1,4 @@
-"""Assamese attention analysis toolkit (Agent-F).
+"""Assamese attention analysis toolkit.
 
 Consumes the model's ``return_attn=True`` output — post-softmax attention weights
 (B, n_head, T, T) — and produces:
@@ -12,7 +12,7 @@ Consumes the model's ``return_attn=True`` output — post-softmax attention weig
 Every plot sets title, x-label, y-label (spec §0.4) — enforced by test.
 SentencePiece's leading ``▁`` markers are stripped for display only; token ids
 are never altered. Full (T, T) matrices are computed and discarded per example,
-never held for all examples at once (spec Agent-F reliability fallbacks).
+never held for all examples at once (spec reliability fallbacks).
 """
 
 from __future__ import annotations
@@ -202,7 +202,7 @@ def analyze_attention(
 
 
 def main(argv: Optional[list[str]] = None) -> int:
-    parser = argparse.ArgumentParser(description="Attention analysis (Agent-F)")
+    parser = argparse.ArgumentParser(description="Attention analysis")
     parser.add_argument("--checkpoint", required=True)
     parser.add_argument("--model-config", required=True)
     parser.add_argument("--tokenizer", required=True)

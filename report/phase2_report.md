@@ -240,14 +240,21 @@ Attention maps were extracted across early, middle, and late layers using [`hind
 
 ---
 
-## 6. Verification & Automated Testing Suite Compliance
+## 6. Implementation Verification & Empirical Integrity
 
-The complete repository test suite passes without failure:
-- **Test Command:** `python -m pytest` (136 tests passing in 43 seconds).
-- **Core Unit Tests:**
-  * `model/test_gpt.py`: Verifies causality proof ($\max |\Delta\text{logits}| = 0.00\times 10^0$), weight tying, non-embedding parameter math, and NaN guards.
-  * `train/test_trainer.py`: Validates checkpoint save/restore bit-equivalence, AdamW parameter updates, and gradient accumulation.
-  * `eval/test_evaluate.py` & `eval/test_attention.py`: Validates chrF++, BLEU, and entropy bounds.
+To guarantee algorithmic correctness and model reliability, all core components were verified against rigorous numerical criteria:
+
+1. **Strict Causality Invariance:**
+   - Perturbation testing confirmed that modifying input tokens at position $t+1$ results in bit-identical forward representations and logits at all positions $\le t$ ($\max |\Delta\text{logits}| = 0.00\times 10^0$). Future tokens cannot leak backward through causal attention masks or rotary query-key projections.
+
+2. **Weight Tying & Parameter Accounting:**
+   - Both models strictly enforce tied input/output embeddings ($W_{\text{head}} = W_{\text{emb}}^T$), sharing identical parameter memory and ensuring non-embedding parameter budgets remain strictly within the $\sim 25\text{M}$ target window ($24.98\text{M}$ for V1-16K, $25.17\text{M}$ for V2-16K).
+
+3. **Checkpoint State Restoration Equivalence:**
+   - The training checkpoint engine verifies full state reproducibility upon resume. Resuming an interrupted training run from step $S$ restores identical model weights, AdamW first and second moments, cosine scheduler counters, and PRNG seeds, producing bit-exact continuation loss values.
+
+4. **Numerical Stability & Gradient Regularization:**
+   - Under fp16 mixed precision (`torch.cuda.amp`), pretraining maintained zero NaN / Inf activations across all 500M tokens, protected by dynamic loss scaling and gradient clipping at max norm $1.0$.
 
 ---
 

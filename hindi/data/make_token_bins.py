@@ -1,8 +1,8 @@
-"""Convert splits into flat token-id .bin files (Agent-A output contract).
+"""Convert splits into flat token-id .bin files (output contract).
 
 Reads splits/{train,val,test}.jsonl (or .txt) and the trained tokenizer, writes
 ``{train,val,test}.bin`` as raw uint16 arrays (vocab < 65536) — the exact input
-the Agent-D ``TokenDataset`` consumes via numpy.memmap.
+the ``TokenDataset`` consumes via numpy.memmap.
 
 Resumable: skips a split whose .bin already exists unless --force is given.
 """

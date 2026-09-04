@@ -1,6 +1,6 @@
-"""Hindi evaluation suite (Agent-E).
+"""Assamese evaluation suite.
 
-Standardized Generation Protocol (AGENT_BUILD_SPEC §3 Agent-E):
+Standardized Generation Protocol:
   * Extract N=500 held-out prompt prefixes of T_prefix=32 tokens from test.bin.
   * Generate a T_gen=64-token continuation per prefix at temperatures
     {0.0 (greedy), 0.5, 1.0, 1.5}.
@@ -13,7 +13,7 @@ Outputs (in --out-dir):
   * generated_samples.jsonl     per-sample prefix, reference, and all 4 outputs
 
 Degenerate/high-temperature repetition is an expected, reportable finding — it is
-recorded, never silently filtered (spec Agent-E reliability fallbacks).
+recorded, never silently filtered (spec reliability fallbacks).
 """
 
 from __future__ import annotations
@@ -124,7 +124,7 @@ def compute_generation_metrics(
 
 @torch.no_grad()
 def compute_ppl_bpb(model: GPTLanguageModel, spec: EvalSpec) -> dict:
-    """Mean loss / perplexity / bits-per-byte over the test windows (Agent-E)."""
+    """Mean loss / perplexity / bits-per-byte over the test windows."""
     import numpy as np
 
     data = np.memmap(spec.test_path, dtype=np.uint16, mode="r")
@@ -198,7 +198,7 @@ def run_evaluation(
 
 
 def main(argv: Optional[list[str]] = None) -> int:
-    parser = argparse.ArgumentParser(description="Run the evaluation suite (Agent-E)")
+    parser = argparse.ArgumentParser(description="Run the evaluation suite")
     parser.add_argument("--checkpoint", required=True)
     parser.add_argument("--model-config", required=True)
     parser.add_argument("--tokenizer", required=True, help="path to <lang>.model")

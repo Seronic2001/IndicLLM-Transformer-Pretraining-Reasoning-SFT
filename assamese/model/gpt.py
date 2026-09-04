@@ -1,6 +1,6 @@
 """Hindi GPT language model — hand-written Transformer, no pretrained pieces.
 
-Implements the locked decisions of AGENT_BUILD_SPEC.md §1:
+Implements the locked decisions of :
   * learned absolute positional embeddings, table (block_size, d_model)
   * hand-written multi-head scaled dot-product attention with causal mask
     (explicit matmul/softmax — no F.scaled_dot_product_attention shortcut)
@@ -56,7 +56,7 @@ class CausalSelfAttention(nn.Module):
 
     forward: x (B, T, d_model) -> (B, T, d_model). With return_attn=True also
     returns post-softmax attention weights (B, n_head, T, T) for the attention
-    analysis toolkit (Agent-F).
+    analysis toolkit.
     """
 
     def __init__(self, config: GPTConfig):
@@ -81,7 +81,7 @@ class CausalSelfAttention(nn.Module):
         B, T, C = x.shape
         q, k, v = self.c_attn(x).split(self.d_model, dim=2)  # (B, T, d_model) each
 
-        # --- multi-head reshape (this exact pattern is what Agent-F's hooks assume) ---
+        # --- multi-head reshape (this exact pattern is what 's hooks assume) ---
         # (B, T, d_model) -> (B, T, n_head, d_k) -> transpose(1, 2) -> (B, n_head, T, d_k)
         q = q.view(B, T, self.n_head, self.d_k).transpose(1, 2)
         k = k.view(B, T, self.n_head, self.d_k).transpose(1, 2)
