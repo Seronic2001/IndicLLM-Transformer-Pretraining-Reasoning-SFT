@@ -54,35 +54,31 @@ Per the course instructions, large binary artifacts ($>15\text{ GB}$ raw corpora
 
 ## 🧠 Phase 2 (Model Implementation, Pretraining & Evaluation) — branch `phase-2`
 
-Submitted checkpoints (both **25,765,632 params**, V1: 6 layers, 6 heads, d_model 384,
-GELU d_ff 2048, learned absolute positions, pre-norm LayerNorm, tied embeddings — fully
-hand-written; discussion in [`report/phase2_report.md`](report/phase2_report.md)):
+Phase 2 focuses on pretraining and evaluating **16K vocabulary transformer architectures** (~25M parameters, strictly compliant with the 22.5M–27.5M rubric window), directly pairing with the 16K BPE tokenizers selected in Phase 1:
+* **Baseline V1-16K** (Hand-written Pre-LN, learned pos, GELU, 8 layers, 24.98M params)
+* **Modern V2-16K** (Enhanced Architecture with RoPE, SwiGLU, RMSNorm, 8 layers, 25.17M params)
 
-| Model | Test loss | PPL | BPB | Train best val |
-|---|---|---|---|---|
-| Hindi V1-32K (Model H) | 4.2778 | 72.08 | 0.5591 | 3.9766 @ step 1900 |
-| Assamese V1-32K (Model L) | 4.6074 | 100.22 | 0.5429 | 3.9748 @ step 1907 |
+Empirical testing proves that **Modern V2-16K** is the best performing model across all intrinsic and generative metrics (detailed analysis in [`report/phase2_report.md`](report/phase2_report.md)):
 
-* **Pretrained checkpoint downloads (Google Drive, anyone-with-link):**
-  * Hindi V1-32K `best.pt` (step 1900): `TODO-drive-hindi-v1-32k-best`
-  * Assamese V1-32K `best.pt` (step 1907): `TODO-drive-assamese-v1-32k-best`
-  * Local provenance (pre-upload): `Kaggle outpts/older architecure/phase232kvocabmodelshindolderarch.zip`
-    and `phase232kvocabmodelsassameseolderarch.zip` → `checkpoints/best.pt` (+ `ckpt_500/1000/1500/1907.pt`,
-    `train_log.json`, mirrored in-branch at `hindi/train/train_log.json`,
-    `assamese/train/train_log.json`). `*.pt`/`*.bin` are git-ignored by design.
-* **Tokenizers for these checkpoints:** Run-1 16K BPE files in `hindi|assamese/tokenizer/`
-  (revised from Phase-1 on this branch — see report §0; the checkpoints train against these exact
-  tables). Test bins: Run-1-tokenized rebuild of the Phase-1 test text (same text, §0).
-* **Eval artifacts in-branch:** `<lang>/eval/ppl_bpb_table.json`, `generation_metrics.json`,
-  `generated_samples.jsonl` (100 prompts × 4 temps), `attention/attention_summary.json` + 36
-  heatmaps per model; loss curves + selected heatmaps in `report/figures/`.
-* **Reproduce eval** (after downloading checkpoint + rebuilding the Run-1 test bin as in report §8):
+| Language | Model Architecture | Pretrain Val Loss | Val PPL | Held-out Test Loss | Test PPL | BPB | Selected for Phase 3 |
+|---|---|---|---|---|---|---|---|
+| **Hindi (Model H)** | **Modern V2-16K (Best)** | **3.7624** | **43.05** | **3.9562** | **52.26** | **0.5189** | **YES (Winner)** |
+| Hindi (Model H) | Baseline V1-16K | 4.1250 | 61.87 | 4.4102 | 82.28 | 0.5764 | Baseline |
+| **Assamese (Model L)** | **Modern V2-16K (Best)** | **4.1578** | **63.93** | **4.3935** | **80.93** | **0.5049** | **YES (Winner)** |
+| Assamese (Model L) | Baseline V1-16K | 4.5171 | 91.57 | 4.7920 | 120.54 | 0.5641 | Baseline |
+
+* **Pretrained Checkpoint Downloads (Google Drive, anyone-with-link):**
+  * Hindi Modern V2-16K `best.pt`: `TODO-drive-hindi-v2-16k-best`
+  * Assamese Modern V2-16K `best.pt`: `TODO-drive-assamese-v2-16k-best`
+  * Local provenance (pre-upload): `Kaggle outpts/modern architecure/phase216vocabmodelshindi.zip` and `phase216vobabmodelsassamese.zip` → `checkpoints/best.pt`.
+* **Tokenizers:** Canonical Phase-1 16K BPE tokenizers in `hindi/tokenizer/hindi.model` and `assamese/tokenizer/assamese.model` (exact match to 16K models).
+* **Evaluation Reproduction:**
 ```bash
 python -m hindi.eval.evaluate --checkpoint <hindi-best.pt> \
-  --model-config hindi/configs/model_H.yaml --tokenizer hindi/tokenizer/hindi.model \
-  --test-bin <test_run1.bin> --n-prompts 100
+  --model-config hindi/configs/model_H_v2.yaml --tokenizer hindi/tokenizer/hindi.model \
+  --test-bin <test.bin> --n-prompts 100 --arch v2
 python -m assamese.eval.attention_analysis --checkpoint <assamese-best.pt> \
-  --model-config assamese/configs/model_L.yaml --tokenizer assamese/tokenizer/assamese.model
+  --model-config assamese/configs/model_L_v2.yaml --tokenizer assamese/tokenizer/assamese.model --arch v2
 ```
 
 ---

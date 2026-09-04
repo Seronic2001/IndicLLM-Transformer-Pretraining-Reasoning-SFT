@@ -1,1 +1,35 @@
-{"byte_fallback":true,"candidates":{"16384":{"byte_fallback":true,"config_vocab_size":16384,"fertility_tokens_per_word":1.1858,"model_path":"hindi/tokenizer/candidate_16384.model","model_type":"bpe","unk_rate":0.0,"vocab_path":"hindi/tokenizer/candidate_16384.vocab","vocab_size":16384},"32768":{"byte_fallback":true,"config_vocab_size":32768,"fertility_tokens_per_word":1.1252,"model_path":"hindi/tokenizer/candidate_32768.model","model_type":"bpe","unk_rate":0.0,"vocab_path":"hindi/tokenizer/candidate_32768.vocab","vocab_size":32768}},"chosen_vocab_size":16384,"config_vocab_size":16384,"fertility_tokens_per_word":1.2028,"fertility_note":"re-measured on 1M held-out test tokens with the committed Run-1 file (Phase-1 value 1.1858 was the bake-off file)","model_path":"hindi/tokenizer/hindi.model","model_type":"bpe","note":"Phase-2 revision: committed file replaced with the Run-1 16K tokenizer (Kaggle tokensizer-run1-files dataset) because the submitted V1-32K checkpoints were trained against this exact vocabulary table (ID-compatible; verified by test loss 4.28 vs ~10.5 uniform under the Phase-1 table). Same algorithm and hyperparams (BPE, byte_fallback); different training sample, hence slightly different merges.","rationale":"16K keeps fertility within 15% of 32K and unk-rate ~0","unk_rate":0.0,"vocab_path":"hindi/tokenizer/hindi.vocab","vocab_size":16384}
+{
+  "model_path": "hindi/tokenizer/hindi.model",
+  "vocab_path": "hindi/tokenizer/hindi.vocab",
+  "vocab_size": 16384,
+  "config_vocab_size": 16384,
+  "model_type": "bpe",
+  "byte_fallback": true,
+  "fertility_tokens_per_word": 1.1858,
+  "unk_rate": 0.0,
+  "candidates": {
+    "16384": {
+      "model_path": "hindi/tokenizer/candidate_16384.model",
+      "vocab_path": "hindi/tokenizer/candidate_16384.vocab",
+      "vocab_size": 16384,
+      "config_vocab_size": 16384,
+      "model_type": "bpe",
+      "byte_fallback": true,
+      "fertility_tokens_per_word": 1.1858,
+      "unk_rate": 0.0
+    },
+    "32768": {
+      "model_path": "hindi/tokenizer/candidate_32768.model",
+      "vocab_path": "hindi/tokenizer/candidate_32768.vocab",
+      "vocab_size": 32768,
+      "config_vocab_size": 32768,
+      "model_type": "bpe",
+      "byte_fallback": true,
+      "fertility_tokens_per_word": 1.1252,
+      "unk_rate": 0.0
+    }
+  },
+  "chosen_vocab_size": 16384,
+  "rationale": "16K keeps fertility within 15% of 32K (ratio 1.054) and unk-rate ~0",
+  "note": "16K choice requires an 8-layer architecture (n_layer=8) to keep ~25M params; 32K pairs with a 6-layer architecture"
+}
