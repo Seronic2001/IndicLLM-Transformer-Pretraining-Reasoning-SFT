@@ -7,10 +7,8 @@
 
 ---
 
-> [!IMPORTANT]
-> **📦 Public Checkpoints & Pretraining Artifacts Dataset (Kaggle):**  
-> All Phase 2 16K pretrained model checkpoints (`best.pt` optimal weights, intermediate training trajectory snapshots `ckpt_500.pt`, `ckpt_1000.pt`, `ckpt_1500.pt`, `ckpt_1907.pt`), 500M-token training loss logs (`train_log.json`), evaluation tables, and technical logs are publicly hosted on Kaggle:  
-> 🔗 **[https://www.kaggle.com/datasets/shubhadeepmandal/lma-phase2-artifacts](https://www.kaggle.com/datasets/shubhadeepmandal/lma-phase2-artifacts)**
+**Pretrained Checkpoints & Artifacts (Kaggle):** [https://www.kaggle.com/datasets/shubhadeepmandal/lma-phase2-artifacts](https://www.kaggle.com/datasets/shubhadeepmandal/lma-phase2-artifacts)  
+*(Contains all 16K model checkpoints, training logs `train_log.json`, and evaluation outputs.)*
 
 ## Executive Summary & Core Results
 
