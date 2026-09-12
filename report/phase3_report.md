@@ -142,6 +142,9 @@ Evaluating performance across fine-grained reasoning categories confirms strong 
 | **Transitive Chain** | 85.6% | 72.1% | 67.3% | 51.9% |
 | **Word Problem** | 86.4% | 76.1% | 75.0% | 58.0% |
 
+![Hindi Per-Paradigm Reasoning Accuracy Breakdown](figures/phase3_per_paradigm_breakdown_hindi.png)
+*Figure 4a: Hindi CoT reasoning accuracy across five paradigms (V1 Baseline vs. V2 Modern).*
+
 ### 6.2 Assamese Paradigm Breakdown (Accuracy)
 | Reasoning Paradigm | Assamese V1 Direct | Assamese V1 CoT | Assamese V2 Direct | Assamese V2 CoT |
 | :--- | :---: | :---: | :---: | :---: |
@@ -151,8 +154,11 @@ Evaluating performance across fine-grained reasoning categories confirms strong 
 | **Transitive Chain** | 63.5% | 60.6% | 24.0% | 8.7% |
 | **Word Problem** | 70.5% | 53.4% | 19.3% | 14.8% |
 
-![Per-Paradigm Reasoning Accuracy Breakdown](figures/phase3_per_paradigm_breakdown.png)
-*Figure 4: Fine-grained reasoning accuracy breakdown across all five logic paradigms (Conversational, Multi-Hop, Negation, Transitive, Word Problem).*
+![Assamese Per-Paradigm Reasoning Accuracy Breakdown](figures/phase3_per_paradigm_breakdown_assamese.png)
+*Figure 4b: Assamese CoT reasoning accuracy across five paradigms (V1 Baseline vs. V2 Modern).*
+
+![Cross-Lingual Per-Paradigm Reasoning Accuracy Comparison](figures/phase3_per_paradigm_breakdown.png)
+*Figure 4c: Unified cross-lingual CoT reasoning comparison across all five paradigms: Hindi (Higher-Resource) vs. Assamese (Lower-Resource).*
 
 > **Continuous Metric Insights**: While binary Exact Match requires rigid word-for-word memorization of synthetic templates, Chain-of-Thought fine-tuning unlocks massive relative Token F1 gains (+45.8% in Hindi V1, +38.9% in Hindi V2, +27.8% in Assamese V1, +26.8% in Assamese V2) and enables decomposed step credit reaching **61.34%** in Hindi and **33.68%** in Assamese.
 
