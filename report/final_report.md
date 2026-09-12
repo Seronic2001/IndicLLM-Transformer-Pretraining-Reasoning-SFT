@@ -69,13 +69,13 @@ Supervised fine-tuning across 20,000 synthetic reasoning examples evaluated on 2
 | Model Key | Language | Architecture | SFT Mode | Strict Accuracy (Ans) | Token F1 (Ans) | Char Sim | CoT Exact Match | CoT Decomposed Score |
 | :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
 | **Hindi V1 Direct** | Hindi | Baseline V1 | Direct | **85.20%** | 29.77% | 17.27% | — | — |
-| **Hindi V1 CoT** | Hindi | Baseline V1 | CoT | 75.00% | **43.40% (+45.8% rel)**| **17.27%** | **44.00%** | **61.34%** |
+| **Hindi V1 CoT** | Hindi | Baseline V1 | CoT | 75.00% | **43.40% (+45.8% rel)**| **29.38% (+70.1% rel)** | **44.00%** | **61.34%** |
 | **Hindi V2 Direct** | Hindi | Modern V2 | Direct | 71.00% | 29.19% | 17.26% | — | — |
-| **Hindi V2 CoT** | Hindi | Modern V2 | CoT | 57.20% | **40.55% (+38.9% rel)**| **17.26%** | 14.40% | **56.15%** |
+| **Hindi V2 CoT** | Hindi | Modern V2 | CoT | 57.20% | **40.55% (+38.9% rel)**| **26.01% (+50.7% rel)** | 14.40% | **56.15%** |
 | **Assamese V1 Direct**| Assamese| Baseline V1 | Direct | **65.00%** | 26.37% | 16.84% | — | — |
-| **Assamese V1 CoT** | Assamese| Baseline V1 | CoT | 58.20% | **33.70% (+27.8% rel)**| **16.84%** | 0.00% | **33.68%** |
+| **Assamese V1 CoT** | Assamese| Baseline V1 | CoT | 58.20% | **33.70% (+27.8% rel)**| **25.62% (+52.1% rel)** | 0.00% | **33.68%** |
 | **Assamese V2 Direct**| Assamese| Modern V2 | Direct | 23.20% | 20.54% | 13.69% | — | — |
-| **Assamese V2 CoT** | Assamese| Modern V2 | CoT | 14.00% | **26.05% (+26.8% rel)**| **13.69%** | 0.00% | **32.98%** |
+| **Assamese V2 CoT** | Assamese| Modern V2 | CoT | 14.00% | **26.05% (+26.8% rel)**| **23.36% (+70.6% rel)** | 0.00% | **32.98%** |
 
 ---
 

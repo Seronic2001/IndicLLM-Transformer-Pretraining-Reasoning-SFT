@@ -106,18 +106,21 @@ Binary 0/1 exact match heavily penalizes minor punctuation or inflectional diffe
 | Model Variant | Architecture | Training Paradigm | Strict Accuracy (Ans Only) | CoT Exact Match | Token F1 (Ans Only) | Char Similarity | CoT Decomposed Score |
 | :--- | :--- | :--- | :---: | :---: | :---: | :---: | :---: |
 | **Hindi V1 Direct** | Baseline V1 | Direct SFT | **85.20%** | — | 29.77% | 17.27% | — |
-| **Hindi V1 CoT** | Baseline V1 | CoT SFT | 75.00% | **44.00%** | **43.40% (+45.8% rel)** | **17.27%** | **61.34%** |
+| **Hindi V1 CoT** | Baseline V1 | CoT SFT | 75.00% | **44.00%** | **43.40% (+45.8% rel)** | **29.38% (+70.1% rel)** | **61.34%** |
 | **Hindi V2 Direct** | Modern V2 | Direct SFT | 71.00% | — | 29.19% | 17.26% | — |
-| **Hindi V2 CoT** | Modern V2 | CoT SFT | 57.20% | 14.40% | **40.55% (+38.9% rel)** | **17.26%** | **56.15%** |
+| **Hindi V2 CoT** | Modern V2 | CoT SFT | 57.20% | 14.40% | **40.55% (+38.9% rel)** | **26.01% (+50.7% rel)** | **56.15%** |
 
 ### 5.2 🌿 Assamese 4-Model Suite Results
 
 | Model Variant | Architecture | Training Paradigm | Strict Accuracy (Ans Only) | CoT Exact Match | Token F1 (Ans Only) | Char Similarity | CoT Decomposed Score |
 | :--- | :--- | :--- | :---: | :---: | :---: | :---: | :---: |
 | **Assamese V1 Direct** | Baseline V1 | Direct SFT | **65.00%** | — | 26.37% | 16.84% | — |
-| **Assamese V1 CoT** | Baseline V1 | CoT SFT | 58.20% | 0.00% | **33.70% (+27.8% rel)** | **16.84%** | **33.68%** |
+| **Assamese V1 CoT** | Baseline V1 | CoT SFT | 58.20% | 0.00% | **33.70% (+27.8% rel)** | **25.62% (+52.1% rel)** | **33.68%** |
 | **Assamese V2 Direct** | Modern V2 | Direct SFT | 23.20% | — | 20.54% | 13.69% | — |
-| **Assamese V2 CoT** | Modern V2 | CoT SFT | 14.00% | 0.00% | **26.05% (+26.8% rel)** | **13.69%** | **32.98%** |
+| **Assamese V2 CoT** | Modern V2 | CoT SFT | 14.00% | 0.00% | **26.05% (+26.8% rel)** | **23.36% (+70.6% rel)** | **32.98%** |
+
+![Character Similarity & Decomposed Score](figures/phase3_char_similarity_and_decomp.png)
+*Figure: Continuous multi-tier evaluation showing dramatic character similarity and decomposed CoT step score improvements.*
 
 ---
 
