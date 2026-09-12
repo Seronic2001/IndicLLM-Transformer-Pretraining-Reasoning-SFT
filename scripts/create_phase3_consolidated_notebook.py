@@ -460,57 +460,59 @@ print(f"[+] Saved: {p3.name}")
     # Cell 6: Markdown Consolidated Report
     c6 = """# [Cell 6] Generate Consolidated Phase 3 Markdown Report
 report_path = ARTIFACTS_DIR / "phase3_consolidated_report.md"
-report_text = f\"\"\"# LMA Phase 3: Consolidated Symbolic Reasoning & Multi-Tier Evaluation Report
 
-**Author**: Shubhadeep Mandal (CL3-410)  
-**Execution Environment**: Kaggle Cloud (Nvidia Tesla T4 GPUs)  
-**Artifact Package**: `phase3_artifacts.zip`  
+report_lines = [
+    "# LMA Phase 3: Consolidated Symbolic Reasoning & Multi-Tier Evaluation Report",
+    "",
+    "**Author**: Shubhadeep Mandal (CL3-410)",
+    "**Execution Environment**: Kaggle Cloud (Nvidia Tesla T4 GPUs)",
+    "**Artifact Package**: `phase3_artifacts.zip`",
+    "",
+    "---",
+    "",
+    "## 1. Executive Summary & Experimental Architecture",
+    "",
+    "We evaluate Supervised Fine-Tuning (Direct SFT) versus Chain-of-Thought Fine-Tuning (CoT SFT) across two generations of 25.6M Transformer Language Models for Hindi (Devanagari) and Assamese (Eastern Nagari):",
+    "- Version 1.0 (Baseline LM): Pre-LN LayerNorm, GELU (d_ff=2240), Absolute Position Embeddings.",
+    "- Version 2.0 (Modern LM): Pre-RMSNorm, SwiGLU Gated MLP (d_ff=1376), Rotary Position Embeddings (RoPE).",
+    "",
+    "---",
+    "",
+    "## 2. Head-to-Head Comparison Matrices",
+    "",
+    "### 2.1 Strict Accuracy Comparison (Tier 1)",
+    "",
+    "| Model Variant | Architecture | Training Mode | Accuracy (Ans Only) | Exact Match (CoT) |",
+    "| :--- | :--- | :--- | :---: | :---: |",
+    "| **Hindi V1 Direct** | Baseline V1 | Direct SFT | **62.80%** | — |",
+    "| **Hindi V1 CoT** | Baseline V1 | Chain-of-Thought | **24.40%** | **22.40%** |",
+    "| **Hindi V2 Direct** | Modern V2 | Direct SFT | **48.20%** | — |",
+    "| **Hindi V2 CoT** | Modern V2 | Chain-of-Thought | **18.80%** | **16.80%** |",
+    "| **Assamese V1 Direct** | Baseline V1 | Direct SFT | **23.20%** | — |",
+    "| **Assamese V1 CoT** | Baseline V1 | Chain-of-Thought | **47.20%** | **46.80%** |",
+    "| **Assamese V2 Direct** | Modern V2 | Direct SFT | **18.40%** | — |",
+    "| **Assamese V2 CoT** | Modern V2 | Chain-of-Thought | **38.40%** | **37.60%** |",
+    "",
+    "### 2.2 Continuous Multi-Tier Quality Matrix",
+    "",
+    "| Model Variant | Direct Answer F1 | Direct Char Sim | CoT Answer F1 | CoT Decomposed Score |",
+    "| :--- | :---: | :---: | :---: | :---: |",
+    "| **Hindi V1** | 65.40% | 71.20% | **74.20% (+13.5% rel)** | **71.80%** |",
+    "| **Hindi V2** | 53.60% | 61.40% | **67.20% (+25.4% rel)** | **64.80%** |",
+    "| **Assamese V1**| 31.20% | 42.80% | **38.50% (+23.4% rel)** | **39.20%** |",
+    "| **Assamese V2**| 26.40% | 37.50% | **33.70% (+27.7% rel)** | **34.40%** |",
+    "",
+    "---",
+    "",
+    "## 3. Key Findings",
+    "",
+    "1. Continuous vs. Strict Metric Duality: While rigid slot template memorization favors fixed coordinate embeddings (V1), Chain-of-Thought provides a significant +13.5% to +27.7% relative boost in Token F1, generating verifiable intermediate reasoning steps.",
+    "2. Negation Breakthrough in Assamese: Introducing a controlled 5% negation curriculum unlocked bidirectional polarity reasoning, reaching 63.83% accuracy on negated relational queries (up from 0.00% without curriculum).",
+    "3. Attention Specialization (3.2): Post-finetune attention heatmaps demonstrate distinct specialization, with attention entropy dropping (more focused heads) and mean attention distance shifting toward antecedent entity tokens.",
+]
 
----
-
-## 1. Executive Summary & Experimental Architecture
-
-We evaluate **Supervised Fine-Tuning (Direct SFT)** versus **Chain-of-Thought Fine-Tuning (CoT SFT)** across two generations of 25.6M Transformer Language Models for **Hindi** (Devanagari) and **Assamese** (Eastern Nagari):
-- **Version 1.0 (Baseline LM)**: Pre-LN LayerNorm, GELU ($d_{\\\\text{{ff}}}=2240$), Absolute Position Embeddings.
-- **Version 2.0 (Modern LM)**: Pre-RMSNorm, SwiGLU Gated MLP ($d_{\\\\text{{ff}}}=1376$), Rotary Position Embeddings (RoPE).
-
----
-
-## 2. Head-to-Head Comparison Matrices
-
-### 2.1 Strict Accuracy Comparison (Tier 1)
-
-| Model Variant | Architecture | Training Mode | Accuracy (Ans Only) | Exact Match (CoT) |
-| :--- | :--- | :--- | :---: | :---: |
-| **Hindi V1 Direct** | Baseline V1 | Direct SFT | **62.80%** | — |
-| **Hindi V1 CoT** | Baseline V1 | Chain-of-Thought | **24.40%** | **22.40%** |
-| **Hindi V2 Direct** | Modern V2 | Direct SFT | **48.20%** | — |
-| **Hindi V2 CoT** | Modern V2 | Chain-of-Thought | **18.80%** | **16.80%** |
-| **Assamese V1 Direct** | Baseline V1 | Direct SFT | **23.20%** | — |
-| **Assamese V1 CoT** | Baseline V1 | Chain-of-Thought | **47.20%** | **46.80%** |
-| **Assamese V2 Direct** | Modern V2 | Direct SFT | **18.40%** | — |
-| **Assamese V2 CoT** | Modern V2 | Chain-of-Thought | **38.40%** | **37.60%** |
-
-### 2.2 Continuous Multi-Tier Quality Matrix
-
-| Model Variant | Direct Answer $F_1$ | Direct Char Sim | CoT Answer $F_1$ | CoT Decomposed Score |
-| :--- | :---: | :---: | :---: | :---: |
-| **Hindi V1** | 65.40% | 71.20% | **74.20% (+13.5% rel)** | **71.80%** |
-| **Hindi V2** | 53.60% | 61.40% | **67.20% (+25.4% rel)** | **64.80%** |
-| **Assamese V1**| 31.20% | 42.80% | **38.50% (+23.4% rel)** | **39.20%** |
-| **Assamese V2**| 26.40% | 37.50% | **33.70% (+27.7% rel)** | **34.40%** |
-
----
-
-## 3. Key Findings
-
-1. **Continuous vs. Strict Metric Duality**: While rigid slot template memorization favors fixed coordinate embeddings (V1), Chain-of-Thought provides a significant **+13.5% to +27.7% relative boost in Token $F_1$**, generating verifiable intermediate reasoning steps.
-2. **Negation Breakthrough in Assamese**: Introducing a controlled 5% negation curriculum unlocked bidirectional polarity reasoning, reaching **63.83% accuracy** on negated relational queries (up from 0.00% without curriculum).
-3. **Attention Specialization (§3.2)**: Post-finetune attention heatmaps demonstrate distinct specialization, with attention entropy dropping (more focused heads) and mean attention distance shifting toward antecedent entity tokens.
-\"\"\"
-
-report_path.write_text(report_text, encoding="utf-8")
-print(f"[+] Written report to: {report_path}")
+report_path.write_text('\\n'.join(report_lines), encoding='utf-8')
+print(f'[+] Written report to: {report_path}')
 """
     cells.append(make_cell("code", c6))
 
