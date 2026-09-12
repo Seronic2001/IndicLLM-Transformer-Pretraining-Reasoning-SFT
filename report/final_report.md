@@ -1,6 +1,6 @@
 # Comparative Pre-Training and Symbolic Reasoning Transfer in Monolingual Indic Transformers: A Comprehensive Synthesis Across High-Resource Hindi and Low-Resource Assamese
 
-**Author**: Shubhadeep Mandal (CL3-410)  
+**Author**: Shubhadeep Mandal (Roll No: 2025201056)  
 **Course**: Language Models and Agents (Monsoon 2026)  
 **Submission Repository**: [github.com/shubhadeepmandal/individual-project-Seronic2001](https://github.com/shubhadeepmandal/individual-project-Seronic2001)  
 **Branch**: `phase-3` (Final 100-Mark Snapshot)  

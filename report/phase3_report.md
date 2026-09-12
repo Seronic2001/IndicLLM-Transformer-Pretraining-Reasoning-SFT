@@ -1,7 +1,7 @@
 # Phase 3 Technical Report: Symbolic Reasoning via Direct SFT vs. Chain-of-Thought
 
 **Course**: Language Models and Agents (Monsoon 2026)  
-**Author**: Shubhadeep Mandal (CL3-410)  
+**Author**: Shubhadeep Mandal (Roll No: 2025201056)  
 **Evaluation Scope**: 8 Fine-Tuned Models ($4 \times 2$ Matrix: V1 Baseline vs. V2 Modern $\times$ Direct SFT vs. CoT)  
 **Target Languages**: Hindi (Devanagari script) and Assamese (Eastern Nagari script `অসমীয়া`)  
 
