@@ -120,7 +120,7 @@ Phase 3 formulates anti-leakage symbolic relational reasoning datasets and evalu
 
 ### 📦 Phase 3 Checkpoints & Artifacts Dataset Links
 * **Consolidated Phase 3 Kaggle Artifacts**: [https://www.kaggle.com/code/shubhadeepmandal/lma-phase3-consolidated-artifacts](https://www.kaggle.com/code/shubhadeepmandal/lma-phase3-consolidated-artifacts)
-  * **Unified Archive:** `phase3_artifacts.zip` containing all 8 fine-tuned checkpoints, evaluation JSONs, and figures.
+  * **Artifact Directory:** `phase3_artifacts/` containing all 8 fine-tuned checkpoints (`checkpoints/`), evaluation JSONs, and figures (`figures/`).
   * **Hindi Fine-Tuned Checkpoints:**
     * `hindi_v1_sft_direct.pt` & `hindi_v1_sft_cot.pt`
     * `hindi_v2_sft_direct.pt` & `hindi_v2_sft_cot.pt`

@@ -35,7 +35,7 @@ This notebook unifies the parallel fine-tuning and evaluation runs (`lma-phase3-
 1. **8 Fine-Tuned Models**: ($4 \\times 2$ Matrix: V1 Baseline vs. V2 Modern $\\times$ Direct SFT vs. CoT).
 2. **Multi-Tier Continuous Metrics**: Strict Exact Match, Token $F_1$, Levenshtein Character Similarity, and Decomposed CoT Credit.
 3. **Section 3.2 Post-Finetune Attention Analysis**: Pretrained vs. Finetuned Query-Key Heatmaps, Attention Entropy, and Mean Attention Distance.
-4. **All-In-One Deliverable**: Serializes `phase3_artifacts.zip` containing all checkpoints, figures, metrics, and markdown reports.
+4. **All-In-One Deliverable**: Organizes all checkpoints, figures, metrics, and markdown reports into `phase3_artifacts/` ready for native Kaggle Dataset publishing without zip extraction conflicts.
 """
     cells.append(make_cell("markdown", intro_md))
 
@@ -473,7 +473,7 @@ report_lines = [
     "",
     "**Author**: Shubhadeep Mandal (CL3-410)",
     "**Execution Environment**: Kaggle Cloud (Nvidia Tesla T4 GPUs)",
-    "**Artifact Package**: `phase3_artifacts.zip`",
+    "**Artifact Directory**: `phase3_artifacts/`",
     "",
     "---",
     "",
@@ -523,19 +523,12 @@ print(f'[+] Written report to: {report_path}')
 """
     cells.append(make_cell("code", c6))
 
-    # Cell 7: Packaging Zip Deliverable
-    c7 = """# [Cell 7] Packaging Final Phase 3 Artifact Archive
-zip_path = WORKING_DIR / "phase3_artifacts.zip"
-
-with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zf:
-    for file in ARTIFACTS_DIR.rglob("*"):
-        if file.is_file():
-            arcname = file.relative_to(WORKING_DIR)
-            zf.write(file, arcname=arcname)
-
+    # Cell 7: Final Deliverables Inventory & Dataset Verification
+    c7 = """# [Cell 7] Final Deliverables Inventory & Dataset Verification
 print("=" * 70)
-print(f"[SUCCESS] Phase 3 Deliverable Archive Created: {zip_path}")
-print(f"Archive Size: {zip_path.stat().st_size / (1024*1024):.2f} MB")
+print(f"[SUCCESS] Phase 3 Deliverable Directory Created: {ARTIFACTS_DIR}")
+total_size = sum(f.stat().st_size for f in ARTIFACTS_DIR.rglob("*") if f.is_file())
+print(f"Total Artifacts Size: {total_size / (1024*1024):.2f} MB")
 print("=" * 70)
 
 # Final Inventory of Outputs
@@ -572,6 +565,11 @@ def main():
     root = Path(__file__).resolve().parents[1]
     nb_path = root / "notebooks" / "phase3_consolidated_artifacts.ipynb"
     generate_notebook(nb_path)
+
+    # Also sync directly to submission repository
+    sub_nb = Path("C:/Users/Shubh/Desktop/LMA/individual-project-Seronic2001/notebooks/phase3_consolidated_artifacts.ipynb")
+    if sub_nb.parent.exists():
+        generate_notebook(sub_nb)
 
 if __name__ == "__main__":
     main()
