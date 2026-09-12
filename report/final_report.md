@@ -12,7 +12,7 @@
 
 ## Executive Abstract
 
-We design, build, pretrain, and evaluate two completely independent monolingual decoder-only Transformer Language Models (~25.6M parameters each) from scratch in PyTorch without any pretrained initialization or cross-lingual weight sharing. Through multi-source web crawling and digital OCR extraction of educational textbooks, we curated balanced **500M+ token corpora** for both languages, meeting the mandatory $\ge 20\%$ manual collection threshold. Custom 16,384-vocabulary SentencePiece BPE tokenizers achieve character coverage $>99.99\%$ with $0.0\%$ unknown token rate. Pretraining on 500M tokens across 1,907 optimizer steps yields smooth convergence and competitive held-out test perplexities ($54.64$ for Hindi V2, $78.17$ for Assamese V2). In Phase 3, we formulate an anti-leakage relational reasoning solver and conduct Supervised Fine-Tuning across an 8-model experimental matrix ($4 \times 2$: Baseline V1 vs. Modern V2 $\times$ Direct SFT vs. Chain-of-Thought). Chain-of-Thought SFT combined with a controlled 5% negation curriculum yields dramatic performance improvements (+101.7% relative gain in Assamese, achieving 63.83% accuracy on negated logic queries and +13.5% to +27.7% relative boost in Token $F_1$), effectively closing the reasoning gap between the resource tiers.
+We design, build, pretrain, and evaluate two completely independent monolingual decoder-only Transformer Language Models (~25.6M parameters each) from scratch in PyTorch without any pretrained initialization or cross-lingual weight sharing. Through multi-source web crawling and digital OCR extraction of educational textbooks, we curated balanced **500M+ token corpora** for both languages, meeting the mandatory $\ge 20\%$ manual collection threshold. Custom 16,384-vocabulary SentencePiece BPE tokenizers achieve character coverage $>99.99\%$ with $0.0\%$ unknown token rate. Pretraining on 500M tokens across 1,907 optimizer steps yields smooth convergence and competitive held-out test perplexities ($52.26$ for Hindi V2, $80.93$ for Assamese V2). In Phase 3, we formulate an anti-leakage relational reasoning solver and conduct Supervised Fine-Tuning across an 8-model experimental matrix ($4 \times 2$: Baseline V1 vs. Modern V2 $\times$ Direct SFT vs. Chain-of-Thought). Chain-of-Thought SFT combined with a controlled 5% negation curriculum yields dramatic performance improvements (+101.7% relative gain in Assamese, achieving 63.83% accuracy on negated logic queries and +13.5% to +27.7% relative boost in Token $F_1$), effectively closing the reasoning gap between the resource tiers.
 
 ---
 
@@ -27,7 +27,7 @@ We design, build, pretrain, and evaluate two completely independent monolingual 
 | • 528M tokens (Assam, 22.48% man)  | • V1 Baseline (Pre-LN, GELU, pos)  | • Anti-leakage entity pools   |
 | • MinHash LSH deduplication (s=0.8)| • V2 Modern (RMSNorm, SwiGLU, RoPE)| • Direct vs. CoT SFT          |
 | • Custom 16K BPE Tokenizers        | • 500M pretraining budget (AdamW)  | • Multi-tier metric suite     |
-| • Byte-fallback (<unk> = 0.0%)     | • Test PPL: 54.64 (HI), 78.17 (AS) | • Negation curriculum         |
+| • Byte-fallback (<unk> = 0.0%)     | • Test PPL: 52.26 (HI), 80.93 (AS) | • Negation curriculum         |
 +------------------------------------+------------------------------------+-------------------------------+
 ```
 
@@ -56,11 +56,11 @@ Pretraining was conducted on dedicated Nvidia GPUs with mixed precision fp16 (AM
 
 | Model Generation | Architecture Details | Hindi Test Loss | Hindi PPL | Hindi BPB | Assamese Test Loss | Assamese PPL | Assamese BPB |
 | :--- | :--- | :---: | :---: | :---: | :---: | :---: | :---: |
-| **Version 1.0 (Baseline LM)** | Pre-LN, GELU, Absolute Pos | 4.3306 | 75.99 | 0.5701 | 4.7059 | 110.60 | 0.5380 |
-| **Version 2.0 (Modern LM)** | Pre-RMSNorm, SwiGLU, RoPE | **4.0007** | **54.64** | **0.5267** | **4.3588** | **78.17** | **0.4983** |
-| **Architectural Gain ($\Delta$)** | SwiGLU + RoPE Advantage | **-0.3299** | **-28.1%** | **-0.0434** | **-0.3471** | **-29.3%** | **-0.0397** |
+| **Version 1.0 (Baseline LM)** | Pre-LN, GELU, Absolute Pos | 4.4102 | 82.28 | 0.5764 | 4.7920 | 120.54 | 0.5641 |
+| **Version 2.0 (Modern LM)** | Pre-RMSNorm, SwiGLU, RoPE | **3.9562** | **52.26** | **0.5189** | **4.3935** | **80.93** | **0.5049** |
+| **Architectural Gain ($\Delta$)** | SwiGLU + RoPE Advantage | **-0.4540** | **-36.5%** | **-0.0575** | **-0.3985** | **-32.9%** | **-0.0592** |
 
-*Key Pretraining Takeaway*: Modern V2 achieves a massive **~29% perplexity reduction** and higher generation diversity across both languages, validating the architectural enhancements.
+*Key Pretraining Takeaway*: Modern V2 achieves a massive **~33–36% perplexity reduction** and higher generation diversity across both languages, validating the architectural enhancements.
 
 ### 2.3 Phase 3: Symbolic Reasoning Benchmark Matrix (8 Models)
 
@@ -104,7 +104,7 @@ Supervised fine-tuning across 20,000 synthetic reasoning examples evaluated on 2
 ### Question 2: How do language-modeling and reasoning results compare across the two resource tiers?
 
 1. **Pretraining Convergence Gap**:
-   * Hindi reached a lower test perplexity ($54.64$) than Assamese ($78.17$). This $\Delta \approx 23.5$ PPL gap directly reflects the higher morphological complexity and conjunct ligature density in Eastern Nagari, where rare compound characters incur higher cross-entropy loss.
+   * Hindi reached a lower test perplexity ($52.26$) than Assamese ($80.93$). This $\Delta \approx 28.67$ PPL gap directly reflects the higher morphological complexity and conjunct ligature density in Eastern Nagari, where rare compound characters incur higher cross-entropy loss.
 2. **Reasoning Acquisition Divergence**:
    * In Direct SFT, Hindi outperformed Assamese across both architectures (Hindi V1: **85.20%** vs. Assamese V1: **65.00%**; Hindi V2: **71.00%** vs. Assamese V2: **23.20%**), demonstrating that pretraining scale directly aids symbolic fact retrieval.
    * Under **Chain-of-Thought (CoT) SFT**, all four model variants exhibited dramatic jumps in semantic completeness and continuous token overlap:
@@ -133,7 +133,7 @@ We present four empirical pillars explaining the performance dynamics:
 
 1. **Inductive Bias of Positional Encodings (V1 vs. V2)**:
    * V1 Baseline uses **Absolute Positional Embeddings**, creating static coordinate registers for each position index $t \in [0, 511]$. In rigid synthetic reasoning prompts with invariant sentence structures, V1 easily memorizes that the subject is at index $k_1$ and the attribute is at index $k_2$.
-   * V2 Modern uses **Rotary Position Embeddings (RoPE)**, where relative distances govern attention. While RoPE excels at continuous open-domain text (yielding 28–29% lower perplexity in Phase 2), it requires explicit step tokens (Chain-of-Thought) to bridge relative coordinate hops during symbolic deduction.
+   * V2 Modern uses **Rotary Position Embeddings (RoPE)**, where relative distances govern attention. While RoPE excels at continuous open-domain text (yielding 33–36% lower perplexity in Phase 2), it requires explicit step tokens (Chain-of-Thought) to bridge relative coordinate hops during symbolic deduction.
 2. **Attention Entropy Redistribution (Section 3.2)**:
    * Post-finetuning attention analysis proves that attention entropy drops by **$30.8\%$** ($2.14 \to 1.48$ nats), and mean attention distance expands by **$+71.3\%$** ($3.42 \to 5.86$ tokens). Models actively shift attention from neighboring local tokens to distant antecedent entities.
 3. **Negation Curriculum Generalization**:
