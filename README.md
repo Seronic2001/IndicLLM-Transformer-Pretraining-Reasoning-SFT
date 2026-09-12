@@ -463,7 +463,8 @@ python -m assamese.finetune.finetune --mode cot --arch v2 --epochs 3
 ---
 
 ## 📑 Technical Reports
-* **Final Consolidated Report (100 Marks):** **[`report/final_report.md`](report/final_report.md)** — Exhaustive scientific synthesis answering the 4 core comparative questions across data scale, language modeling, subword fertility, and symbolic reasoning.
+* **Course Bonus Technical Report (Optional Ablation):** **[`report/bonus_report.md`](report/bonus_report.md)** — Rigorous ablation removing positional embeddings ($E_{pos}=0$) in Hindi 16K Transformer (~24.78M params). Documents +193.9% perplexity spike, 93.7% greedy repetition loops, attention distance flattening, and mathematical proof of Bag-of-Words causal collapse.
+* **Final Consolidated Report (100 Marks):** **[`report/final_report.md`](report/final_report.md)** ([PDF Version: `report/final_report.pdf`](report/final_report.pdf)) — Exhaustive scientific synthesis answering the 4 core comparative questions across data scale, language modeling, subword fertility, and symbolic reasoning.
 * **Phase 3 Technical Report (35 Marks):** **[`report/phase3_report.md`](report/phase3_report.md)** — Complete 8-model reasoning evaluation, multi-tier metrics matrix (Token F1, Levenshtein distance, Decomposed CoT score), per-paradigm analysis, and post-finetune attention redistribution heatmaps.
 * **Phase 2 Technical Report (40 Marks):** **[`report/phase2_report.md`](report/phase2_report.md)** — Comprehensive report containing pretraining loss curves, architecture bake-off (Modern V2 vs Baseline V1), intrinsic PPL & BPB tables, generation quality benchmarks across 4 temperatures with real text samples, attention heatmaps with Indic script labels, and parameter accounting.
 * **Phase 1 Technical Report (25 Marks):** **[`report/phase1_report.md`](report/phase1_report.md)** — In-depth linguistic justifications, Unicode normalization equations, deduplication graphs, and tokenizer candidate evaluation.
