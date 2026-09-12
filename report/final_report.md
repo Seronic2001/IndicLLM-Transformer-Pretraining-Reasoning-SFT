@@ -52,8 +52,9 @@ Both languages satisfy the $\sim 500\text{M}$ token requirement with $>20\%$ man
 
 *Public Phase 1 Datasets*: Raw crawled text, OCR extractions, cleaned corpora, and 16K BPE models are archived in public Kaggle datasets: [`shubhadeepmandal/lma-hindi-artifacts`](https://www.kaggle.com/datasets/shubhadeepmandal/lma-hindi-artifacts) and [`shubhadeepmandal/lma-assamese-artifact`](https://www.kaggle.com/datasets/shubhadeepmandal/lma-assamese-artifact).
 
-![Pretraining Corpus Distribution: Manual Scraped vs. Downloaded Tokens](figures/manual_vs_downloaded_tokens.png)
-*Figure 2.1: Pretraining Corpus Distribution — Curated Web Crawls & Digital OCR of State Board Textbooks vs. Raw Datasets across Hindi (723M) and Assamese (528M), fulfilling the $\ge 20\%$ manual collection threshold.*
+![Hindi Monolingual Corpus Source Distribution](figures/corpus_distribution_hindi_cropped.png)
+![Assamese Monolingual Corpus Source Distribution](figures/corpus_distribution_assamese_cropped.png)
+*Figure 2.1: Pretraining Corpus Source Composition (Pie Chart Breakdown) — Detailed source breakdowns across Hindi (723M tokens, 20.55% manual) and Assamese (528M tokens, 22.48% manual), fulfilling the mandatory $\ge 20\%$ manual collection threshold through curated web crawls and digital textbook OCR.*
 
 ![Subword Tokenizer Fertility Comparison](figures/tokenizer_fertility_comparison.png)
 *Figure 2.2: Subword Fertility (Tokens per Word) across Vocabulary Sizes. At our chosen 16K vocabulary, Assamese requires $1.4426$ tokens/word compared to $1.1858$ for Hindi due to Eastern Nagari conjunct ligatures (যুক্তাক্ষৰ).*
