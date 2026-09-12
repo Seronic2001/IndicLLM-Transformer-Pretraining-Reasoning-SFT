@@ -23,7 +23,6 @@
 \usepackage{tabularx}
 \usepackage{multirow}
 \usepackage{array}
-\newcolumntype{Y}{>{\centering\arraybackslash}X}
 
 % --- Section Headings (Formal Academic) ---
 \usepackage{titlesec}
@@ -58,7 +57,7 @@
       \vspace{0.35cm}
       {\large \textbf{Shubhadeep Mandal}}\par
       \vspace{0.12cm}
-      {\small Department of Computer Science and Engineering \quad\textbar\quad Course: \textit{Language Models and Agents (Monsoon 2026)} \quad\textbar\quad Roll No: \texttt{2025201056}\par}
+      {\small Course: \textit{Language Models and Agents (Monsoon 2026)} \quad\textbar\quad Roll No: \texttt{2025201056}\par}
       \vspace{0.08cm}
       {\footnotesize Project Repository: \url{https://github.com/shubhadeepmandal/individual-project-Seronic2001} \quad\textbar\quad Branch: \texttt{phase-3}\par}
       \vspace{0.08cm}
@@ -136,22 +135,29 @@ Compression Ratio & 3.7445 char/tok & 4.5774 char/tok \\
 \centering
 \begin{subfigure}[t]{0.48\textwidth}
     \centering
-    \includegraphics[width=\textwidth]{figures/manual_vs_downloaded_tokens.png}
-    \caption{Pretraining Corpus Distribution: Manual Scraped vs. Downloaded Tokens fulfilling the mandatory $\ge 20\%$ collection requirement.}
-    \label{fig:corpus_dist}
+    \includegraphics[width=\textwidth]{figures/corpus_distribution_hindi_cropped.png}
+    \caption{Hindi Monolingual Corpus Source Distribution (Total: 723.32M tokens, 20.55\% manual collection).}
+    \label{fig:corpus_hindi}
 \end{subfigure}
 \hfill
 \begin{subfigure}[t]{0.48\textwidth}
     \centering
-    \includegraphics[width=\textwidth]{figures/tokenizer_fertility_comparison.png}
-    \caption{Subword Fertility (Tokens/Word) across Vocabulary Sizes. Eastern Nagari conjuncts increase Assamese fertility to $1.4426$.}
-    \label{fig:fertility}
+    \includegraphics[width=\textwidth]{figures/corpus_distribution_assamese_cropped.png}
+    \caption{Assamese Monolingual Corpus Source Distribution (Total: 528.50M tokens, 22.48\% manual collection).}
+    \label{fig:corpus_assamese}
 \end{subfigure}
-\caption{\textbf{Phase 1 Corpus Scale and Subword Tokenizer Diagnostics.} Contrasting corpus source composition and subword fragmentation rates across Hindi and Assamese.}
-\label{fig:phase1_composite}
+\caption{\textbf{Phase 1 Pretraining Corpus Source Composition (Pie Chart Breakdown).} Detailed source breakdowns for Hindi and Assamese, fulfilling the mandatory $\ge 20\%$ manual collection threshold through curated web crawls and digital textbook OCR.}
+\label{fig:corpus_dist}
 \end{figure*}
 
-\textbf{Analytical Contrast (Figure \ref{fig:corpus_dist} vs. Figure \ref{fig:fertility})}: While both corpora satisfy the 500M token requirement, contrasting Figure \ref{fig:corpus_dist} and Figure \ref{fig:fertility} illustrates an acute structural divergence. Hindi benefited from extensive digital news archives, producing a low fertility rate ($1.1858$ tokens/word) where words align near-isomorphically with subword units. In contrast, Assamese text contains dense multi-consonant clusters (e.g. \indic{ক্ষ}, \indic{জ্ঞ}, \indic{ত্ত}) that fracture into 2--3 subword pieces. Consequently, an identical 512-token context window spans $\sim$431 words in Hindi but only $\sim$354 words in Assamese ($\sim 21.6\%$ shorter temporal horizon), imposing tighter bounds on multi-hop symbolic deduction.
+\begin{figure}[h!]
+\centering
+\includegraphics[width=\columnwidth]{figures/tokenizer_fertility_comparison.png}
+\caption{\textbf{Subword Fertility across Vocabulary Sizes.} At 16K vocabulary, Assamese requires $1.4426$ tokens/word compared to $1.1858$ for Hindi due to Eastern Nagari conjunct ligatures (\indic{যুক্তাক্ষৰ}).}
+\label{fig:fertility}
+\end{figure}
+
+\textbf{Analytical Contrast (Figure \ref{fig:corpus_dist} vs. Figure \ref{fig:fertility})}: While both corpora satisfy the 500M token requirement, contrasting the corpus source breakdown (Figure \ref{fig:corpus_dist}) with subword fertility (Figure \ref{fig:fertility}) illustrates an acute structural divergence. Hindi benefited from extensive digital news archives, producing a low fertility rate ($1.1858$ tokens/word) where words align near-isomorphically with subword units. In contrast, Assamese text contains dense multi-consonant clusters (e.g. \indic{ক্ষ}, \indic{জ্ঞ}, \indic{ত্ত}) that fracture into 2--3 subword pieces. Consequently, an identical 512-token context window spans $\sim$431 words in Hindi but only $\sim$354 words in Assamese ($\sim 21.6\%$ shorter temporal horizon), imposing tighter bounds on multi-hop symbolic deduction.
 
 \subsection{Phase 2: Pretraining Dynamics and LM Benchmarks}
 
@@ -160,7 +166,8 @@ Both architectures ($\sim$25.6M parameters) were pretrained under identical cond
 \begin{table}[h!]
 \centering
 \footnotesize
-\begin{tabularx}{\columnwidth}{lcccc}
+\resizebox{\columnwidth}{!}{
+\begin{tabular}{lcccc}
 \toprule
 \textbf{Model / Architecture} & \textbf{Loss} & \textbf{PPL} & \textbf{BPB} & \textbf{Params} \\
 \midrule
@@ -174,7 +181,8 @@ Baseline V1 (Pre-LN, GELU) & 4.7920 & 120.54 & 0.5641 & 24.98M \\
 \textbf{Modern V2 (RMSNorm, RoPE)} & \textbf{4.3935} & \textbf{80.93} & \textbf{0.5049} & \textbf{25.17M} \\
 \textit{Architectural Gain ($\Delta$)} & \textbf{-0.3985} & \textbf{-32.9\%} & \textbf{-0.0592} & --- \\
 \bottomrule
-\end{tabularx}
+\end{tabular}
+}
 \caption{\textbf{Held-Out Continuous Language Modeling Benchmarks.} Modern V2 demonstrates consistent superiority over Baseline V1 across both languages.}
 \label{tab:phase2}
 \end{table}
@@ -211,7 +219,8 @@ In Phase 3, we evaluated supervised fine-tuning across an 8-model experimental m
 \begin{table*}[t]
 \centering
 \small
-\begin{tabularx}{\textwidth}{llccccccc}
+\resizebox{\textwidth}{!}{
+\begin{tabular}{llccccccc}
 \toprule
 \textbf{Model Key} & \textbf{Language} & \textbf{Architecture} & \textbf{SFT Mode} & \textbf{Strict Acc (Ans)} & \textbf{Token $F_1$ (Ans)} & \textbf{Char Sim} & \textbf{CoT EM} & \textbf{CoT Decomp} \\
 \midrule
@@ -225,7 +234,8 @@ In Phase 3, we evaluated supervised fine-tuning across an 8-model experimental m
 \textbf{Assamese V2 Direct} & Assamese & Modern V2 & Direct & 23.20\% & 20.54\% & 13.69\% & --- & --- \\
 \textbf{Assamese V2 CoT} & Assamese & Modern V2 & CoT & 14.00\% & \textbf{26.05\%} (+26.8\%) & \textbf{23.36\%} (+70.6\%) & 0.00\% & \textbf{32.98\%} \\
 \bottomrule
-\end{tabularx}
+\end{tabular}
+}
 \caption{\textbf{Phase 3 Symbolic Reasoning Benchmark Matrix (8 Models).} Evaluated across Strict Answer Accuracy, Token $F_1$, Normalized Levenshtein Character Similarity, CoT Full Exact Match, and CoT Decomposed Step Score.}
 \label{tab:phase3}
 \end{table*}
