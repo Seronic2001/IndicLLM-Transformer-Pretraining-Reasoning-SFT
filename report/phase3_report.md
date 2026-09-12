@@ -299,7 +299,7 @@ To understand the qualitative mechanics and inductive biases driving reasoning s
 ## 9. Deliverables Inventory
 
 All Phase 3 artifacts are fully verified and reproducible:
-1. **Finetuned Model Weights**: Available in Kaggle public dataset [`shubhadeepmandal/lma-phase3-consolidated-artifacts`](https://www.kaggle.com/code/shubhadeepmandal/lma-phase3-consolidated-artifacts).
+1. **Finetuned Model Weights**: Available in Kaggle public dataset [`shubhadeepmandal/lma-phase3-artifacts`](https://www.kaggle.com/datasets/shubhadeepmandal/lma-phase3-artifacts).
 2. **Evaluation Matrices**: Complete 8-model metrics stored in `phase3_eval_results_matrix_8models.json`.
 3. **Visualization Suite**: High-resolution figures generated under `report/figures/`.
 4. **Codebase Reproducibility**: Fine-tuning pipeline in `hindi/finetune/` and `assamese/finetune/`.

@@ -23,3 +23,6 @@ splits/
 # OS specific
 .DS_Store
 Thumbs.db
+
+# Temporary deployment staging
+_kaggle_stage/
