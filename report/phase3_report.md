@@ -4,7 +4,6 @@
 **Author**: Shubhadeep Mandal (CL3-410)  
 **Evaluation Scope**: 8 Fine-Tuned Models ($4 \times 2$ Matrix: V1 Baseline vs. V2 Modern $\times$ Direct SFT vs. CoT)  
 **Target Languages**: Hindi (Devanagari script) and Assamese (Eastern Nagari script `অসমীয়া`)  
-**Deliverable Tracking**: Traced 100% to on-disk Kaggle Cloud checkpoints and JSON matrices  
 
 ---
 
@@ -119,8 +118,14 @@ Binary 0/1 exact match heavily penalizes minor punctuation or inflectional diffe
 | **Assamese V2 Direct** | Modern V2 | Direct SFT | 23.20% | — | 20.54% | 13.69% | — |
 | **Assamese V2 CoT** | Modern V2 | CoT SFT | 14.00% | 0.00% | **26.05% (+26.8% rel)** | **23.36% (+70.6% rel)** | **32.98%** |
 
+![Answer Accuracy Comparison](figures/phase3_reasoning_accuracy_comparison.png)
+*Figure 1: Direct SFT vs. Chain-of-Thought (CoT) Answer Accuracy across Hindi and Assamese (V1 Baseline vs. V2 Modern).*
+
+![Continuous Multi-Tier Token F1 Comparison](figures/phase3_multi_tier_f1_comparison.png)
+*Figure 2: Multi-Tier Quality: Continuous Token F1 gains unlocked by Chain-of-Thought reasoning scratchpads.*
+
 ![Character Similarity & Decomposed Score](figures/phase3_char_similarity_and_decomp.png)
-*Figure: Continuous multi-tier evaluation showing dramatic character similarity and decomposed CoT step score improvements.*
+*Figure 3: Continuous multi-tier evaluation showing dramatic character similarity and decomposed CoT step score improvements.*
 
 ---
 
@@ -146,6 +151,9 @@ Evaluating performance across fine-grained reasoning categories confirms strong 
 | **Transitive Chain** | 63.5% | 60.6% | 24.0% | 8.7% |
 | **Word Problem** | 70.5% | 53.4% | 19.3% | 14.8% |
 
+![Per-Paradigm Reasoning Accuracy Breakdown](figures/phase3_per_paradigm_breakdown.png)
+*Figure 4: Fine-grained reasoning accuracy breakdown across all five logic paradigms (Conversational, Multi-Hop, Negation, Transitive, Word Problem).*
+
 > **Continuous Metric Insights**: While binary Exact Match requires rigid word-for-word memorization of synthetic templates, Chain-of-Thought fine-tuning unlocks massive relative Token F1 gains (+45.8% in Hindi V1, +38.9% in Hindi V2, +27.8% in Assamese V1, +26.8% in Assamese V2) and enables decomposed step credit reaching **61.34%** in Hindi and **33.68%** in Assamese.
 
 ---
@@ -155,10 +163,10 @@ Evaluating performance across fine-grained reasoning categories confirms strong 
 To fulfill assignment specification Section 3.2 ("Compare pretrained vs. finetuned heatmaps for at least one early and one late layer per model. Comment on whether finetuning changed local vs. long-range attention or head specialization"), we extracted post-softmax attention tensors across early (Layer 0) and late (Layer 5) transformer blocks.
 
 ![Hindi Attention Comparison](figures/phase3_pretrain_vs_finetune_attention_hindi.png)
-*Figure 1: Hindi Multi-Head Attention redistribution before and after reasoning fine-tuning.*
+*Figure 5: Hindi Multi-Head Attention redistribution before and after reasoning fine-tuning.*
 
 ![Assamese Attention Comparison](figures/phase3_pretrain_vs_finetune_attention_assamese.png)
-*Figure 2: Assamese Multi-Head Attention redistribution before and after reasoning fine-tuning.*
+*Figure 6: Assamese Multi-Head Attention redistribution before and after reasoning fine-tuning.*
 
 ### Quantitative Attention Shift:
 1. **Attention Entropy (Diffusion Metric)**:

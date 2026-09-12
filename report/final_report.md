@@ -77,6 +77,15 @@ Supervised fine-tuning across 20,000 synthetic reasoning examples evaluated on 2
 | **Assamese V2 Direct**| Assamese| Modern V2 | Direct | 23.20% | 20.54% | 13.69% | — | — |
 | **Assamese V2 CoT** | Assamese| Modern V2 | CoT | 14.00% | **26.05% (+26.8% rel)**| **23.36% (+70.6% rel)** | 0.00% | **32.98%** |
 
+![Phase 3 Answer Accuracy Comparison](figures/phase3_reasoning_accuracy_comparison.png)
+*Figure: Direct SFT vs. Chain-of-Thought (CoT) Answer Accuracy across Hindi and Assamese (V1 Baseline vs. V2 Modern).*
+
+![Multi-Tier Token F1 Comparison](figures/phase3_multi_tier_f1_comparison.png)
+*Figure: Continuous Multi-Tier Token F1 gains unlocked by Chain-of-Thought reasoning scratchpads.*
+
+![Continuous Quality & Decomposed CoT Score](figures/phase3_char_similarity_and_decomp.png)
+*Figure: Continuous multi-tier evaluation showing dramatic character similarity and decomposed CoT step score improvements.*
+
 ---
 
 ## 3. Deep-Dive: The Four Core Synthesis Questions
