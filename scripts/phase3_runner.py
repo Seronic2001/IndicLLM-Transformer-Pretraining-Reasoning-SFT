@@ -314,9 +314,9 @@ def main(argv: Optional[list[str]] = None) -> int:
             raise FileNotFoundError(f"Critical source missing for Phase 3: {name} -> {path_val}")
 
 
-    # 2. Agent-G: Generate Anti-Leakage Reasoning Datasets
+    # 2. Reasoning Pipeline: Generate Anti-Leakage Reasoning Datasets
     print("\n" + "=" * 60, flush=True)
-    print("[2/5] Agent-G: Generating Anti-Leakage Relational Reasoning Datasets", flush=True)
+    print("[2/5] Reasoning Pipeline: Generating Anti-Leakage Relational Reasoning Datasets", flush=True)
     print("=" * 60, flush=True)
 
     hindi_data_dir = out_dir / "hindi/finetune/reasoning"
@@ -345,7 +345,7 @@ def main(argv: Optional[list[str]] = None) -> int:
 
     # 4. Train & Evaluate the 8 Fine-Tuned Models
     print("\n" + "=" * 60, flush=True)
-    print("[3/5] Agent-H: Training & Evaluating the 8 Fine-Tuned Models", flush=True)
+    print("[3/5] Fine-Tuning Pipeline: Training & Evaluating the 8 Fine-Tuned Models", flush=True)
     print("=" * 60, flush=True)
 
     models_to_train = [

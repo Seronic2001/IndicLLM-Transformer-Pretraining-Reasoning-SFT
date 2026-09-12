@@ -36,7 +36,7 @@ def run_indic_ocr(image_path: str, lang: str, **kwargs) -> Optional[str]:
     """AI4Bharat Indic-OCR via its CLI (``indic-ocr``), None if unavailable.
 
     Returns extracted text; raises RuntimeError on engine failure. The exact CLI
-    flags are pinned in the notebook setup step (see WORK_PLAN §data).
+    flags are pinned in the notebook setup step (see WORK_PLAN Section data).
     """
     exe = shutil.which("indic-ocr")
     if exe is None:

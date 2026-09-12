@@ -1,6 +1,6 @@
 """Hindi GPT language model — hand-written Transformer, no pretrained pieces.
 
-Implements the locked decisions of AGENT_BUILD_SPEC.md §1:
+Implements the locked decisions of project specifications Section 1:
   * learned absolute positional embeddings, table (block_size, d_model)
   * hand-written multi-head scaled dot-product attention with causal mask
     (explicit matmul/softmax — no F.scaled_dot_product_attention shortcut)
@@ -13,7 +13,7 @@ Only primitives are used: nn.Linear, nn.Embedding, nn.LayerNorm, nn.Dropout,
 nn.GELU, nn.Parameter. No nn.Transformer*, no pretrained weights/tokenizers.
 
 The identical file is duplicated into assamese/model/gpt.py by design — the two
-languages share no code, no weights, no vocab (spec §0.2).
+languages share no code, no weights, no vocab (spec Section 0.2).
 """
 
 from __future__ import annotations
@@ -56,7 +56,7 @@ class CausalSelfAttention(nn.Module):
 
     forward: x (B, T, d_model) -> (B, T, d_model). With return_attn=True also
     returns post-softmax attention weights (B, n_head, T, T) for the attention
-    analysis toolkit (Agent-F).
+    analysis toolkit.
     """
 
     def __init__(self, config: GPTConfig):
@@ -81,7 +81,7 @@ class CausalSelfAttention(nn.Module):
         B, T, C = x.shape
         q, k, v = self.c_attn(x).split(self.d_model, dim=2)  # (B, T, d_model) each
 
-        # --- multi-head reshape (this exact pattern is what Agent-F's hooks assume) ---
+        # --- multi-head reshape (this exact pattern is what Attention Analyzer's hooks assume) ---
         # (B, T, d_model) -> (B, T, n_head, d_k) -> transpose(1, 2) -> (B, n_head, T, d_k)
         q = q.view(B, T, self.n_head, self.d_k).transpose(1, 2)
         k = k.view(B, T, self.n_head, self.d_k).transpose(1, 2)
@@ -281,7 +281,7 @@ def build_model(config: GPTConfig, device: Optional[str] = None) -> GPTLanguageM
 
 
 def print_param_counts() -> dict[str, int]:
-    """Build both locked configs and print exact parameter counts (spec §1).
+    """Build both locked configs and print exact parameter counts (spec Section 1).
 
     Halts (raises) if either model is outside the 22.5M–27.5M rubric window rather
     than silently proceeding with a wrong-sized model.

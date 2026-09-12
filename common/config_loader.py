@@ -2,7 +2,7 @@
 
 Pure infra: knows the repo layout, has no opinion about model architecture or
 language content, and never imports model code — so it is safe to share between
-the two languages (spec §2: common/ holds only cross-cutting infra).
+the two languages (spec Section 2: common/ holds only cross-cutting infra).
 """
 
 from __future__ import annotations

@@ -1,4 +1,4 @@
-"""Kaggle Cloud Deployment CLI (Agent-A / Agent-D / Agent-H).
+"""Kaggle Cloud Deployment CLI.
 
 Packages the local project code, uploads it as a private Kaggle Dataset
 (``shubhadeepmandal/lma-project-code``), creates the Kaggle Kernel runner with
@@ -102,7 +102,7 @@ def stage_code(dest_dir: Path) -> None:
     dest_dir.mkdir(parents=True, exist_ok=True)
 
     include_dirs = ["common", "hindi", "assamese", "scripts", "report"]
-    include_files = ["requirements.txt", "pytest.ini", "README.md", "AGENT_BUILD_SPEC.md"]
+    include_files = ["requirements.txt", "pytest.ini", "README.md", "project specifications"]
 
     for d in include_dirs:
         src = REPO_ROOT / d

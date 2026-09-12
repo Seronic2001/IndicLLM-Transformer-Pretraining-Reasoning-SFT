@@ -1,4 +1,4 @@
-"""Assamese finetuning pipeline (Agent-H).
+"""Assamese finetuning pipeline.
 
 Supports both Direct SFT and Chain-of-Thought (CoT) Fine-Tuning across
 both Version 1.0 (Baseline) and Version 2.0 (Modern Transformer) architectures.
@@ -444,7 +444,7 @@ def finetune(
 
 
 def main(argv: Optional[list[str]] = None) -> int:
-    parser = argparse.ArgumentParser(description="Finetune on reasoning data (Agent-H)")
+    parser = argparse.ArgumentParser(description="Finetune on reasoning data")
     parser.add_argument("--pretrained-ckpt", required=True)
     parser.add_argument("--model-config", required=True)
     parser.add_argument("--tokenizer", required=True)

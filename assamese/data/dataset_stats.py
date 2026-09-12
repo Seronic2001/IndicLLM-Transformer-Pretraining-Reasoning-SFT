@@ -1,6 +1,6 @@
-"""Dataset statistics — the locked dataset_stats.json schema (Agent-A).
+"""Dataset statistics — the locked dataset_stats.json schema.
 
-Schema (AGENT_BUILD_SPEC §3 Agent-A):
+Schema (project specifications Section 3 Data Pipeline):
   {
     "total_tokens_estimate": int,
     "manual_tokens": int,
@@ -12,8 +12,8 @@ Schema (AGENT_BUILD_SPEC §3 Agent-A):
     "failed_sources": [...]
   }
 
-Every number traces to an artifact on disk — the report (Agent-I) reads this JSON,
-it never re-types numbers (spec §5.3).
+Every number traces to an artifact on disk — the report reads this JSON,
+it never re-types numbers (spec Section 5.3).
 """
 
 from __future__ import annotations
@@ -114,7 +114,7 @@ def write_report(stats: dict, out_path: str) -> None:
 
 
 def main(argv: Optional[list[str]] = None) -> int:
-    parser = argparse.ArgumentParser(description="Compute dataset_stats.json (Agent-A)")
+    parser = argparse.ArgumentParser(description="Compute dataset_stats.json")
     parser.add_argument("--clean-dir", required=True)
     parser.add_argument("--out-json", required=True)
     parser.add_argument("--report-md", default=None)

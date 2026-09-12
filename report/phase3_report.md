@@ -34,9 +34,9 @@ Across both **Hindi** (Model H, higher-resource) and **Assamese** (Model L, lowe
 
 ---
 
-## 2. Synthetic Reasoning Dataset & Anti-Leakage Protocol (Agent-G)
+## 2. Synthetic Reasoning Dataset & Anti-Leakage Protocol
 
-In strict adherence to assignment guidelines (§3.1), we constructed fully synthetic relational reasoning datasets programmatically from scratch in both languages, avoiding public benchmark contamination.
+In strict adherence to assignment guidelines (Section 3.1), we constructed fully synthetic relational reasoning datasets programmatically from scratch in both languages, avoiding public benchmark contamination.
 
 ### 2.1 Symbolic Task Specification
 The reasoning suite covers five distinct comparative and deductive logic paradigms:
@@ -46,7 +46,7 @@ The reasoning suite covers five distinct comparative and deductive logic paradig
 3. **Word Problems**: Real-world attribute grounding across 5 distinct domains:
    * **Hindi**: उम्र (age), लंबाई (height), बचत (savings), वज़न (weight), गति (speed).
    * **Assamese**: বয়স (age), ওখ/উচ্চতা (height), সঞ্চয় (savings), ওজন (weight), বেগ/গতি (speed).
-4. **Conversational Multi-Party Reasoning**: Multi-turn dialogue scenarios involving comparative claims between agents.
+4. **Conversational Multi-Party Reasoning**: Multi-turn dialogue scenarios involving comparative claims between dialogue participants.
 5. **Bidirectional Negation Curriculum**: Controlled negation statements (e.g., "A, B से छोटा नहीं है") requiring polarity inversion.
 
 ### 2.2 Anti-Leakage Protocol & Train/Val/Test Splits
@@ -62,7 +62,7 @@ To mathematically guarantee that models cannot solve reasoning questions through
 
 ---
 
-## 3. Supervised Fine-Tuning Methodology (Agent-H)
+## 3. Supervised Fine-Tuning Methodology
 
 ### 3.1 Target-Only Prompt-Masked Loss
 Standard causal language modeling trains on the entire sequence, which wastes parameter capacity memorizing prompt phrasing. We implement **Target-Only Prompt-Masked Loss**:
@@ -151,9 +151,9 @@ Evaluating performance across fine-grained reasoning categories confirms strong 
 
 ---
 
-## 7. §3.2 Post-Finetune Attention Analysis
+## 7. Section 3.2 Post-Finetune Attention Analysis
 
-To fulfill assignment specification §3.2 ("Compare pretrained vs. finetuned heatmaps for at least one early and one late layer per model. Comment on whether finetuning changed local vs. long-range attention or head specialization"), we extracted post-softmax attention tensors across early (Layer 0) and late (Layer 5) transformer blocks.
+To fulfill assignment specification Section 3.2 ("Compare pretrained vs. finetuned heatmaps for at least one early and one late layer per model. Comment on whether finetuning changed local vs. long-range attention or head specialization"), we extracted post-softmax attention tensors across early (Layer 0) and late (Layer 5) transformer blocks.
 
 ![Hindi Attention Comparison](figures/phase3_pretrain_vs_finetune_attention_hindi.png)
 *Figure 1: Hindi Multi-Head Attention redistribution before and after reasoning fine-tuning.*

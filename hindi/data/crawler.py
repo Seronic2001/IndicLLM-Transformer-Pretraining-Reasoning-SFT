@@ -1,4 +1,4 @@
-"""Hindi Web Crawler for Manual Corpus (Agent-A / 20% Manual Effort).
+"""Hindi Web Crawler for Manual Corpus.
 
 Target: Collect authentic, high-quality Hindi text (~100M tokens, ~2-3 GB)
 strictly avoiding Wikipedia (already collected in downloaded/manual dumps).

@@ -1,4 +1,4 @@
-"""Shared utilities for web crawlers (Agent-A / Manual Data Collection).
+"""Shared utilities for web crawlers (Data Pipeline / Manual Data Collection).
 
 Provides:
   - Robust HTTP fetching with retries, timeout, and connection reuse

@@ -1,4 +1,4 @@
-# Assamese training hyperparameters — locked defaults, see AGENT_BUILD_SPEC.md §1
+# Assamese training hyperparameters — locked defaults, see project specifications Section 1
 micro_batch_size: 32
 gradient_accumulation_steps: 16
 effective_batch_size: 512

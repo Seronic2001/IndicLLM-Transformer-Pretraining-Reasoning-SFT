@@ -1,8 +1,8 @@
-"""Assamese reasoning data generator (Agent-G mirror) — pure Python.
+"""Assamese reasoning data generator (Reasoning Pipeline mirror) — pure Python.
 
 Identical design to hindi/finetune/generate_reasoning.py but with Assamese
 (Bengali-Assamese script) templates and entity pools. No code is imported from
-``hindi/`` (spec §0.2: the two languages share nothing).
+``hindi/`` (spec Section 0.2: the two languages share nothing).
 
 Anti-leakage: disjoint train/eval entity pools; multi_hop/negation reserved for
 val/test. Answers come only from the symbolic ``solve_relation`` solver.
@@ -370,7 +370,7 @@ def generate_dataset(
 
 
 def main(argv: Optional[list[str]] = None) -> int:
-    parser = argparse.ArgumentParser(description="Generate Assamese reasoning data (Agent-G)")
+    parser = argparse.ArgumentParser(description="Generate Assamese reasoning data")
     parser.add_argument("--out-dir", default=str(Path(__file__).resolve().parents[1] / "finetune" / "reasoning"))
     parser.add_argument("--n-train", type=int, default=20000)
     parser.add_argument("--n-val", type=int, default=1000)

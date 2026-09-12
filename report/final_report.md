@@ -125,7 +125,7 @@ We present four empirical pillars explaining the performance dynamics:
 1. **Inductive Bias of Positional Encodings (V1 vs. V2)**:
    * V1 Baseline uses **Absolute Positional Embeddings**, creating static coordinate registers for each position index $t \in [0, 511]$. In rigid synthetic reasoning prompts with invariant sentence structures, V1 easily memorizes that the subject is at index $k_1$ and the attribute is at index $k_2$.
    * V2 Modern uses **Rotary Position Embeddings (RoPE)**, where relative distances govern attention. While RoPE excels at continuous open-domain text (yielding 28–29% lower perplexity in Phase 2), it requires explicit step tokens (Chain-of-Thought) to bridge relative coordinate hops during symbolic deduction.
-2. **Attention Entropy Redistribution (§3.2)**:
+2. **Attention Entropy Redistribution (Section 3.2)**:
    * Post-finetuning attention analysis proves that attention entropy drops by **$30.8\%$** ($2.14 \to 1.48$ nats), and mean attention distance expands by **$+71.3\%$** ($3.42 \to 5.86$ tokens). Models actively shift attention from neighboring local tokens to distant antecedent entities.
 3. **Negation Curriculum Generalization**:
    * Baseline models without negative examples failed completely (0.0% accuracy on negation queries). Introducing a 5% disjoint-entity negation curriculum enabled Assamese to reach **$63.83\%$ accuracy**, demonstrating genuine polarity inversion rather than superficial pattern matching.

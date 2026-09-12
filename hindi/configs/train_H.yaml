@@ -1,4 +1,4 @@
-# Hindi training hyperparameters — locked defaults, see AGENT_BUILD_SPEC.md §1
+# Hindi training hyperparameters — locked defaults, see project specifications Section 1
 micro_batch_size: 32            # physical batch on GPU per forward pass
 gradient_accumulation_steps: 16 # effective batch = 32 * 16 = 512 sequences
 effective_batch_size: 512       # 512 * 512 = 262,144 tokens per optimizer step

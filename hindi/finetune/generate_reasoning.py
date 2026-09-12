@@ -1,4 +1,4 @@
-"""Hindi reasoning data generator (Agent-G) — pure Python, no model dependency.
+"""Hindi reasoning data generator — pure Python, no model dependency.
 
 Produces ``{train,val,test}.jsonl`` of synthetic reasoning examples whose answers
 are computed by a *symbolic solver* over a relation graph (>, <, =) — never by a
@@ -334,7 +334,7 @@ def generate_examples(
         try:
             premises, query = _make_chain(
                 # "=" is semantically ambiguous under negation phrasing, so negation
-                # examples never get ties (reliability fallback, spec Agent-G).
+                # examples never get ties (reliability fallback, spec Reasoning Pipeline).
                 entities, attr, rng,
                 allow_equals=allow_equals and paradigm != "negation",
                 min_hops=min_hops if paradigm == "multi_hop" else 1,
@@ -422,7 +422,7 @@ def generate_dataset(
 
 
 def main(argv: Optional[list[str]] = None) -> int:
-    parser = argparse.ArgumentParser(description="Generate reasoning data (Agent-G)")
+    parser = argparse.ArgumentParser(description="Generate reasoning data")
     parser.add_argument("--out-dir", default=str(Path(__file__).resolve().parents[1] / "finetune" / "reasoning"))
     parser.add_argument("--n-train", type=int, default=20000)
     parser.add_argument("--n-val", type=int, default=1000)

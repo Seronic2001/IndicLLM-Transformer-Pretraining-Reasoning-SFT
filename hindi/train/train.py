@@ -1,6 +1,6 @@
-"""Hindi training infrastructure (Agent-D).
+"""Hindi training infrastructure.
 
-Implements the locked Trainer contract of AGENT_BUILD_SPEC.md §3 Agent-D:
+Implements the locked Trainer contract of project specifications Section 3 Trainer:
 
   * TokenDataset over flat uint16/uint32 token arrays via numpy.memmap
     (nanoGPT-style random block_size windows — 500M tokens never enter RAM).
@@ -18,7 +18,7 @@ Implements the locked Trainer contract of AGENT_BUILD_SPEC.md §3 Agent-D:
   * Checkpoint auto-staging to Kaggle working + Drive mirror (opt-in via config).
 
 The identical file is duplicated into assamese/train/train.py — the two languages
-share no code (spec §0.2).
+share no code (spec Section 0.2).
 """
 
 from __future__ import annotations
@@ -109,7 +109,7 @@ class TokenDataset:
 # ---------------------------------------------------------------- LR schedule
 
 class WarmupCosineScheduler:
-    """Linear warmup then cosine decay to min_lr (spec §1)."""
+    """Linear warmup then cosine decay to min_lr (spec Section 1)."""
 
     def __init__(
         self,
@@ -525,7 +525,7 @@ def train_entrypoint(argv: Optional[list[str]] = None) -> int:
     """
     import argparse
 
-    parser = argparse.ArgumentParser(description="Pretrain the language model (Agent-D)")
+    parser = argparse.ArgumentParser(description="Pretrain the language model")
     parser.add_argument("--model-config", required=True)
     parser.add_argument("--train-config", required=True)
     parser.add_argument("--train-data", required=True)

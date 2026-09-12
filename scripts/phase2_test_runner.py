@@ -247,7 +247,7 @@ def build_comparison_report(results: dict[str, Any], out_path: Path) -> str:
     report = (
         "# Phase 2 Pretraining Benchmark: 16K Baseline V1 vs. Modern V2\n\n"
         "**Author**: Shubhadeep Mandal (CL3-410)  \n"
-        "**Evaluation Scope**: Head-to-head comparison on held-out test splits (Agent-E Standard)  \n"
+        "**Evaluation Scope**: Head-to-head comparison on held-out test splits (Standard Protocol)  \n"
         "**Evaluated Models**: 4 Base 16K Checkpoints (Pre-LN GELU vs. RMSNorm SwiGLU RoPE)  \n\n"
         "---\n\n"
         "## 1. Executive Summary: Pretraining Density & Perplexity\n\n"

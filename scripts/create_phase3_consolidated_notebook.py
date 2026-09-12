@@ -34,7 +34,7 @@ def generate_notebook(output_path: Path):
 This notebook unifies the parallel fine-tuning and evaluation runs (`lma-phase3-hindi-16k` and `lma-phase3-assamese-16k`) into a single, cohesive artifact package on Kaggle:
 1. **8 Fine-Tuned Models**: ($4 \\times 2$ Matrix: V1 Baseline vs. V2 Modern $\\times$ Direct SFT vs. CoT).
 2. **Multi-Tier Continuous Metrics**: Strict Exact Match, Token $F_1$, Levenshtein Character Similarity, and Decomposed CoT Credit.
-3. **§3.2 Post-Finetune Attention Analysis**: Pretrained vs. Finetuned Query-Key Heatmaps, Attention Entropy, and Mean Attention Distance.
+3. **Section 3.2 Post-Finetune Attention Analysis**: Pretrained vs. Finetuned Query-Key Heatmaps, Attention Entropy, and Mean Attention Distance.
 4. **All-In-One Deliverable**: Serializes `phase3_artifacts.zip` containing all checkpoints, figures, metrics, and markdown reports.
 """
     cells.append(make_cell("markdown", intro_md))
@@ -287,7 +287,7 @@ display(df_summary)
     cells.append(make_cell("code", c3))
 
     # Cell 4: Attention Analysis (Pretrain vs. Finetune)
-    c4 = """# [Cell 4] §3.2 Post-Finetune Attention Analysis (Pretrain vs. Finetune)
+    c4 = """# [Cell 4] Section 3.2 Post-Finetune Attention Analysis (Pretrain vs. Finetune)
 # Evaluates query-key attention heatmaps, entropy, and mean distance
 import matplotlib
 matplotlib.use("Agg")

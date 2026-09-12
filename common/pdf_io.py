@@ -1,4 +1,4 @@
-"""PDF / ZIP corpus plumbing shared by both languages (Agent-A manual fraction).
+"""PDF / ZIP corpus plumbing shared by both languages (Data Pipeline manual fraction).
 
 Behind the NCERT/SCERT fetchers in ``hindi/data/sources.py`` /
 ``assamese/data/sources.py``:

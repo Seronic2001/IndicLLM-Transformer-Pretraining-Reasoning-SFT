@@ -1,4 +1,4 @@
-"""Hindi document cleaning + dedup (Agent-A).
+"""Hindi document cleaning + dedup.
 
 Pipeline per document:
   * NFC normalization (unicodedata.normalize)
