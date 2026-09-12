@@ -146,7 +146,6 @@ Evaluating performance across fine-grained reasoning categories confirms strong 
 | **Transitive Chain** | 63.5% | 60.6% | 24.0% | 8.7% |
 | **Word Problem** | 70.5% | 53.4% | 19.3% | 14.8% |
 
-> [!TIP]
 > **Continuous Metric Insights**: While binary Exact Match requires rigid word-for-word memorization of synthetic templates, Chain-of-Thought fine-tuning unlocks massive relative Token F1 gains (+45.8% in Hindi V1, +38.9% in Hindi V2, +27.8% in Assamese V1, +26.8% in Assamese V2) and enables decomposed step credit reaching **61.34%** in Hindi and **33.68%** in Assamese.
 
 ---
