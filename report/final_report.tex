@@ -38,7 +38,7 @@
 
 % --- Hyperlinks ---
 \usepackage{url}
-\usepackage[hidelinks,colorlinks=true,linkcolor=black,citecolor=black,urlcolor=black]{hyperref}
+\usepackage[colorlinks=true,linkcolor=black,citecolor=black,urlcolor=blue]{hyperref}
 
 % --- Academic Paragraph Formatting ---
 \setlength{\parindent}{1.2em}
@@ -351,7 +351,21 @@ Post-finetuning attention maps reveal a \textbf{30.8\% drop} in entropy ($2.14 \
 % ==============================================================================
 \section{Artifact Inventory and Reproducibility}
 
-Large binary artifacts are hosted on public Kaggle datasets to ensure lightweight repository maintenance. Table \ref{tab:artifacts} summarizes the repository resources.
+Large binary model checkpoints, tokenized memmap arrays, and comprehensive evaluation outputs across all three project phases are permanently hosted on public Kaggle datasets:
+
+\begin{itemize}
+  \setlength{\itemsep}{1.5pt}
+  \item \textbf{Phase 1 Corpora \& Tokenizer (Hindi)}: \newline
+  {\scriptsize\url{https://www.kaggle.com/datasets/shubhadeepmandal/lma-hindi-artifacts}}
+  \item \textbf{Phase 1 Corpora \& Tokenizer (Assamese)}: \newline
+  {\scriptsize\url{https://www.kaggle.com/datasets/shubhadeepmandal/lma-assamese-artifact}}
+  \item \textbf{Phase 2 Pretrained Checkpoints (V1 \& V2)}: \newline
+  {\scriptsize\url{https://www.kaggle.com/datasets/shubhadeepmandal/lma-phase2-artifacts}}
+  \item \textbf{Phase 3 Finetuned Reasoning Models}: \newline
+  {\scriptsize\url{https://www.kaggle.com/datasets/shubhadeepmandal/lma-phase3-artifacts}}
+\end{itemize}
+
+Table \ref{tab:artifacts} summarizes the repository resources and artifact paths.
 
 \begin{table}[h!]
 \centering
