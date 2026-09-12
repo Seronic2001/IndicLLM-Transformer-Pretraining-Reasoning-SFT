@@ -1,4 +1,4 @@
-# Hindi Model H — locked config,
+# Hindi Model H — locked config, see AGENT_BUILD_SPEC.md §1
 # Target: ~25.76M params (rubric window 22.5M–27.5M)
 vocab_size: 32768
 d_model: 384

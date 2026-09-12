@@ -282,10 +282,12 @@ class GPTLanguageModelV2(nn.Module):
                         logits[b, recent_tokens] * repetition_penalty,
                     )
 
-            if temperature is None or temperature <= 1e-5:
+            if temperature <= 0.0:
                 idx_next = torch.argmax(logits, dim=-1, keepdim=True)
             else:
-                logits = logits / max(temperature, 1e-8)
+                if temperature != 1.0:
+                    logits = logits / temperature
+
                 if top_k is not None and top_k > 0:
                     v, _ = torch.topk(logits, min(top_k, logits.size(-1)))
                     logits[logits < v[:, [-1]]] = -float("Inf")

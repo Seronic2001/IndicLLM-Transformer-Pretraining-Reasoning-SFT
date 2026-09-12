@@ -1,6 +1,6 @@
-"""Hindi evaluation suite.
+"""Hindi evaluation suite (Agent-E).
 
-Standardized Generation Protocol:
+Standardized Generation Protocol (AGENT_BUILD_SPEC §3 Agent-E):
   * Extract N=500 held-out prompt prefixes of T_prefix=32 tokens from test.bin.
   * Generate a T_gen=64-token continuation per prefix at temperatures
     {0.0 (greedy), 0.5, 1.0, 1.5}.
@@ -13,7 +13,7 @@ Outputs (in --out-dir):
   * generated_samples.jsonl     per-sample prefix, reference, and all 4 outputs
 
 Degenerate/high-temperature repetition is an expected, reportable finding — it is
-recorded, never silently filtered (spec reliability fallbacks).
+recorded, never silently filtered (spec Agent-E reliability fallbacks).
 """
 
 from __future__ import annotations
@@ -124,7 +124,7 @@ def compute_generation_metrics(
 
 @torch.no_grad()
 def compute_ppl_bpb(model: GPTLanguageModel, spec: EvalSpec) -> dict:
-    """Mean loss / perplexity / bits-per-byte over the test windows."""
+    """Mean loss / perplexity / bits-per-byte over the test windows (Agent-E)."""
     import numpy as np
 
     data = np.memmap(spec.test_path, dtype=np.uint16, mode="r")
@@ -198,7 +198,7 @@ def run_evaluation(
 
 
 def main(argv: Optional[list[str]] = None) -> int:
-    parser = argparse.ArgumentParser(description="Run the evaluation suite")
+    parser = argparse.ArgumentParser(description="Run the evaluation suite (Agent-E)")
     parser.add_argument("--checkpoint", required=True)
     parser.add_argument("--model-config", required=True)
     parser.add_argument("--tokenizer", required=True, help="path to <lang>.model")
@@ -206,21 +206,13 @@ def main(argv: Optional[list[str]] = None) -> int:
     parser.add_argument("--out-dir", default=str(_LANG_ROOT / "eval"))
     parser.add_argument("--n-prompts", type=int, default=N_PROMPTS)
     parser.add_argument("--device", default=None)
-    parser.add_argument("--arch", choices=("v1", "v2"), default="v1",
-                        help="model architecture: v1 (learned-abs/GELU/LayerNorm) or v2 (RoPE/SwiGLU/RMSNorm)")
     args = parser.parse_args(argv)
 
     from tokenizer.tokenizer import Tokenizer
 
     device = args.device or ("cuda" if torch.cuda.is_available() else "cpu")
-    if args.arch == "v2":
-        from model.gpt_v2 import GPTConfigV2, GPTLanguageModelV2
-
-        model_cfg = GPTConfigV2.from_yaml(args.model_config)
-        model = GPTLanguageModelV2(model_cfg).to(device)
-    else:
-        model_cfg = GPTConfig.from_yaml(args.model_config)
-        model = GPTLanguageModel(model_cfg).to(device)
+    model_cfg = GPTConfig.from_yaml(args.model_config)
+    model = GPTLanguageModel(model_cfg).to(device)
 
     from common.checkpoint import load_checkpoint
 

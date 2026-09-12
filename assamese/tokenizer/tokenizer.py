@@ -1,6 +1,6 @@
-"""Hindi tokenizer wrapper (Tokenizer interface).
+"""Hindi tokenizer wrapper (Agent-B interface contract).
 
-The interface below is locked — downstream pipelines use the standard interface:
+The interface below is locked — every downstream agent imports exactly this:
 
     class Tokenizer:
         def __init__(self, model_path: str): ...

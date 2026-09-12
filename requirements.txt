@@ -6,14 +6,14 @@
 
 torch>=2.1.0
 numpy>=1.26.0
-sentencepiece>=0.1.99        # tokenizer training 
-sacrebleu>=2.4.0             # BLEU / chrF 
-rouge-score>=0.1.2           # ROUGE-L 
-matplotlib>=3.7.0            # plots 
+sentencepiece>=0.1.99        # tokenizer training (Agent-B)
+sacrebleu>=2.4.0             # BLEU / chrF (Agent-E)
+rouge-score>=0.1.2           # ROUGE-L (Agent-E)
+matplotlib>=3.7.0            # plots (Agent-F, Agent-I)
 PyYAML>=6.0                  # configs
 pytest>=8.0                  # acceptance tests (every module, spec §0.6)
 
-# --- Real corpus acquisition (pipeline; optional but recommended) ---
+# --- Real corpus acquisition (Agent-A sources; optional but recommended) ---
 huggingface_hub>=0.23.0      # Sangraha / IndicCorp v2 / OSCAR / Wikipedia fetchers
 pyarrow>=15.0.0              # parquet corpus reads
 pandas>=2.0.0                # CSV corpus reads (Kaggle Wikipedia mirror)

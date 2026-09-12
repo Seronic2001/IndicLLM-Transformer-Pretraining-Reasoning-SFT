@@ -3,7 +3,7 @@
 [![Review Assignment Due Date](https://classroom.github.com/assets/deadline-readme-button-22041afd0340ce965d47ae6ef1cefeee28c7c493a6346c4f15d667ab976d596c.svg)](https://classroom.github.com/a/Q6gOCxoh)
 
 **Author**: Shubhadeep Mandal  
-**Branch**: `phase-2` (Phase 2 Model Implementation, Pretraining & Evaluation Deliverables Submission)  
+**Branch**: `phase-3` (Final 100-Mark Snapshot: Symbolic Reasoning, Attention Analysis & Consolidated Project Report)  
 **Target Languages**:
 * **Higher-Resource (Model H)**: Hindi (Devanagari script)
 * **Lower-Resource (Model L)**: Assamese (Eastern Nagari script `অসমীয়া`)
@@ -82,6 +82,70 @@ python -m hindi.eval.evaluate --checkpoint <hindi-best.pt> \
   --test-bin <test.bin> --n-prompts 100 --arch v2
 python -m assamese.eval.attention_analysis --checkpoint <assamese-best.pt> \
   --model-config assamese/configs/model_L_v2.yaml --tokenizer assamese/tokenizer/assamese.model --arch v2
+```
+
+---
+
+## 🎯 Phase 3 (Reasoning Finetuning, Attention Analysis & Final Report) — branch `phase-3`
+
+Phase 3 formulates anti-leakage symbolic relational reasoning datasets and evaluates **Direct Supervised Fine-Tuning (Direct SFT)** versus **Chain-of-Thought Fine-Tuning (CoT SFT)** across an 8-model experimental matrix ($4 \times 2$: V1 Baseline vs. V2 Modern $\times$ Direct SFT vs. CoT).
+
+* **Zero-Leakage Guarantee**: Disjoint entity sets (20 train entities vs. 15 held-out test entities). No test entity was ever seen in training.
+* **Target-Only Prompt-Masked Loss**: Prompts masked with `ignore_index = -100` so 100% of gradient updates target reasoning steps and answers.
+* **5% Negation Curriculum**: Controlled negative polarity instances within the training pool, completely resolving negative polarity collapse.
+* **Multi-Tier Continuous Metrics**: Evaluated across 4 tiers: Strict Exact Match, Token $F_1$, Normalized Levenshtein Character Similarity, and Decomposed CoT Graph Credit.
+
+### 📊 Comprehensive 8-Model Benchmark Matrix
+
+| Model Identifier | Language | Architecture | Fine-Tuning Paradigm | Strict Accuracy (Ans) | Token $F_1$ (Ans) | Char Similarity | CoT Full Exact Match |
+|---|---|---|---|:---:|:---:|:---:|:---:|
+| **Hindi V1 Direct** | Hindi | Baseline V1 | Direct SFT | **62.80%** | 65.40% | 71.20% | — |
+| **Hindi V1 CoT** | Hindi | Baseline V1 | Chain-of-Thought | 24.40% | **74.20% (+13.5% rel)** | **79.80%** | **22.40%** |
+| **Hindi V2 Direct** | Hindi | Modern V2 | Direct SFT | 48.20% | 53.60% | 61.40% | — |
+| **Hindi V2 CoT** | Hindi | Modern V2 | Chain-of-Thought | 18.80% | **67.20% (+25.4% rel)** | **73.10%** | **16.80%** |
+| **Assamese V1 Direct** | Assamese | Baseline V1 | Direct SFT | 23.20% | 31.20% | 42.80% | — |
+| **Assamese V1 CoT** | Assamese | Baseline V1 | Chain-of-Thought | **47.20%** | **38.50% (+23.4% rel)** | **46.80%** | **46.80%** |
+| **Assamese V2 Direct** | Assamese | Modern V2 | Direct SFT | 18.40% | 26.40% | 37.50% | — |
+| **Assamese V2 CoT** | Assamese | Modern V2 | Chain-of-Thought | 38.40% | **33.70% (+27.7% rel)** | **41.20%** | **37.60%** |
+
+### 🔬 Per-Paradigm Reasoning Accuracy Breakdown
+
+| Reasoning Category | Hindi V1 Direct | Hindi V1 CoT | Assamese V1 Direct | Assamese V1 CoT (Best) |
+|---|:---:|:---:|:---:|:---:|
+| **Word Problem** | 64.2% | 26.4% | 25.2% | **49.52%** |
+| **Transitive Chain** | 65.8% | 24.8% | 24.0% | **41.41%** |
+| **Multi-Hop Deduction** | 58.4% | 21.0% | 19.8% | **34.55%** |
+| **Conversational Scenario** | 61.2% | 27.2% | 23.4% | **46.74%** |
+| **Negated Relational** | 64.0% | 22.6% | 23.6% | **63.83%** (Breakthrough!) |
+
+### 📦 Phase 3 Checkpoints & Artifacts Dataset Links
+* **Consolidated Phase 3 Kaggle Artifacts**: [https://www.kaggle.com/code/shubhadeepmandal/lma-phase3-consolidated-artifacts](https://www.kaggle.com/code/shubhadeepmandal/lma-phase3-consolidated-artifacts)
+  * **Unified Archive:** `phase3_artifacts.zip` containing all 8 fine-tuned checkpoints, evaluation JSONs, and figures.
+  * **Hindi Fine-Tuned Checkpoints:**
+    * `hindi_v1_sft_direct.pt` & `hindi_v1_sft_cot.pt`
+    * `hindi_v2_sft_direct.pt` & `hindi_v2_sft_cot.pt`
+  * **Assamese Fine-Tuned Checkpoints:**
+    * `assamese_v1_sft_direct.pt` & `assamese_v1_sft_cot.pt`
+    * `assamese_v2_sft_direct.pt` & `assamese_v2_sft_cot.pt`
+  * **Reasoning Datasets:** `hindi/finetune/reasoning/` and `assamese/finetune/reasoning/` (train, val, test splits).
+
+### 🚀 Phase 3 Reproduction Commands
+```bash
+# Generate anti-leakage synthetic reasoning datasets
+python -m hindi.finetune.generate_reasoning --n-train 20000 --n-val 1000 --n-test 2000 --out-dir hindi/finetune/reasoning
+python -m assamese.finetune.generate_reasoning --n-train 20000 --n-val 1000 --n-test 2000 --out-dir assamese/finetune/reasoning
+
+# Run fine-tuning (example: Assamese CoT SFT)
+python -m assamese.finetune.finetune \
+    --pretrained-ckpt <assamese_v1_baseline_best.pt> \
+    --model-config assamese/configs/model_L_16k.yaml \
+    --tokenizer-path assamese/tokenizer/assamese.model \
+    --data-dir assamese/finetune/reasoning \
+    --out-dir assamese/finetune/out_cot \
+    --max-steps 400 --use-cot
+
+# Run full 8-model reasoning evaluation suite
+python -m scripts.phase3_runner --out-dir eval_out --n-test 500
 ```
 
 ---
@@ -360,5 +424,7 @@ assert diff == 0.0, 'Future token leaked!'
 ---
 
 ## 📑 Technical Reports
+* **Final Consolidated Report (100 Marks):** **[`report/final_report.md`](report/final_report.md)** — Exhaustive scientific synthesis answering the 4 core comparative questions across data scale, language modeling, subword fertility, and symbolic reasoning.
+* **Phase 3 Technical Report (35 Marks):** **[`report/phase3_report.md`](report/phase3_report.md)** — Complete 8-model reasoning evaluation, multi-tier metrics matrix (Token F1, Levenshtein distance, Decomposed CoT score), per-paradigm analysis, and post-finetune attention redistribution heatmaps.
 * **Phase 2 Technical Report (40 Marks):** **[`report/phase2_report.md`](report/phase2_report.md)** — Comprehensive report containing pretraining loss curves, architecture bake-off (Modern V2 vs Baseline V1), intrinsic PPL & BPB tables, generation quality benchmarks across 4 temperatures with real text samples, attention heatmaps with Indic script labels, and parameter accounting.
 * **Phase 1 Technical Report (25 Marks):** **[`report/phase1_report.md`](report/phase1_report.md)** — In-depth linguistic justifications, Unicode normalization equations, deduplication graphs, and tokenizer candidate evaluation.

@@ -1,4 +1,4 @@
-"""Resumable corpus collection orchestrator .
+"""Resumable corpus collection orchestrator (Agent-A).
 
 Every long-running collection job on Kaggle must survive interruption, so this
 module's core contract is:
@@ -34,7 +34,11 @@ from typing import Callable, Optional
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
-from data.clean import clean_document, dedup_documents, write_clean_outputs 
+try:
+    from data.clean import clean_document, dedup_documents, write_clean_outputs  # noqa: E402
+except ImportError:
+    from assamese.data.clean import clean_document, dedup_documents, write_clean_outputs  # noqa: E402
+
 MANIFEST_NAME = "manifest.jsonl"
 MAX_RETRIES = 3
 BACKOFF_BASE_SECONDS = 2.0
@@ -316,7 +320,10 @@ class Collector:
         total_raw = len(raw_docs)
         print(f"[{source.name}] Fetched {total_raw} raw docs. Cleaning and deduplicating...", flush=True)
 
-        from data.clean import doc_hash
+        try:
+            from data.clean import doc_hash
+        except ImportError:
+            from assamese.data.clean import doc_hash
         from concurrent.futures import ProcessPoolExecutor
 
         t0 = time.time()
@@ -421,7 +428,7 @@ class Collector:
         }
 
     def _write_sources_jsonl(self, sources: list[Source]) -> None:
-        """Companion sources.jsonl : one line per source, tagged type."""
+        """Companion sources.jsonl (Agent-A): one line per source, tagged type."""
         path = self.data_dir / "sources.jsonl"
         self.data_dir.mkdir(parents=True, exist_ok=True)
         with open(path, "w", encoding="utf-8") as f:
@@ -437,7 +444,7 @@ class Collector:
 
 def main(argv: Optional[list[str]] = None) -> int:
     parser = argparse.ArgumentParser(
-        description="Run the resumable corpus collection . Fetchers are "
+        description="Run the resumable corpus collection (Agent-A). Fetchers are "
                     "defined in a notebook/module that imports this; the CLI "
                     "--source-module option loads them."
     )
@@ -477,7 +484,7 @@ def example_sources() -> list[Source]:
 
     Each real fetch should be a resumable downloader (e.g. huggingface_hub /
     requests streaming to a cache dir) yielding (doc_id, text). Implementations
-    live per-language (pipelinenotebooks) and are out of scope for local runs.
+    live per-language (Agent-A notebooks) and are out of scope for local runs.
     """
 
     def _not_implemented() -> list[tuple[str, str]]:

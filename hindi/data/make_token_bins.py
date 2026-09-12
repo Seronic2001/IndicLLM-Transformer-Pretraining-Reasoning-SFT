@@ -1,8 +1,8 @@
-"""Convert splits into flat token-id .bin files (output contract).
+"""Convert splits into flat token-id .bin files (Agent-A output contract).
 
 Reads splits/{train,val,test}.jsonl (or .txt) and the trained tokenizer, writes
 ``{train,val,test}.bin`` as raw uint16 arrays (vocab < 65536) — the exact input
-the ``TokenDataset`` consumes via numpy.memmap.
+the Agent-D ``TokenDataset`` consumes via numpy.memmap.
 
 Resumable: skips a split whose .bin already exists unless --force is given.
 """
@@ -13,43 +13,54 @@ import argparse
 import json
 import sys
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Union, Sequence
 
 import numpy as np
 
 
-def tokenize_file_to_bin(
-    src_path: Path,
+def tokenize_to_bin(
+    src: Union[Path, str, Sequence[str]],
     tokenizer,
     out_path: str,
     batch_size: int = 10000,
 ) -> int:
-    """Stream documents from JSONL or TXT directly into binary token file."""
+    """Stream documents from JSONL/TXT file or list of texts directly into binary token file."""
     import time
     t0 = time.time()
     total_docs = 0
     total_tokens = 0
     log_interval = 50000
 
-    with open(src_path, "r", encoding="utf-8", errors="ignore") as f_in, open(out_path, "wb") as f_out:
+    def _iter_texts():
+        nonlocal total_docs
+        if isinstance(src, (list, tuple)):
+            for doc in src:
+                doc_str = doc.strip() if isinstance(doc, str) else str(doc).strip()
+                if doc_str:
+                    total_docs += 1
+                    yield doc_str
+        else:
+            p = Path(src)
+            with open(p, "r", encoding="utf-8", errors="ignore") as f_in:
+                for line in f_in:
+                    line = line.strip()
+                    if not line:
+                        continue
+                    if p.suffix == ".jsonl":
+                        try:
+                            text = json.loads(line).get("text", "").strip()
+                        except Exception:
+                            continue
+                    else:
+                        text = line
+                    if text:
+                        total_docs += 1
+                        yield text
+
+    with open(out_path, "wb") as f_out:
         batch: list[str] = []
-        for line in f_in:
-            line = line.strip()
-            if not line:
-                continue
-            if src_path.suffix == ".jsonl":
-                try:
-                    text = json.loads(line).get("text", "").strip()
-                except Exception:
-                    continue
-            else:
-                text = line
-            if not text:
-                continue
-
+        for text in _iter_texts():
             batch.append(text)
-            total_docs += 1
-
             if len(batch) >= batch_size:
                 if hasattr(tokenizer, "sp"):
                     encoded_batch = tokenizer.sp.encode(batch, out_type=int)
@@ -61,7 +72,6 @@ def tokenize_file_to_bin(
                     f_out.write(arr.tobytes())
                     total_tokens += int(arr.size)
                 batch = []
-
                 if total_docs % log_interval == 0:
                     elapsed = time.time() - t0
                     print(
@@ -90,6 +100,9 @@ def tokenize_file_to_bin(
     if total_tokens == 0:
         raise ValueError(f"tokenized output for {out_path} is empty")
     return total_tokens
+
+
+tokenize_file_to_bin = tokenize_to_bin
 
 
 def tokenize_clean_dir_to_bins(

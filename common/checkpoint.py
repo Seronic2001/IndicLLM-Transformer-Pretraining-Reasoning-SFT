@@ -1,6 +1,6 @@
 """Checkpoint save / load / validate shared by both languages.
 
-A valid checkpoint dict is ( / §3 ):
+A valid checkpoint dict is (see AGENT_BUILD_SPEC.md §0.3 / §3 Agent-D):
 
     {
         "model_state_dict":      OrderedDict,
@@ -114,7 +114,7 @@ def load_checkpoint(
 ) -> int:
     """Load a checkpoint in place and return the step to resume from.
 
-    Raises ``ValueError`` if any required key is missing (never a silent partial
+    Raises ``ValueError`` if required keys are missing (never a silent partial
     load). Optimizer/scheduler state is applied only when the corresponding object
     is provided — a caller that wants optimizer state must pass it.
     """
@@ -122,22 +122,50 @@ def load_checkpoint(
         raise FileNotFoundError(f"Checkpoint not found: {path}")
 
     ckpt = torch.load(path, map_location="cpu", weights_only=False)
-    missing = [k for k in REQUIRED_KEYS if k not in ckpt]
+    
+    needed_keys = ["model_state_dict"]
+    if optimizer is not None:
+        needed_keys.append("optimizer_state_dict")
+    if scheduler is not None:
+        needed_keys.append("scheduler_state_dict")
+    if restore_rng:
+        needed_keys.append("rng_state")
+
+    missing = [k for k in needed_keys if k not in ckpt]
     if missing:
         raise ValueError(
             f"Checkpoint {path} is missing required keys {missing}; refusing partial load."
         )
-    if not isinstance(ckpt["step"], int) or ckpt["step"] < 0:
-        raise ValueError(f"Checkpoint {path} has invalid step {ckpt['step']!r}.")
+    step_val = ckpt.get("step", 0)
+    if not isinstance(step_val, int) or step_val < 0:
+        raise ValueError(f"Checkpoint {path} has invalid step {step_val!r}.")
 
-    model.load_state_dict(ckpt["model_state_dict"])
-    if optimizer is not None:
+    sd = ckpt["model_state_dict"] if "model_state_dict" in ckpt else ckpt
+    model_keys = set(model.state_dict().keys())
+    if set(sd.keys()) != model_keys:
+        remapped = {}
+        for k, v in sd.items():
+            new_k = k
+            if new_k.startswith("transformer."):
+                new_k = new_k[len("transformer."):]
+            if new_k.startswith("wte."):
+                new_k = "token_embedding." + new_k[4:]
+            elif new_k.startswith("wpe."):
+                new_k = "position_embedding." + new_k[4:]
+            elif new_k.startswith("h."):
+                new_k = "blocks." + new_k[2:]
+            remapped[new_k] = v
+        if set(remapped.keys()) == model_keys:
+            sd = remapped
+
+    model.load_state_dict(sd)
+    if optimizer is not None and "optimizer_state_dict" in ckpt:
         optimizer.load_state_dict(ckpt["optimizer_state_dict"])
-    if scheduler is not None:
+    if scheduler is not None and "scheduler_state_dict" in ckpt:
         scheduler.load_state_dict(ckpt["scheduler_state_dict"])
-    if restore_rng:
+    if restore_rng and "rng_state" in ckpt:
         _restore_rng_state(ckpt["rng_state"])
-    return ckpt["step"]
+    return step_val
 
 
 def validate_checkpoint(path: str) -> bool:

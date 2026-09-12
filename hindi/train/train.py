@@ -1,6 +1,6 @@
-"""Hindi training infrastructure.
+"""Hindi training infrastructure (Agent-D).
 
-Implements the Trainer contract:
+Implements the locked Trainer contract of AGENT_BUILD_SPEC.md §3 Agent-D:
 
   * TokenDataset over flat uint16/uint32 token arrays via numpy.memmap
     (nanoGPT-style random block_size windows — 500M tokens never enter RAM).
@@ -525,7 +525,7 @@ def train_entrypoint(argv: Optional[list[str]] = None) -> int:
     """
     import argparse
 
-    parser = argparse.ArgumentParser(description="Pretrain the language model")
+    parser = argparse.ArgumentParser(description="Pretrain the language model (Agent-D)")
     parser.add_argument("--model-config", required=True)
     parser.add_argument("--train-config", required=True)
     parser.add_argument("--train-data", required=True)

@@ -1,4 +1,4 @@
-"""Assamese attention analysis toolkit.
+"""Assamese attention analysis toolkit (Agent-F).
 
 Consumes the model's ``return_attn=True`` output — post-softmax attention weights
 (B, n_head, T, T) — and produces:
@@ -12,7 +12,7 @@ Consumes the model's ``return_attn=True`` output — post-softmax attention weig
 Every plot sets title, x-label, y-label (spec §0.4) — enforced by test.
 SentencePiece's leading ``▁`` markers are stripped for display only; token ids
 are never altered. Full (T, T) matrices are computed and discarded per example,
-never held for all examples at once (spec reliability fallbacks).
+never held for all examples at once (spec Agent-F reliability fallbacks).
 """
 
 from __future__ import annotations
@@ -83,37 +83,20 @@ def plot_attention_heatmap(
     ax.set_ylabel("Query position")
     fig.colorbar(im, ax=ax, label="attention weight")
 
-    # Font discovery for Indic scripts (Nirmala UI on Windows)
-    nirmala_path = r"C:\Windows\Fonts\Nirmala.ttc"
-    indic_font = (
-        matplotlib.font_manager.FontProperties(fname=nirmala_path, size=6.5)
-        if Path(nirmala_path).exists()
-        else None
-    )
-
     # Tick labels: full token strings only for short sentences, else sparse.
     display = [t.replace("\u2581", "") for t in tokens][:T]
     if T <= 32:
         ax.set_xticks(range(T))
         ax.set_yticks(range(T))
-        if indic_font:
-            ax.set_xticklabels(display, rotation=45, ha="right", rotation_mode="anchor", fontproperties=indic_font)
-            ax.set_yticklabels(display, fontproperties=indic_font)
-        else:
-            ax.set_xticklabels(display, rotation=45, ha="right", rotation_mode="anchor", fontsize=6)
-            ax.set_yticklabels(display, fontsize=6)
+        ax.set_xticklabels(display, rotation=90, fontsize=6)
+        ax.set_yticklabels(display, fontsize=6)
     else:
         step = max(1, T // 8)
         ticks = list(range(0, T, step))
         ax.set_xticks(ticks)
         ax.set_yticks(ticks)
-        sub_display = [display[i] for i in ticks]
-        if indic_font:
-            ax.set_xticklabels(sub_display, rotation=45, ha="right", rotation_mode="anchor", fontproperties=indic_font)
-            ax.set_yticklabels(sub_display, fontproperties=indic_font)
-        else:
-            ax.set_xticklabels(sub_display, rotation=45, ha="right", rotation_mode="anchor", fontsize=6)
-            ax.set_yticklabels(sub_display, fontsize=6)
+        ax.set_xticklabels([display[i] for i in ticks], rotation=90, fontsize=6)
+        ax.set_yticklabels([display[i] for i in ticks], fontsize=6)
 
     fig.tight_layout()
     fig.savefig(save_path, dpi=120)
@@ -202,7 +185,7 @@ def analyze_attention(
 
 
 def main(argv: Optional[list[str]] = None) -> int:
-    parser = argparse.ArgumentParser(description="Attention analysis")
+    parser = argparse.ArgumentParser(description="Attention analysis (Agent-F)")
     parser.add_argument("--checkpoint", required=True)
     parser.add_argument("--model-config", required=True)
     parser.add_argument("--tokenizer", required=True)
@@ -213,23 +196,15 @@ def main(argv: Optional[list[str]] = None) -> int:
         "সূৰ্য পূবত উদয় হয় আৰু পশ্চিমত অস্ত যায়",
     ])
     parser.add_argument("--device", default=None)
-    parser.add_argument("--arch", choices=("v1", "v2"), default="v1",
-                        help="model architecture: v1 (learned-abs/GELU/LayerNorm) or v2 (RoPE/SwiGLU/RMSNorm)")
     args = parser.parse_args(argv)
 
     from tokenizer.tokenizer import Tokenizer
 
     device = args.device or ("cuda" if torch.cuda.is_available() else "cpu")
+    from model.gpt import GPTConfig, GPTLanguageModel
     from common.checkpoint import load_checkpoint
 
-    if args.arch == "v2":
-        from model.gpt_v2 import GPTConfigV2, GPTLanguageModelV2
-
-        model = GPTLanguageModelV2(GPTConfigV2.from_yaml(args.model_config)).to(device)
-    else:
-        from model.gpt import GPTConfig, GPTLanguageModel
-
-        model = GPTLanguageModel(GPTConfig.from_yaml(args.model_config)).to(device)
+    model = GPTLanguageModel(GPTConfig.from_yaml(args.model_config)).to(device)
     load_checkpoint(args.checkpoint, model, restore_rng=False)
     tok = Tokenizer(args.tokenizer)
     results = analyze_attention(model, tok, args.texts, args.out_dir, device=device)

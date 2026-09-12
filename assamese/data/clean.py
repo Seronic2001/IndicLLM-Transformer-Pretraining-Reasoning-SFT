@@ -1,8 +1,8 @@
-"""Assamese document cleaning + dedup.
+"""Hindi document cleaning + dedup (Agent-A).
 
 Pipeline per document:
   * NFC normalization (unicodedata.normalize)
-  * script filter: keep Eastern Nagari (\\u0980-\\u09FF); count removed chars
+  * script filter: keep Devanagari (\\u0900-\\u097F); count removed chars
   * drop control chars, collapse whitespace, drop too-short / too-empty docs
   * exact-hash dedup (sha256 of normalized text) then MinHash near-dup removal
 
@@ -22,7 +22,7 @@ import unicodedata
 from pathlib import Path
 from typing import Iterable, Optional
 
-from common.script_utils import ( 
+from common.script_utils import (  # noqa: E402
     clean_indic_text,
     is_high_quality_indic_document,
     is_script_char,

@@ -1,4 +1,4 @@
-"""Document-level 98/1/1 split .
+"""Document-level 98/1/1 split (Agent-A).
 
 Splits are by DOCUMENT, never by line — a document never appears in more than one
 split (test_no_document_leakage). Deterministic seeded shuffle.
@@ -85,7 +85,7 @@ def write_splits(
 
 
 def main(argv: Optional[list[str]] = None) -> int:
-    parser = argparse.ArgumentParser(description="Document-level train/val/test split ")
+    parser = argparse.ArgumentParser(description="Document-level train/val/test split (Agent-A)")
     parser.add_argument("--clean-dir", required=True)
     parser.add_argument("--out-dir", required=True)
     parser.add_argument("--seed", type=int, default=1337)

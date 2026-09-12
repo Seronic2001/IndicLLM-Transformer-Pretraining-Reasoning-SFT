@@ -1,4 +1,4 @@
-"""Real Assamese corpus sources for ``data/collect.py`` (, Kaggle-ready).
+"""Real Assamese corpus sources for ``data/collect.py`` (Agent-A, Kaggle-ready).
 
 Mirror of ``hindi/data/sources.py`` for Assamese — same infrastructure, different
 corpora and language paths (no imports from ``hindi``).
