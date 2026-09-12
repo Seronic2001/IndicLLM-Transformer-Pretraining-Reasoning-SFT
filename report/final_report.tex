@@ -67,8 +67,7 @@
     \begin{abstract}
     \noindent We design, train, and empirically evaluate two completely independent monolingual decoder-only Transformer Language Models ($\sim$25.6M parameters each) from first principles in PyTorch without cross-lingual weight sharing or pretrained initialization. Through multi-source web crawling and digital OCR extraction of educational textbooks, we curated balanced 500M+ token corpora for higher-resource Hindi (723M tokens) and lower-resource Assamese (528M tokens), strictly satisfying the mandatory $\ge 20\%$ manual collection threshold. Custom 16,384-vocabulary SentencePiece BPE tokenizers achieve character coverage $>99.99\%$ with $0.0\%$ unknown token rate. Pretraining on 500M tokens across 1,907 optimizer steps yields smooth convergence and competitive held-out test perplexities ($52.26$ for Hindi V2, $80.93$ for Assamese V2). In Phase 3, we formulate an anti-leakage relational reasoning solver and conduct Supervised Fine-Tuning across an 8-model experimental matrix ($4 \times 2$: Baseline V1 vs. Modern V2 $\times$ Direct SFT vs. Chain-of-Thought). Chain-of-Thought SFT combined with a controlled 5\% negation curriculum yields dramatic performance improvements (+101.7\% relative gain in Assamese, achieving 63.83\% accuracy on negated logic queries and +13.5\% to +27.7\% relative boost in Token $F_1$), effectively closing the reasoning gap between the resource tiers.
     \end{abstract}
-    \vspace{1.1em}
-  \end{@twocolumnfalse}
+    \end{@twocolumnfalse}
 ]
 
 % ==============================================================================
@@ -85,6 +84,7 @@ Table \ref{tab:pipeline} provides an architectural and operational overview of t
 \begin{table*}[t]
 \centering
 \small
+\resizebox{0.96\textwidth}{!}{
 \begin{tabularx}{\textwidth}{lXXX}
 \toprule
 \textbf{Pipeline Phase} & \textbf{Phase 1: Data \& Tokenization} & \textbf{Phase 2: Architecture \& Pretraining} & \textbf{Phase 3: Symbolic Reasoning SFT} \\
@@ -96,6 +96,7 @@ Table \ref{tab:pipeline} provides an architectural and operational overview of t
 \textbf{Key Diagnostics} & Custom 16,384 SentencePiece BPE \newline Byte-fallback enabled ($0.0\%$ \texttt{<unk>}) & Nvidia FP16 mixed precision, AdamW \newline Test PPL: 52.26 (HI V2), 80.93 (AS V2) & Multi-tier evaluation (Strict, $F_1$, Char Sim) \newline 5\% Negation curriculum fine-tuning \\
 \bottomrule
 \end{tabularx}
+}
 \caption{\textbf{End-to-End Three-Phase Engineering Pipeline.} Overview of data curation, pretraining dynamics, and symbolic reasoning fine-tuning across both target languages.}
 \label{tab:pipeline}
 \end{table*}
@@ -166,7 +167,7 @@ Both architectures ($\sim$25.6M parameters) were pretrained under identical cond
 \begin{table}[h!]
 \centering
 \footnotesize
-\resizebox{\columnwidth}{!}{
+\resizebox{0.96\columnwidth}{!}{
 \begin{tabular}{lcccc}
 \toprule
 \textbf{Model / Architecture} & \textbf{Loss} & \textbf{PPL} & \textbf{BPB} & \textbf{Params} \\
@@ -219,7 +220,8 @@ In Phase 3, we evaluated supervised fine-tuning across an 8-model experimental m
 \begin{table*}[t]
 \centering
 \small
-\resizebox{\textwidth}{!}{
+\setlength{\tabcolsep}{4.5pt}
+\resizebox{0.95\textwidth}{!}{
 \begin{tabular}{llccccccc}
 \toprule
 \textbf{Model Key} & \textbf{Language} & \textbf{Architecture} & \textbf{SFT Mode} & \textbf{Strict Acc (Ans)} & \textbf{Token $F_1$ (Ans)} & \textbf{Char Sim} & \textbf{CoT EM} & \textbf{CoT Decomp} \\
@@ -378,46 +380,5 @@ Source Figures & \texttt{report/figures/} (300 DPI) \\
 \section{Conclusion}
 
 This investigation presents a rigorous empirical study of monolingual Indic Transformer language modeling. Modern architectural components (RMSNorm, SwiGLU, RoPE) deliver consistent language modeling gains across both high-resource and low-resource scripts ($\sim 33$--$36\%$ PPL reduction). In symbolic reasoning, multi-tier evaluation exposes the shortcut vulnerabilities of direct fine-tuning, while Chain-of-Thought scratchpads and targeted negation curricula establish robust multi-step logical deduction across both languages.
-
-% ==============================================================================
-% REFERENCES & BIBLIOGRAPHY
-% ==============================================================================
-\begin{thebibliography}{9}
-\small
-\bibitem{vaswani2017}
-A.~Vaswani, N.~Shazeer, N.~Parmar, J.~Uszkoreit, L.~Jones, A.~N.~Gomez, \L.~Kaiser, and I.~Polosukhin.
-\newblock Attention is all you need.
-\newblock In \emph{Advances in Neural Information Processing Systems (NeurIPS)}, 2017.
-
-\bibitem{su2024}
-J.~Su, M.~Ahmed, Y.~Lu, S.~Pan, W.~Bo, and Y.~Liu.
-\newblock RoFormer: Enhanced transformer with rotary position embedding.
-\newblock \emph{Neurocomputing}, 568:127063, 2024.
-
-\bibitem{shazeer2020}
-N.~Shazeer.
-\newblock GLU variants improve transformer.
-\newblock \emph{arXiv preprint arXiv:2002.05202}, 2020.
-
-\bibitem{wei2022}
-J.~Wei, X.~Wang, D.~Schanmans, M.~Bosma, B.~Ichter, F.~Xia, E.~Chi, Q.~Le, and D.~Zhou.
-\newblock Chain-of-thought prompting elicits reasoning in large language models.
-\newblock In \emph{NeurIPS}, 2022.
-
-\bibitem{kudo2018}
-T.~Kudo and J.~Richardson.
-\newblock SentencePiece: A simple and language independent subword tokenizer and detokenizer for neural text processing.
-\newblock In \emph{EMNLP (Demonstrations)}, pages 66--71, 2018.
-
-\bibitem{kakwani2020}
-D.~Kakwani, A.~Kunchukuttan, S.~Golla, N.~C.~Gokul, A.~Bhattacharyya, M.~M.~Khapra, and P.~Kumar.
-\newblock IndicNLPSuite: Monolingual corpora and evaluation benchmarks for Indian languages.
-\newblock In \emph{Findings of EMNLP}, pages 3501--3517, 2020.
-
-\bibitem{scao2022}
-T.~L.~Scao et al.
-\newblock BLOOM: A 176B-parameter open-access multilingual language model.
-\newblock \emph{arXiv preprint arXiv:2211.05100}, 2022.
-\end{thebibliography}
 
 \end{document}
