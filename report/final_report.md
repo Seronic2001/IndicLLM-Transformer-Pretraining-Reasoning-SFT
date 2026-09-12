@@ -50,6 +50,8 @@ Both languages satisfy the $\sim 500\text{M}$ token requirement with $>20\%$ man
 | **Subword Fertility** | 1.1858 tokens / word | 1.4426 tokens / word | Optimal compression |
 | **Characters per Token** | 3.7445 chars / token | 4.5774 chars / token | High morphological packing |
 
+*Public Phase 1 Datasets*: Raw crawled text, OCR extractions, cleaned corpora, and 16K BPE models are archived in public Kaggle datasets: [`shubhadeepmandal/lma-hindi-artifacts`](https://www.kaggle.com/datasets/shubhadeepmandal/lma-hindi-artifacts) and [`shubhadeepmandal/lma-assamese-artifact`](https://www.kaggle.com/datasets/shubhadeepmandal/lma-assamese-artifact).
+
 ![Pretraining Corpus Distribution: Manual Scraped vs. Downloaded Tokens](figures/manual_vs_downloaded_tokens.png)
 *Figure 2.1: Pretraining Corpus Distribution — Curated Web Crawls & Digital OCR of State Board Textbooks vs. Raw Datasets across Hindi (723M) and Assamese (528M), fulfilling the $\ge 20\%$ manual collection threshold.*
 
@@ -180,9 +182,12 @@ We present four empirical pillars explaining the performance dynamics:
 
 ## 5. Artifact Verification & Reproduction Checklist
 
-* **Pretrained & Finetuned Checkpoints**: Available in public Kaggle datasets:
-  * Pretrained Checkpoints: [`shubhadeepmandal/lma-phase2-artifacts`](https://www.kaggle.com/datasets/shubhadeepmandal/lma-phase2-artifacts)
-  * Finetuned Reasoning Checkpoints & Consolidated Dataset: [`shubhadeepmandal/lma-phase3-artifacts`](https://www.kaggle.com/datasets/shubhadeepmandal/lma-phase3-artifacts)
+* **Public Kaggle Datasets Across All Three Phases**:
+  * **Phase 1 Pretraining Corpora & Tokenizers**:
+    * Hindi Dataset: [`shubhadeepmandal/lma-hindi-artifacts`](https://www.kaggle.com/datasets/shubhadeepmandal/lma-hindi-artifacts)
+    * Assamese Dataset: [`shubhadeepmandal/lma-assamese-artifact`](https://www.kaggle.com/datasets/shubhadeepmandal/lma-assamese-artifact)
+  * **Phase 2 Pretrained Checkpoints**: [`shubhadeepmandal/lma-phase2-artifacts`](https://www.kaggle.com/datasets/shubhadeepmandal/lma-phase2-artifacts)
+  * **Phase 3 Finetuned Reasoning Models & Consolidated Artifacts**: [`shubhadeepmandal/lma-phase3-artifacts`](https://www.kaggle.com/datasets/shubhadeepmandal/lma-phase3-artifacts)
 * **Tokenizers**: `hindi/tokenizer/hindi.model` and `assamese/tokenizer/assamese.model` (16K BPE).
 * **Figures**: Rendered in 300 DPI under `report/figures/`.
 * **Zero Contamination**: Disjoint entity pools, no pretrained components, independent monolingual pipelines.
