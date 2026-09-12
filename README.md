@@ -423,6 +423,45 @@ assert diff == 0.0, 'Future token leaked!'
 
 ---
 
+### 11. Phase 3: Symbolic Reasoning (Direct SFT vs. Chain-of-Thought)
+
+#### 8-Model Benchmark Matrix (Tiers 1–4 Metrics)
+```
++---------------------------------------------------------------------------------------------------------+
+| Model Variant        | Language  | SFT Mode | Ans Acc  | CoT EM   | Token F1 | Char Sim | CoT Decomp    |
++---------------------------------------------------------------------------------------------------------+
+| Hindi V1 Direct      | Hindi     | Direct   | 85.20%   | —        | 29.77%   | 17.27%   | —             |
+| Hindi V1 CoT         | Hindi     | CoT      | 75.00%   | 44.00%   | 43.40%   | 17.27%   | 61.34%        |
+| Hindi V2 Direct      | Hindi     | Direct   | 71.00%   | —        | 29.19%   | 17.26%   | —             |
+| Hindi V2 CoT         | Hindi     | CoT      | 57.20%   | 14.40%   | 40.55%   | 17.26%   | 56.15%        |
+| Assamese V1 Direct   | Assamese  | Direct   | 65.00%   | —        | 26.37%   | 16.84%   | —             |
+| Assamese V1 CoT      | Assamese  | CoT      | 58.20%   | 0.00%    | 33.70%   | 16.84%   | 33.68%        |
+| Assamese V2 Direct   | Assamese  | Direct   | 23.20%   | —        | 20.54%   | 13.69%   | —             |
+| Assamese V2 CoT      | Assamese  | CoT      | 14.00%   | 0.00%    | 26.05%   | 13.69%   | 32.98%        |
++---------------------------------------------------------------------------------------------------------+
+```
+
+#### Reproduce Reasoning Data Generation & Fine-Tuning
+```bash
+# 1. Generate 20,000 synthetic reasoning examples with disjoint splits
+python -m hindi.finetune.generate_reasoning --out-dir hindi/finetune/reasoning
+python -m assamese.finetune.generate_reasoning --out-dir assamese/finetune/reasoning
+
+# 2. Run Direct SFT & CoT SFT on Hindi
+python -m hindi.finetune.finetune --mode direct --arch v1 --epochs 3
+python -m hindi.finetune.finetune --mode cot --arch v1 --epochs 3
+python -m hindi.finetune.finetune --mode direct --arch v2 --epochs 3
+python -m hindi.finetune.finetune --mode cot --arch v2 --epochs 3
+
+# 3. Run Direct SFT & CoT SFT on Assamese
+python -m assamese.finetune.finetune --mode direct --arch v1 --epochs 3
+python -m assamese.finetune.finetune --mode cot --arch v1 --epochs 3
+python -m assamese.finetune.finetune --mode direct --arch v2 --epochs 3
+python -m assamese.finetune.finetune --mode cot --arch v2 --epochs 3
+```
+
+---
+
 ## 📑 Technical Reports
 * **Final Consolidated Report (100 Marks):** **[`report/final_report.md`](report/final_report.md)** — Exhaustive scientific synthesis answering the 4 core comparative questions across data scale, language modeling, subword fertility, and symbolic reasoning.
 * **Phase 3 Technical Report (35 Marks):** **[`report/phase3_report.md`](report/phase3_report.md)** — Complete 8-model reasoning evaluation, multi-tier metrics matrix (Token F1, Levenshtein distance, Decomposed CoT score), per-paradigm analysis, and post-finetune attention redistribution heatmaps.

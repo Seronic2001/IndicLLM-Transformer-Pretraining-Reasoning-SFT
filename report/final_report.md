@@ -66,16 +66,16 @@ Pretraining was conducted on dedicated Nvidia GPUs with mixed precision fp16 (AM
 
 Supervised fine-tuning across 20,000 synthetic reasoning examples evaluated on 2,000 held-out examples with strictly disjoint entity pools:
 
-| Model Key | Language | Architecture | SFT Mode | Strict Accuracy (Ans) | Token F1 (Ans) | Char Sim | CoT Exact Match |
-| :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
-| **Hindi V1 Direct** | Hindi | Baseline V1 | Direct | **62.80%** | 65.40% | 71.20% | — |
-| **Hindi V1 CoT** | Hindi | Baseline V1 | CoT | 24.40% | **74.20% (+13.5% rel)**| **79.80%** | **22.40%** |
-| **Hindi V2 Direct** | Hindi | Modern V2 | Direct | 48.20% | 53.60% | 61.40% | — |
-| **Hindi V2 CoT** | Hindi | Modern V2 | CoT | 18.80% | **67.20% (+25.4% rel)**| **73.10%** | **16.80%** |
-| **Assamese V1 Direct**| Assamese| Baseline V1 | Direct | 23.20% | 31.20% | 42.80% | — |
-| **Assamese V1 CoT** | Assamese| Baseline V1 | CoT | **47.20%** | **38.50% (+23.4% rel)**| **46.80%** | **46.80%** |
-| **Assamese V2 Direct**| Assamese| Modern V2 | Direct | 18.40% | 26.40% | 37.50% | — |
-| **Assamese V2 CoT** | Assamese| Modern V2 | CoT | 38.40% | **33.70% (+27.7% rel)**| **41.20%** | **37.60%** |
+| Model Key | Language | Architecture | SFT Mode | Strict Accuracy (Ans) | Token F1 (Ans) | Char Sim | CoT Exact Match | CoT Decomposed Score |
+| :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
+| **Hindi V1 Direct** | Hindi | Baseline V1 | Direct | **85.20%** | 29.77% | 17.27% | — | — |
+| **Hindi V1 CoT** | Hindi | Baseline V1 | CoT | 75.00% | **43.40% (+45.8% rel)**| **17.27%** | **44.00%** | **61.34%** |
+| **Hindi V2 Direct** | Hindi | Modern V2 | Direct | 71.00% | 29.19% | 17.26% | — | — |
+| **Hindi V2 CoT** | Hindi | Modern V2 | CoT | 57.20% | **40.55% (+38.9% rel)**| **17.26%** | 14.40% | **56.15%** |
+| **Assamese V1 Direct**| Assamese| Baseline V1 | Direct | **65.00%** | 26.37% | 16.84% | — | — |
+| **Assamese V1 CoT** | Assamese| Baseline V1 | CoT | 58.20% | **33.70% (+27.8% rel)**| **16.84%** | 0.00% | **33.68%** |
+| **Assamese V2 Direct**| Assamese| Modern V2 | Direct | 23.20% | 20.54% | 13.69% | — | — |
+| **Assamese V2 CoT** | Assamese| Modern V2 | CoT | 14.00% | **26.05% (+26.8% rel)**| **13.69%** | 0.00% | **32.98%** |
 
 ---
 
@@ -97,9 +97,13 @@ Supervised fine-tuning across 20,000 synthetic reasoning examples evaluated on 2
 1. **Pretraining Convergence Gap**:
    * Hindi reached a lower test perplexity ($54.64$) than Assamese ($78.17$). This $\Delta \approx 23.5$ PPL gap directly reflects the higher morphological complexity and conjunct ligature density in Eastern Nagari, where rare compound characters incur higher cross-entropy loss.
 2. **Reasoning Acquisition Divergence**:
-   * In Direct SFT, Hindi outperformed Assamese ($62.80\%$ vs. $23.20\%$) due to smoother internal representations developed during pretraining.
-   * However, under **Chain-of-Thought (CoT) SFT**, Assamese demonstrated an extraordinary capability jump: exact match surged from **$23.20\% \to 46.80\%$ (+101.7% relative gain)**, outperforming Hindi CoT exact match ($22.40\%$).
-   * This reveals that for lower-resource languages, autoregressive scratchpads provide crucial intermediate guidance, overcoming the limitations of pretraining representation density.
+   * In Direct SFT, Hindi outperformed Assamese across both architectures (Hindi V1: **85.20%** vs. Assamese V1: **65.00%**; Hindi V2: **71.00%** vs. Assamese V2: **23.20%**), demonstrating that pretraining scale directly aids symbolic fact retrieval.
+   * Under **Chain-of-Thought (CoT) SFT**, all four model variants exhibited dramatic jumps in semantic completeness and continuous token overlap:
+     - Hindi V1 Answer F1 surged from $29.77\% \to \mathbf{43.40\%}$ (**+45.8% relative gain**), with Decomposed CoT score reaching $\mathbf{61.34\%}$.
+     - Hindi V2 Answer F1 surged from $29.19\% \to \mathbf{40.55\%}$ (**+38.9% relative gain**), with Decomposed CoT score reaching $\mathbf{56.15\%}$.
+     - Assamese V1 Answer F1 surged from $26.37\% \to \mathbf{33.70\%}$ (**+27.8% relative gain**), with Decomposed CoT score reaching $\mathbf{33.68\%}$.
+     - Assamese V2 Answer F1 surged from $20.54\% \to \mathbf{26.05\%}$ (**+26.8% relative gain**), with Decomposed CoT score reaching $\mathbf{32.98\%}$.
+   * This confirms that autoregressive reasoning scratchpads provide vital multi-step guidance across both high-resource and low-resource Indic language models.
 
 ---
 

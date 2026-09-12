@@ -373,22 +373,22 @@ plt.style.use("seaborn-v0_8-whitegrid" if "seaborn-v0_8-whitegrid" in plt.style.
 
 # 1. Strict Accuracy vs. CoT EM
 labels = ["Hindi V1", "Hindi V2", "Assamese V1", "Assamese V2"]
-direct_acc = [62.8, 48.2, 23.2, 18.4]
-cot_acc = [24.4, 18.8, 47.2, 38.4]
+direct_acc = [85.2, 71.0, 65.0, 23.2]
+cot_acc = [75.0, 57.2, 58.2, 14.0]
 
 x = np.arange(len(labels))
 width = 0.35
 
 fig, ax = plt.subplots(figsize=(8, 5))
-rects1 = ax.bar(x - width/2, direct_acc, width, label="Direct SFT (Ans Only)", color="#3b82f6")
-rects2 = ax.bar(x + width/2, cot_acc, width, label="CoT SFT (Derivation + Ans)", color="#10b981")
+rects1 = ax.bar(x - width/2, direct_acc, width, label="Direct SFT (Ans Acc)", color="#3b82f6")
+rects2 = ax.bar(x + width/2, cot_acc, width, label="CoT SFT (Ans Acc)", color="#10b981")
 
-ax.set_ylabel("Exact Match Accuracy (%)")
-ax.set_title("Direct SFT vs. Chain-of-Thought (CoT) Exact Match Comparison")
+ax.set_ylabel("Answer Accuracy (%)")
+ax.set_title("Direct SFT vs. Chain-of-Thought (CoT) Answer Accuracy")
 ax.set_xticks(x)
 ax.set_xticklabels(labels)
 ax.legend()
-ax.set_ylim(0, 75)
+ax.set_ylim(0, 100)
 
 for r in rects1 + rects2:
     h = r.get_height()
@@ -402,19 +402,19 @@ plt.close()
 print(f"[+] Saved: {p1.name}")
 
 # 2. Multi-Tier Token F1 Comparison
-direct_f1 = [65.4, 53.6, 31.2, 26.4]
-cot_f1 = [74.2, 67.2, 38.5, 33.7]
+direct_f1 = [29.77, 29.19, 26.37, 20.54]
+cot_f1 = [43.40, 40.55, 33.70, 26.05]
 
 fig, ax = plt.subplots(figsize=(8, 5))
 rects1 = ax.bar(x - width/2, direct_f1, width, label="Direct Answer F1", color="#6366f1")
-rects2 = ax.bar(x + width/2, cot_f1, width, label="CoT Derivation F1 (+Gain)", color="#f59e0b")
+rects2 = ax.bar(x + width/2, cot_f1, width, label="CoT Answer F1 (+Gain)", color="#f59e0b")
 
 ax.set_ylabel("Token F1 Score (%)")
 ax.set_title("Continuous Multi-Tier Quality: Token F1 Gains via Chain-of-Thought")
 ax.set_xticks(x)
 ax.set_xticklabels(labels)
 ax.legend()
-ax.set_ylim(0, 85)
+ax.set_ylim(0, 55)
 
 for r in rects1 + rects2:
     h = r.get_height()
@@ -427,10 +427,10 @@ plt.savefig(p2, dpi=200)
 plt.close()
 print(f"[+] Saved: {p2.name}")
 
-# 3. Per-Paradigm Breakdown (Assamese Breakthrough)
-paradigms = ["Word Problem", "Transitive", "Multi-Hop", "Conversational", "Negation"]
-v1_scores = [49.5, 41.4, 34.5, 46.7, 63.8]
-v2_scores = [41.0, 35.2, 29.4, 38.6, 47.8]
+# 3. Per-Paradigm Breakdown (Assamese Logic Paradigms)
+paradigms = ["Conversational", "Multi-Hop", "Negation", "Transitive", "Word Problem"]
+v1_scores = [64.9, 50.0, 61.3, 60.6, 53.4]
+v2_scores = [12.6, 13.5, 21.5, 8.7, 14.8]
 
 x_p = np.arange(len(paradigms))
 fig, ax = plt.subplots(figsize=(9, 5))
@@ -438,11 +438,11 @@ r1 = ax.bar(x_p - width/2, v1_scores, width, label="Assamese V1 CoT", color="#05
 r2 = ax.bar(x_p + width/2, v2_scores, width, label="Assamese V2 CoT", color="#0284c7")
 
 ax.set_ylabel("Accuracy (%)")
-ax.set_title("Assamese Reasoning Breakdown by Logic Paradigm (Negation Breakthrough)")
+ax.set_title("Assamese Reasoning Breakdown by Logic Paradigm (V1 vs. V2)")
 ax.set_xticks(x_p)
 ax.set_xticklabels(paradigms)
 ax.legend()
-ax.set_ylim(0, 75)
+ax.set_ylim(0, 80)
 
 for r in r1 + r2:
     h = r.get_height()
@@ -484,23 +484,23 @@ report_lines = [
     "",
     "| Model Variant | Architecture | Training Mode | Accuracy (Ans Only) | Exact Match (CoT) |",
     "| :--- | :--- | :--- | :---: | :---: |",
-    "| **Hindi V1 Direct** | Baseline V1 | Direct SFT | **62.80%** | — |",
-    "| **Hindi V1 CoT** | Baseline V1 | Chain-of-Thought | **24.40%** | **22.40%** |",
-    "| **Hindi V2 Direct** | Modern V2 | Direct SFT | **48.20%** | — |",
-    "| **Hindi V2 CoT** | Modern V2 | Chain-of-Thought | **18.80%** | **16.80%** |",
-    "| **Assamese V1 Direct** | Baseline V1 | Direct SFT | **23.20%** | — |",
-    "| **Assamese V1 CoT** | Baseline V1 | Chain-of-Thought | **47.20%** | **46.80%** |",
-    "| **Assamese V2 Direct** | Modern V2 | Direct SFT | **18.40%** | — |",
-    "| **Assamese V2 CoT** | Modern V2 | Chain-of-Thought | **38.40%** | **37.60%** |",
+    "| **Hindi V1 Direct** | Baseline V1 | Direct SFT | **85.20%** | — |",
+    "| **Hindi V1 CoT** | Baseline V1 | Chain-of-Thought | **75.00%** | **44.00%** |",
+    "| **Hindi V2 Direct** | Modern V2 | Direct SFT | **71.00%** | — |",
+    "| **Hindi V2 CoT** | Modern V2 | Chain-of-Thought | **57.20%** | **14.40%** |",
+    "| **Assamese V1 Direct** | Baseline V1 | Direct SFT | **65.00%** | — |",
+    "| **Assamese V1 CoT** | Baseline V1 | Chain-of-Thought | **58.20%** | 0.00% |",
+    "| **Assamese V2 Direct** | Modern V2 | Direct SFT | **23.20%** | — |",
+    "| **Assamese V2 CoT** | Modern V2 | Chain-of-Thought | **14.00%** | 0.00% |",
     "",
     "### 2.2 Continuous Multi-Tier Quality Matrix",
     "",
     "| Model Variant | Direct Answer F1 | Direct Char Sim | CoT Answer F1 | CoT Decomposed Score |",
     "| :--- | :---: | :---: | :---: | :---: |",
-    "| **Hindi V1** | 65.40% | 71.20% | **74.20% (+13.5% rel)** | **71.80%** |",
-    "| **Hindi V2** | 53.60% | 61.40% | **67.20% (+25.4% rel)** | **64.80%** |",
-    "| **Assamese V1**| 31.20% | 42.80% | **38.50% (+23.4% rel)** | **39.20%** |",
-    "| **Assamese V2**| 26.40% | 37.50% | **33.70% (+27.7% rel)** | **34.40%** |",
+    "| **Hindi V1** | 29.77% | 17.27% | **43.40% (+45.8% rel)** | **61.34%** |",
+    "| **Hindi V2** | 29.19% | 17.26% | **40.55% (+38.9% rel)** | **56.15%** |",
+    "| **Assamese V1**| 26.37% | 16.84% | **33.70% (+27.8% rel)** | **33.68%** |",
+    "| **Assamese V2**| 20.54% | 13.69% | **26.05% (+26.8% rel)** | **32.98%** |",
     "",
     "---",
     "",
