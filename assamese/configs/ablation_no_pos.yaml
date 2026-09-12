@@ -1,0 +1,13 @@
+# Assamese Model L — 16K Vocab Positional Embedding Ablation (no_pos=True)
+# Course Bonus: Ablation with positional embeddings removed
+# Target: ~24.78M params (24,785,664 params, strictly inside 22.5M–27.5M rubric)
+vocab_size: 16384
+d_model: 384
+n_layer: 8          # 8 layers for hierarchical representation depth
+n_head: 6           # d_k = 64
+d_ff: 2240          # widened FFN associative memory
+block_size: 512
+dropout: 0.1
+tie_weights: true
+bias: false
+no_pos: true        # Bonus ablation: disables positional embeddings

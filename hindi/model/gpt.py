@@ -39,6 +39,7 @@ class GPTConfig:
     dropout: float = 0.1
     tie_weights: bool = True
     bias: bool = False
+    no_pos: bool = False  # Bonus ablation: disables positional embeddings
 
     @classmethod
     def from_yaml(cls, path: Union[str, Path]) -> "GPTConfig":
@@ -146,7 +147,10 @@ class GPTLanguageModel(nn.Module):
         super().__init__()
         self.config = config
         self.token_embedding = nn.Embedding(config.vocab_size, config.d_model)
-        self.position_embedding = nn.Embedding(config.block_size, config.d_model)
+        if not getattr(config, "no_pos", False):
+            self.position_embedding = nn.Embedding(config.block_size, config.d_model)
+        else:
+            self.position_embedding = None
         self.drop = nn.Dropout(config.dropout)
         self.blocks = nn.ModuleList([Block(config) for _ in range(config.n_layer)])
         self.ln_f = nn.LayerNorm(config.d_model)
@@ -186,8 +190,11 @@ class GPTLanguageModel(nn.Module):
         )
 
         tok = self.token_embedding(idx)  # (B, T, d_model)
-        pos = self.position_embedding(torch.arange(T, device=idx.device))  # (T, d_model)
-        x = self.drop(tok + pos)
+        if self.position_embedding is not None:
+            pos = self.position_embedding(torch.arange(T, device=idx.device))  # (T, d_model)
+            x = self.drop(tok + pos)
+        else:
+            x = self.drop(tok)
 
         attn_weights: list[torch.Tensor] = []
         for block in self.blocks:
@@ -221,7 +228,8 @@ class GPTLanguageModel(nn.Module):
         n = sum(p.numel() for p in self.parameters())
         if non_embedding:
             n -= self.token_embedding.weight.numel()
-            n -= self.position_embedding.weight.numel()
+            if self.position_embedding is not None:
+                n -= self.position_embedding.weight.numel()
         return n
 
     @torch.no_grad()
