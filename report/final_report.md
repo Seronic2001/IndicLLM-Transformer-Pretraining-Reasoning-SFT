@@ -2,7 +2,7 @@
 
 **Author**: Shubhadeep Mandal (Roll No: 2025201056)  
 **Course**: Language Models and Agents (Monsoon 2026)  
-**Submission Repository**: [github.com/shubhadeepmandal/individual-project-Seronic2001](https://github.com/shubhadeepmandal/individual-project-Seronic2001)  
+**Submission Repository**: [github.com/CL3-410/individual-project-Seronic2001](https://github.com/CL3-410/individual-project-Seronic2001)  
 **Branch**: `phase-3` (Final 100-Mark Snapshot)  
 **Target Languages**:
 * **Higher-Resource Language (Model H)**: Hindi (Devanagari script, Indo-Aryan family)
