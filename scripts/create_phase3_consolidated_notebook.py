@@ -308,20 +308,20 @@ def mean_attention_distance(attn_weights: torch.Tensor) -> torch.Tensor:
     return mean_d.mean(dim=-1)
 
 def render_attn_pair(weights_pre, weights_post, tokens, lang_name, out_png):
-    fig, axes = plt.subplots(1, 2, figsize=(12, 5))
+    fig, axes = plt.subplots(1, 2, figsize=(13, 5.5))
     
     # Pretrained Heatmap
     im1 = axes[0].imshow(weights_pre.numpy(), cmap="viridis", vmin=0.0, vmax=1.0)
-    axes[0].set_title(f"{lang_name} Pretrained Base Attention (Layer 5, Head 0)")
-    axes[0].set_xlabel("Key Position")
-    axes[0].set_ylabel("Query Position")
+    axes[0].set_title(f"{lang_name} Pretrained Base Attention (Layer 5, Head 0)", fontsize=11, fontweight="bold")
+    axes[0].set_xlabel("Key Position", fontsize=10)
+    axes[0].set_ylabel("Query Position", fontsize=10)
     fig.colorbar(im1, ax=axes[0], fraction=0.046, pad=0.04)
 
     # Finetuned Heatmap
     im2 = axes[1].imshow(weights_post.numpy(), cmap="magma", vmin=0.0, vmax=1.0)
-    axes[1].set_title(f"{lang_name} Finetuned CoT Attention (Layer 5, Head 0)")
-    axes[1].set_xlabel("Key Position")
-    axes[1].set_ylabel("Query Position")
+    axes[1].set_title(f"{lang_name} Finetuned CoT Attention (Layer 5, Head 0)", fontsize=11, fontweight="bold")
+    axes[1].set_xlabel("Key Position", fontsize=10)
+    axes[1].set_ylabel("Query Position", fontsize=10)
     fig.colorbar(im2, ax=axes[1], fraction=0.046, pad=0.04)
 
     T = len(tokens)
@@ -329,10 +329,11 @@ def render_attn_pair(weights_pre, weights_post, tokens, lang_name, out_png):
         for ax in axes:
             ax.set_xticks(range(T))
             ax.set_yticks(range(T))
-            ax.set_xticklabels(tokens, rotation=90, fontsize=7)
-            ax.set_yticklabels(tokens, fontsize=7)
+            ax.set_xticklabels(tokens, rotation=45, ha="right", fontsize=8)
+            ax.set_yticklabels(tokens, fontsize=8)
+    fig.subplots_adjust(bottom=0.22)
     plt.tight_layout()
-    plt.savefig(out_png, dpi=200, bbox_inches="tight")
+    plt.savefig(out_png, dpi=200, bbox_inches="tight", pad_inches=0.2)
     plt.close()
     print(f"  [+] Generated: {out_png.name}")
 
@@ -404,7 +405,7 @@ for r in rects1 + rects2:
 
 plt.tight_layout()
 p1 = FIG_DIR / "phase3_reasoning_accuracy_comparison.png"
-plt.savefig(p1, dpi=200)
+plt.savefig(p1, dpi=200, bbox_inches="tight")
 plt.close()
 print(f"[+] Saved: {p1.name}")
 
@@ -430,36 +431,51 @@ for r in rects1 + rects2:
 
 plt.tight_layout()
 p2 = FIG_DIR / "phase3_multi_tier_f1_comparison.png"
-plt.savefig(p2, dpi=200)
+plt.savefig(p2, dpi=200, bbox_inches="tight")
 plt.close()
 print(f"[+] Saved: {p2.name}")
 
-# 3. Per-Paradigm Breakdown (Assamese Logic Paradigms)
+# 3. Per-Paradigm Breakdown: Unified Dual-Panel (Hindi Left, Assamese Right)
 paradigms = ["Conversational", "Multi-Hop", "Negation", "Transitive", "Word Problem"]
-v1_scores = [64.9, 50.0, 61.3, 60.6, 53.4]
-v2_scores = [12.6, 13.5, 21.5, 8.7, 14.8]
+hi_v1_scores = [77.5, 76.0, 73.1, 72.1, 76.1]
+hi_v2_scores = [53.2, 60.6, 63.4, 51.9, 58.0]
+as_v1_scores = [64.9, 50.0, 61.3, 60.6, 53.4]
+as_v2_scores = [12.6, 13.5, 21.5, 8.7, 14.8]
 
 x_p = np.arange(len(paradigms))
-fig, ax = plt.subplots(figsize=(9, 5))
-r1 = ax.bar(x_p - width/2, v1_scores, width, label="Assamese V1 CoT", color="#059669")
-r2 = ax.bar(x_p + width/2, v2_scores, width, label="Assamese V2 CoT", color="#0284c7")
+fig_dual, (ax_d1, ax_d2) = plt.subplots(1, 2, figsize=(15, 5.5), sharey=True)
 
-ax.set_ylabel("Accuracy (%)")
-ax.set_title("Assamese Reasoning Breakdown by Logic Paradigm (V1 vs. V2)")
-ax.set_xticks(x_p)
-ax.set_xticklabels(paradigms)
-ax.legend()
-ax.set_ylim(0, 80)
-
-for r in r1 + r2:
+# Left: Hindi
+r_d_hi1 = ax_d1.bar(x_p - width/2, hi_v1_scores, width, label="V1 Baseline CoT", color="#dc2626")
+r_d_hi2 = ax_d1.bar(x_p + width/2, hi_v2_scores, width, label="V2 Modern CoT", color="#f97316")
+ax_d1.set_ylabel("Answer Accuracy (%)", fontsize=11, fontweight="bold")
+ax_d1.set_title("Hindi (Model H, Higher-Resource)", fontsize=12, fontweight="bold")
+ax_d1.set_xticks(x_p)
+ax_d1.set_xticklabels(paradigms, fontsize=9, rotation=15)
+ax_d1.legend(frameon=True, fontsize=9.5)
+ax_d1.set_ylim(0, 100)
+for r in r_d_hi1 + r_d_hi2:
     h = r.get_height()
-    ax.annotate(f"{h:.1f}%", xy=(r.get_x() + r.get_width()/2, h), xytext=(0, 3),
-                textcoords="offset points", ha="center", va="bottom", fontsize=8)
+    ax_d1.annotate(f"{h:.1f}%", xy=(r.get_x() + r.get_width()/2, h), xytext=(0, 3),
+                   textcoords="offset points", ha="center", va="bottom", fontsize=8, fontweight="bold")
 
+# Right: Assamese
+r_d_as1 = ax_d2.bar(x_p - width/2, as_v1_scores, width, label="V1 Baseline CoT", color="#059669")
+r_d_as2 = ax_d2.bar(x_p + width/2, as_v2_scores, width, label="V2 Modern CoT", color="#0284c7")
+ax_d2.set_title("Assamese (Model L, Lower-Resource)", fontsize=12, fontweight="bold")
+ax_d2.set_xticks(x_p)
+ax_d2.set_xticklabels(paradigms, fontsize=9, rotation=15)
+ax_d2.legend(frameon=True, fontsize=9.5)
+for r in r_d_as1 + r_d_as2:
+    h = r.get_height()
+    ax_d2.annotate(f"{h:.1f}%", xy=(r.get_x() + r.get_width()/2, h), xytext=(0, 3),
+                   textcoords="offset points", ha="center", va="bottom", fontsize=8, fontweight="bold")
+
+plt.suptitle("CoT Reasoning Accuracy Across Five Logic Paradigms: Hindi vs. Assamese", fontsize=13, fontweight="bold", y=0.98)
 plt.tight_layout()
 p3 = FIG_DIR / "phase3_per_paradigm_breakdown.png"
-plt.savefig(p3, dpi=200)
-plt.close()
+fig_dual.savefig(p3, dpi=200, bbox_inches="tight", pad_inches=0.15)
+plt.close(fig_dual)
 print(f"[+] Saved: {p3.name}")
 """
     cells.append(make_cell("code", c5))
