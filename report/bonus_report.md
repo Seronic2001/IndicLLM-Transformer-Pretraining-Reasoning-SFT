@@ -4,17 +4,15 @@
 **Author**: Shubhadeep Mandal (Roll No: 2025201056)  
 **Repository**: [github.com/CL3-410/individual-project-Seronic2001](https://github.com/CL3-410/individual-project-Seronic2001)  
 **Branch**: `bonus`  
-**Ablation Scope**: Retraining Hindi 16K Transformer (~24.78M parameters) with positional embeddings completely removed ($E_{\text{pos}} = 0$), benchmarked under the full Phase 2 evaluation suite across both a controlled 500-step benchmark and full 500M-token (1,907 steps) pretraining.
+**Ablation Scope**: Retraining Hindi 16K Transformer (~24.78M parameters) with positional embeddings completely removed ($E_{\text{pos}} = 0$), benchmarked under the full Phase 2 evaluation suite across full 500M-token (1,907 steps) pretraining.
 
 ---
 
 ## 1. Cloud Execution & Reproducibility Links
 
-The ablation experiments are hosted, trained, and evaluated on Kaggle GPUs:
+The ablation experiment is hosted, trained, and evaluated on Kaggle GPUs:
 * **Full 500M-Token Pretraining Ablation (1,907 Steps / Completed)**:  
   [https://www.kaggle.com/code/shubhadeepmandal/lma-bonus-ablation-full-500m](https://www.kaggle.com/code/shubhadeepmandal/lma-bonus-ablation-full-500m)
-* **Controlled Ablation Benchmark (500 Steps / Completed)**:  
-  [https://www.kaggle.com/code/shubhadeepmandal/lma-bonus-ablation-no-pos](https://www.kaggle.com/code/shubhadeepmandal/lma-bonus-ablation-no-pos)
 * **Pretraining Corpora**: [`shubhadeepmandal/lma-hindi-artifacts`](https://www.kaggle.com/datasets/shubhadeepmandal/lma-hindi-artifacts)
 * **Pretrained Checkpoints**: [`shubhadeepmandal/lma-phase2-artifacts`](https://www.kaggle.com/datasets/shubhadeepmandal/lma-phase2-artifacts)
 
@@ -41,22 +39,22 @@ where $M_{i,j}$ is the lower-triangular causal autoregressive mask ($-\infty$ fo
 
 We evaluate the fully pretrained ablated model against the standard **Baseline V1-16K** (learned absolute position) and **Modern V2-16K** (RoPE) models on the exact held-out test split (`test.bin`, 300 sequence windows, 153,300 tokens):
 
-| Benchmark Metric | Ablated No-Pos V1 (Full 500M) | Baseline V1-16K (Standard 500M) | Modern V2-16K (Standard 500M) | Controlled No-Pos (500 Steps) | Key Observations |
-|---|---|---|---|---|---|
-| **Trainable Parameters** | **24,785,664** (~24.78M) | 24,982,272 (~24.98M) | 25,172,352 (~25.17M) | 24,785,664 (~24.78M) | $-196,608$ params saved (no pos table) |
-| **Tokens Pretrained** | **500,000,000** (1,907 steps) | 500,000,000 (1,907 steps) | 500,000,000 (1,907 steps) | 131,072,000 (500 steps) | Full convergence vs early trajectory |
-| **Positional Scheme** | **None (Omitted)** | Learned Absolute Table | Rotary (RoPE) | None (Omitted) | Complete structural ablation |
-| **Held-Out Test Loss** | **4.1129 nats** | 4.4102 nats | 3.9562 nats | 5.4882 nats | Loss converges, but generation breaks |
-| **Held-Out Perplexity (PPL)**| **61.13** | 82.28 | 52.26 | 241.83 | Lower PPL than V1 due to bigram memorization |
-| **Bits-Per-Byte (BPB)** | **0.5502** | 0.5764 | 0.5189 | 0.7342 | Strong surface n-gram compression |
-| **chrF++ (@ Temp 1.0)** | **19.82** | 18.95 | 19.86 | 19.03 | Matches baseline character overlap |
-| **Repetition Rate (@ T=0.0)**| **0.7757 (77.6%)** | 0.7716 (77.2%) | 0.6842 (68.4%) | 0.9371 (93.7%) | **Severe looping failure mode** |
-| **Distinct-1 (@ Temp 1.0)** | **0.3733** | 0.4056 | 0.4612 | 0.3954 | Reduced unigram variety |
-| **Distinct-2 (@ Temp 1.0)** | **0.8611** | 0.8828 | 0.9124 | 0.8934 | Lower bigram diversity than RoPE |
+| Benchmark Metric | Ablated No-Pos V1 (Full 500M) | Baseline V1-16K (Standard 500M) | Modern V2-16K (Standard 500M) | Key Observations |
+|---|---|---|---|---|
+| **Trainable Parameters** | **24,785,664** (~24.78M) | 24,982,272 (~24.98M) | 25,172,352 (~25.17M) | $-196,608$ params saved (no pos table) |
+| **Tokens Pretrained** | **500,000,000** (1,907 steps) | 500,000,000 (1,907 steps) | 500,000,000 (1,907 steps) | Identical pretraining token budget |
+| **Positional Scheme** | **None (Omitted)** | Learned Absolute Table | Rotary (RoPE) | Complete structural ablation |
+| **Held-Out Test Loss** | **4.1129 nats** | 4.4102 nats | 3.9562 nats | Loss converges, but generation breaks |
+| **Held-Out Perplexity (PPL)**| **61.13** | 82.28 | 52.26 | Lower PPL than V1 due to bigram memorization |
+| **Bits-Per-Byte (BPB)** | **0.5502** | 0.5764 | 0.5189 | Strong surface n-gram compression |
+| **chrF++ (@ Temp 1.0)** | **19.82** | 18.95 | 19.86 | Matches baseline character overlap |
+| **Repetition Rate (@ T=0.0)**| **0.7757 (77.6%)** | 0.7716 (77.2%) | 0.6842 (68.4%) | **Severe looping failure mode** |
+| **Distinct-1 (@ Temp 1.0)** | **0.3733** | 0.4056 | 0.4612 | Reduced unigram variety |
+| **Distinct-2 (@ Temp 1.0)** | **0.8611** | 0.8828 | 0.9124 | Lower bigram diversity than RoPE |
 
 ---
 
-## 4. Multi-Temperature Generation Dynamics (Full 500M Model)
+## 4. Multi-Temperature Generation Dynamics
 
 Evaluating 150 prompt prefixes across temperatures $\{0.0, 0.5, 1.0, 1.5\}$ reveals severe behavioral degradation and structural failure modes:
 
