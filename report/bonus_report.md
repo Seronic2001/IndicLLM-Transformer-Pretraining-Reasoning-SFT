@@ -12,8 +12,6 @@
 ## 1. Cloud Execution & Reproducibility Links
 
 All training and evaluation runs were executed on Kaggle Cloud GPUs:
-* **Full 500M-Token Pretraining Ablation (1,907 Steps / Completed)**:  
-  [https://www.kaggle.com/code/shubhadeepmandal/lma-bonus-ablation-full-500m](https://www.kaggle.com/code/shubhadeepmandal/lma-bonus-ablation-full-500m)
 * **Bonus Ablation Checkpoint & Evaluation Artifacts**: [`shubhadeepmandal/lma-bonus-artifacts`](https://www.kaggle.com/datasets/shubhadeepmandal/lma-bonus-artifacts)  
   *(Contains `hindi_no_pos_latest.pt` [305 MB], `ablation_full_comparison.json`, training logs, and evaluation metrics)*
 * **Pretraining Corpora Dataset**: [`shubhadeepmandal/lma-hindi-artifacts`](https://www.kaggle.com/datasets/shubhadeepmandal/lma-hindi-artifacts)
