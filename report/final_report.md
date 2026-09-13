@@ -189,6 +189,7 @@ We present four empirical pillars explaining the performance dynamics:
     * Assamese Dataset: [`shubhadeepmandal/lma-assamese-artifact`](https://www.kaggle.com/datasets/shubhadeepmandal/lma-assamese-artifact)
   * **Phase 2 Pretrained Checkpoints**: [`shubhadeepmandal/lma-phase2-artifacts`](https://www.kaggle.com/datasets/shubhadeepmandal/lma-phase2-artifacts)
   * **Phase 3 Finetuned Reasoning Models & Consolidated Artifacts**: [`shubhadeepmandal/lma-phase3-artifacts`](https://www.kaggle.com/datasets/shubhadeepmandal/lma-phase3-artifacts)
+  * **Bonus Positional Embedding Ablation Checkpoint & Evaluation**: [`shubhadeepmandal/lma-bonus-artifacts`](https://www.kaggle.com/datasets/shubhadeepmandal/lma-bonus-artifacts)
 * **Tokenizers**: `hindi/tokenizer/hindi.model` and `assamese/tokenizer/assamese.model` (16K BPE).
 * **Figures**: Rendered in 300 DPI under `report/figures/`.
 * **Zero Contamination**: Disjoint entity pools, no pretrained components, independent monolingual pipelines.
