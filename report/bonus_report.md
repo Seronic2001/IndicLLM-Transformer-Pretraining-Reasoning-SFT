@@ -4,17 +4,17 @@
 **Author**: Shubhadeep Mandal (Roll No: 2025201056)  
 **Repository**: [github.com/CL3-410/individual-project-Seronic2001](https://github.com/CL3-410/individual-project-Seronic2001)  
 **Branch**: `bonus`  
-**Ablation Scope**: Retraining Hindi 16K Transformer (~24.78M parameters) with positional embeddings completely removed, benchmarked under the full Phase 2 evaluation suite.
+**Ablation Scope**: Retraining Hindi 16K Transformer (~24.78M parameters) with positional embeddings completely removed ($E_{\text{pos}} = 0$), benchmarked under the full Phase 2 evaluation suite across both a controlled 500-step benchmark and full 500M-token (1,907 steps) pretraining.
 
 ---
 
 ## 1. Cloud Execution & Reproducibility Links
 
-The ablation experiment is hosted and executed on Kaggle GPUs:
+The ablation experiments are hosted, trained, and evaluated on Kaggle GPUs:
+* **Full 500M-Token Pretraining Ablation (1,907 Steps / Completed)**:  
+  [https://www.kaggle.com/code/shubhadeepmandal/lma-bonus-ablation-full-500m](https://www.kaggle.com/code/shubhadeepmandal/lma-bonus-ablation-full-500m)
 * **Controlled Ablation Benchmark (500 Steps / Completed)**:  
   [https://www.kaggle.com/code/shubhadeepmandal/lma-bonus-ablation-no-pos](https://www.kaggle.com/code/shubhadeepmandal/lma-bonus-ablation-no-pos)
-* **Full 500M-Token Pretraining Ablation (1,907 Steps / In Progress)**:  
-  [https://www.kaggle.com/code/shubhadeepmandal/lma-bonus-ablation-full-500m](https://www.kaggle.com/code/shubhadeepmandal/lma-bonus-ablation-full-500m)
 * **Pretraining Corpora**: [`shubhadeepmandal/lma-hindi-artifacts`](https://www.kaggle.com/datasets/shubhadeepmandal/lma-hindi-artifacts)
 * **Pretrained Checkpoints**: [`shubhadeepmandal/lma-phase2-artifacts`](https://www.kaggle.com/datasets/shubhadeepmandal/lma-phase2-artifacts)
 
@@ -39,56 +39,78 @@ where $M_{i,j}$ is the lower-triangular causal autoregressive mask ($-\infty$ fo
 
 ## 3. Comparative Benchmark Matrix
 
-We evaluate the ablated model against the standard **Baseline V1-16K** (learned absolute position) and **Modern V2-16K** (RoPE) models on the exact held-out test split (`test.bin`, 300 sequence windows):
+We evaluate the fully pretrained ablated model against the standard **Baseline V1-16K** (learned absolute position) and **Modern V2-16K** (RoPE) models on the exact held-out test split (`test.bin`, 300 sequence windows, 153,300 tokens):
 
-| Benchmark Metric | Ablated No-Pos V1 | Baseline V1-16K (Absolute Pos) | Modern V2-16K (RoPE) | Relative Degradation (Ablation vs V1) |
-|---|---|---|---|---|
-| **Trainable Parameters** | **24,785,664** (~24.78M) | 24,982,272 (~24.98M) | 25,172,352 (~25.17M) | $-196,608$ params (no pos table) |
-| **Positional Scheme** | **None (Omitted)** | Learned Absolute Table | Rotary (RoPE) | — |
-| **Held-Out Test Loss** | **5.4882 nats** | 4.4102 nats | 3.9562 nats | **$+1.078$ nats worse** |
-| **Held-Out Perplexity (PPL)** | **241.83** | 82.28 | 52.26 | **$+193.9\%$ perplexity spike** |
-| **Bits-Per-Byte (BPB)** | **0.7342** | 0.5764 | 0.5189 | **$+0.1578$ BPB (compressed poorly)** |
-| **chrF++ (@ Temp 1.0)** | **19.03** | 18.95 | 19.86 | Near-chance character matching |
-| **Repetition Rate (@ Temp 0.0)** | **0.9371 (93.7%)** | 0.7716 (77.2%) | 0.6842 (68.4%) | **$+21.4\%$ increase in looping** |
-| **Distinct-1 (@ Temp 1.0)** | **0.3954** | 0.4056 | 0.4612 | **$-2.5\%$ vocabulary collapse** |
-| **Distinct-2 (@ Temp 1.0)** | **0.8934** | 0.8828 | 0.9124 | Comparable bigram diversity |
+| Benchmark Metric | Ablated No-Pos V1 (Full 500M) | Baseline V1-16K (Standard 500M) | Modern V2-16K (Standard 500M) | Controlled No-Pos (500 Steps) | Key Observations |
+|---|---|---|---|---|---|
+| **Trainable Parameters** | **24,785,664** (~24.78M) | 24,982,272 (~24.98M) | 25,172,352 (~25.17M) | 24,785,664 (~24.78M) | $-196,608$ params saved (no pos table) |
+| **Tokens Pretrained** | **500,000,000** (1,907 steps) | 500,000,000 (1,907 steps) | 500,000,000 (1,907 steps) | 131,072,000 (500 steps) | Full convergence vs early trajectory |
+| **Positional Scheme** | **None (Omitted)** | Learned Absolute Table | Rotary (RoPE) | None (Omitted) | Complete structural ablation |
+| **Held-Out Test Loss** | **4.1129 nats** | 4.4102 nats | 3.9562 nats | 5.4882 nats | Loss converges, but generation breaks |
+| **Held-Out Perplexity (PPL)**| **61.13** | 82.28 | 52.26 | 241.83 | Lower PPL than V1 due to bigram memorization |
+| **Bits-Per-Byte (BPB)** | **0.5502** | 0.5764 | 0.5189 | 0.7342 | Strong surface n-gram compression |
+| **chrF++ (@ Temp 1.0)** | **19.82** | 18.95 | 19.86 | 19.03 | Matches baseline character overlap |
+| **Repetition Rate (@ T=0.0)**| **0.7757 (77.6%)** | 0.7716 (77.2%) | 0.6842 (68.4%) | 0.9371 (93.7%) | **Severe looping failure mode** |
+| **Distinct-1 (@ Temp 1.0)** | **0.3733** | 0.4056 | 0.4612 | 0.3954 | Reduced unigram variety |
+| **Distinct-2 (@ Temp 1.0)** | **0.8611** | 0.8828 | 0.9124 | 0.8934 | Lower bigram diversity than RoPE |
 
 ---
 
-## 4. Multi-Temperature Generation Dynamics
+## 4. Multi-Temperature Generation Dynamics (Full 500M Model)
 
-Evaluating 150 prompt prefixes across temperatures $\{0.0, 0.5, 1.0, 1.5\}$ reveals severe behavioral collapse:
+Evaluating 150 prompt prefixes across temperatures $\{0.0, 0.5, 1.0, 1.5\}$ reveals severe behavioral degradation and structural failure modes:
 
 | Temperature ($T$) | BLEU | chrF++ | ROUGE-L | 3-Gram Repetition Rate | Distinct-1 | Distinct-2 |
 |---|---|---|---|---|---|---|
-| **0.0 (Greedy)** | 0.43 | 9.03 | 0.00 | **0.9371 (93.7%)** | 0.0179 | 0.0404 |
-| **0.5** | 0.66 | 15.84 | 0.00 | **0.3994 (39.9%)** | 0.0821 | 0.3163 |
-| **1.0 (Standard)**| 0.20 | 19.03 | 0.00 | **0.0110** | 0.3954 | 0.8934 |
-| **1.5 (High Entropy)** | 0.04 | 18.39 | 0.00 | 0.0000 | 0.7068 | 0.9975 |
+| **0.0 (Greedy)** | 0.58 | 13.05 | **0.00** | **0.7757 (77.6%)** | 0.0704 | 0.1658 |
+| **0.5** | 1.02 | 16.98 | **0.00** | **0.3814 (38.1%)** | 0.1361 | 0.4247 |
+| **1.0 (Standard)**| 0.33 | 19.82 | **0.00** | **0.0256 (2.6%)** | 0.3733 | 0.8611 |
+| **1.5 (High Entropy)** | 0.07 | 18.52 | **0.00** | **0.0004** | 0.6578 | 0.9880 |
 
-* **Greedy Polarity Collapse**: At $T=0.0$, the model enters an endless periodic loop, generating the same 3-gram cycle over 93.7% of the generated window.
-* **ROUGE-L Collapse**: ROUGE-L drops to $0.00$ because longest common subsequences require preserving sequential token order, which the ablated model fails to construct.
+### Key Generation Insights:
+* **ROUGE-L Total Collapse ($0.00$)**: Across all temperatures, ROUGE-L remains strictly $0.00$. Because ROUGE-L measures the Longest Common Subsequence (LCS), matching requires preserving sequential token order. Without position embeddings, the model cannot coordinate multi-token phrase ordering with the reference text.
+* **Greedy Decoding Looping ($77.6\%$)**: At $T=0.0$, the model collapses into periodic cyclic 3-gram attractors, repeating identical phrases indefinitely.
 
 ---
 
-## 5. Attention Diagnostics & Entropy Analysis
+## 5. Qualitative Generation Samples
 
-![Attention Heatmaps of No-Pos Ablation](figures/ablation_no_pos_attention_heatmaps.png)
-*Figure B.1: Query-Key Attention Heatmaps for No-Pos Model — Layer 0 Head 0 (Early) vs. Layer 7 Head 0 (Late). Without position embeddings, attention cannot form a sharp local recency diagonal.*
+Empirical text generation directly using the final checkpoint (`hindi_no_pos_latest.pt`):
+
+```text
+Prompt 1: "भारत एक महान देश है" (India is a great country)
+  [T=0.0]: भारत एक महान देश है। भारत में भारत के सबसे बड़े देश हैं। भारत में सबसे बड़ा देश है। भारत में सबसे बड़ा देश है। भारत में सबसे बड़ा देश है
+  [T=0.5]: भारत एक महान देश है। भारत में दुनिया में सबसे बड़ा देश है। इस देश में सबसे बड़ा देश है। दुनिया में सबसे बड़ा देश है। भारत का सबसे बड़ा देश
+  [T=1.0]: भारत एक महान देश है। भारत के पूर्वपश्चिम ईरानी राज्य हैं और मोदी सरकार के महासचिव सुभाष चंद्रमान आईएएनएस की नई दिल्ली में हुई मॉब लिंचिंग मामले में सुप्रीम कोर्ट से मिला
+
+Prompt 2: "शिक्षा का महत्व जीवन में बहुत" (The importance of education in life is very)
+  [T=0.0]: शिक्षा का महत्व जीवन में बहुत महत्व है। यह एक महत्वपूर्ण बात है कि यह एक महत्वपूर्ण बात है कि यह एक महत्वपूर्ण बात है कि यह एक महत्वपूर्ण बात है कि यह एक महत्वपूर्ण
+  [T=0.5]: शिक्षा का महत्व जीवन में बहुत बड़ा महत्व होता है। यह एक ऐसा ग्रंथ है जो प्रकृति में एक महान और महान है। यह एक महान धर्म है जो जीवन में सबसे बड़ी समस्या
+  [T=1.0]: शिक्षा का महत्व जीवन में बहुत नफरत यूनानऔजिया इंडस्ट्री का एक महत्व है। जैसा कि हम जानते हैं कि हमारे विज्ञान और अनुसंधान व्यक्ति के अस्मिता हत्याकांड की जानकारी
+```
+
+Notice the stark repetition loop at $T=0.0$: `यह एक महत्वपूर्ण बात है कि यह एक महत्वपूर्ण बात है कि...` repeats 5 times in a 30-token budget.
+
+---
+
+## 6. Attention Diagnostics & Entropy Analysis
+
+![Attention Heatmaps of No-Pos Ablation](figures/ablation_no_pos_attention_heatmaps.png)  
+*Figure B.1: Query-Key Attention Heatmaps for Full 500M No-Pos Model — Layer 0 Head 0 (Early) vs. Layer 7 Head 0 (Late). Without position embeddings, attention cannot form structured diagonal locality.*
 
 ### Quantitative Diagnostics
 * **Early Layer (L0, H0)**:
-  * Attention Entropy $H(A)$: **$1.7862\text{ nats}$**
-  * Mean Attention Distance: **$3.40\text{ tokens}$**
+  * Attention Entropy $H(A)$: **$1.3907\text{ nats}$**
+  * Mean Attention Distance: **$3.20\text{ tokens}$**
 * **Late Layer (L7, H0)**:
-  * Attention Entropy $H(A)$: **$1.7801\text{ nats}$**
-  * Mean Attention Distance: **$3.87\text{ tokens}$**
+  * Attention Entropy $H(A)$: **$1.2894\text{ nats}$**
+  * Mean Attention Distance: **$3.43\text{ tokens}$**
 
-In contrast to the standard model (where late layers expand attention distance up to 5.86 tokens to bind long-range premises), the ablated model's attention distance remains flat ($3.40 \to 3.87$), indicating that attention heads cannot specialize into functional long-range circuits.
+In standard models with positional encodings, late layers expand attention distance up to 5.86 tokens to bind long-range syntactic premises. In the ablated model, attention distance remains constrained and flat ($3.20 \to 3.43$), indicating that attention heads cannot specialize into functional long-range circuits.
 
 ---
 
-## 6. Mechanistic Explanation: What Breaks Without Position Information?
+## 7. Mechanistic Explanation: What Breaks Without Position Information?
 
 1. **Permutation Equivariance & Causal Bag-of-Words Collapse**:
    * Standard self-attention without position encodings is strictly permutation-equivariant: for any permutation $\pi$, $\text{Attn}(\pi(X)) = \pi(\text{Attn}(X))$.
@@ -104,4 +126,4 @@ In contrast to the standard model (where late layers expand attention distance u
 
 3. **Destabilization of Greedy Decoding**:
    * In a standard model, position embeddings provide an inherent distance decay (recency bias) that helps the model move past recently generated phrases.
-   * Without positional decay, once a frequent subword is output, its attention score remains identically attractive for the next step, creating a positive feedback loop that causes the model to repeat the same phrase endlessly (93.7% 3-gram repetition rate).
+   * Without positional decay, once a frequent subword is output, its attention score remains identically attractive for the next step, creating a positive feedback loop that causes the model to repeat the same phrase endlessly (77.6% 3-gram repetition rate).
