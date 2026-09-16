@@ -95,28 +95,40 @@ Phase 3 formulates anti-leakage symbolic relational reasoning datasets and evalu
 * **5% Negation Curriculum**: Controlled negative polarity instances within the training pool, completely resolving negative polarity collapse.
 * **Multi-Tier Continuous Metrics**: Evaluated across 4 tiers: Strict Exact Match, Token $F_1$, Normalized Levenshtein Character Similarity, and Decomposed CoT Graph Credit.
 
-### 📊 Comprehensive 8-Model Benchmark Matrix
+### 📊 Comprehensive 8-Model Benchmark Matrix (Hardened Multi-Hop & Anti-Leakage Suite)
 
-| Model Identifier | Language | Architecture | Fine-Tuning Paradigm | Strict Accuracy (Ans) | Token $F_1$ (Ans) | Char Similarity | CoT Full Exact Match |
-|---|---|---|---|:---:|:---:|:---:|:---:|
-| **Hindi V1 Direct** | Hindi | Baseline V1 | Direct SFT | **62.80%** | 65.40% | 71.20% | — |
-| **Hindi V1 CoT** | Hindi | Baseline V1 | Chain-of-Thought | 24.40% | **74.20% (+13.5% rel)** | **79.80%** | **22.40%** |
-| **Hindi V2 Direct** | Hindi | Modern V2 | Direct SFT | 48.20% | 53.60% | 61.40% | — |
-| **Hindi V2 CoT** | Hindi | Modern V2 | Chain-of-Thought | 18.80% | **67.20% (+25.4% rel)** | **73.10%** | **16.80%** |
-| **Assamese V1 Direct** | Assamese | Baseline V1 | Direct SFT | 23.20% | 31.20% | 42.80% | — |
-| **Assamese V1 CoT** | Assamese | Baseline V1 | Chain-of-Thought | **47.20%** | **38.50% (+23.4% rel)** | **46.80%** | **46.80%** |
-| **Assamese V2 Direct** | Assamese | Modern V2 | Direct SFT | 18.40% | 26.40% | 37.50% | — |
-| **Assamese V2 CoT** | Assamese | Modern V2 | Chain-of-Thought | 38.40% | **33.70% (+27.7% rel)** | **41.20%** | **37.60%** |
+| Model Identifier | Language | Architecture | Fine-Tuning Paradigm | Strict Accuracy (Ans) | Decision Stance Acc | Token $F_1$ (Ans) | Char Similarity | CoT Decomp Score |
+|---|---|---|---|:---:|:---:|:---:|:---:|:---:|
+| **Hindi V1 Direct** | Hindi | Baseline V1 | Direct SFT | **44.00%** | 38.00% | **83.30%** | **85.10%** | — |
+| **Hindi V1 CoT** | Hindi | Baseline V1 | Chain-of-Thought | 40.60% | 40.40% | 81.89% | 83.72% | 50.80% |
+| **Hindi V2 Direct** | Hindi | Modern V2 | Direct SFT | 42.40% | **40.80%** | 82.27% | 84.19% | — |
+| **Hindi V2 CoT** | Hindi | Modern V2 | Chain-of-Thought | 38.20% | 38.00% | 82.04% | 84.51% | **51.64%** |
+| **Assamese V1 Direct** | Assamese | Baseline V1 | Direct SFT | **29.40%** | 34.60% | **66.78%** | **75.36%** | — |
+| **Assamese V1 CoT** | Assamese | Baseline V1 | Chain-of-Thought | 24.60% | **34.80%** | 65.16% | 72.90% | **39.52%** |
+| **Assamese V2 Direct** | Assamese | Modern V2 | Direct SFT | 21.00% | 30.40% | 56.33% | 66.36% | — |
+| **Assamese V2 CoT** | Assamese | Modern V2 | Chain-of-Thought | 11.80% | 29.20% | 50.65% | 59.29% | 30.65% |
 
-### 🔬 Per-Paradigm Reasoning Accuracy Breakdown
+### 🔬 Per-Paradigm Reasoning Accuracy Breakdown (Strict Ans / Decision Stance)
 
-| Reasoning Category | Hindi V1 Direct | Hindi V1 CoT | Assamese V1 Direct | Assamese V1 CoT (Best) |
+#### 🇮🇳 Hindi (Model H, Devanagari)
+| Reasoning Category | Hindi V1 Direct | Hindi V1 CoT | Hindi V2 Direct | Hindi V2 CoT |
 |---|:---:|:---:|:---:|:---:|
-| **Word Problem** | 64.2% | 26.4% | 25.2% | **49.52%** |
-| **Transitive Chain** | 65.8% | 24.8% | 24.0% | **41.41%** |
-| **Multi-Hop Deduction** | 58.4% | 21.0% | 19.8% | **34.55%** |
-| **Conversational Scenario** | 61.2% | 27.2% | 23.4% | **46.74%** |
-| **Negated Relational** | 64.0% | 22.6% | 23.6% | **63.83%** (Breakthrough!) |
+| **Conversational Scenario** | 48.9% / 44.3% | 45.5% / 44.3% | **51.1% / 47.7%** | 44.3% / 47.7% |
+| **Indeterminate Component** | 0.0% / 0.0% | 0.0% / **12.2%** | 0.0% / **12.2%** | 0.0% / 0.0% |
+| **Multi-Hop Deduction** | **47.9%** / 38.3% | 43.6% / 41.5% | 43.6% / 37.2% | 44.7% / **41.5%** |
+| **Negated Relational** | 50.6% / 50.6% | 50.6% / 50.6% | **55.4% / 56.6%** | 53.0% / 55.4% |
+| **Transitive Chain** | **56.4% / 47.4%** | 47.4% / 43.6% | 47.4% / 41.0% | 39.7% / 38.5% |
+| **Word Problem** | **55.4%** / 43.4% | 51.8% / 47.0% | 51.8% / 47.0% | 42.2% / 39.8% |
+
+#### 🌿 Assamese (Model L, Eastern Nagari)
+| Reasoning Category | Assamese V1 Direct | Assamese V1 CoT | Assamese V2 Direct | Assamese V2 CoT |
+|---|:---:|:---:|:---:|:---:|
+| **Conversational Scenario** | **34.1% / 42.0%** | 30.7% / 36.4% | 28.4% / 37.5% | 14.8% / 30.7% |
+| **Indeterminate Component** | 0.0% / 8.1% | 0.0% / 8.1% | 0.0% / **36.5%** | 4.1% / 17.6% |
+| **Multi-Hop Deduction** | **36.2%** / 37.2% | **36.2% / 44.7%** | 21.3% / 21.3% | 8.5% / 30.9% |
+| **Negated Relational** | **36.1%** / 42.2% | 28.9% / **48.2%** | 24.1% / 32.5% | 8.4% / 30.1% |
+| **Transitive Chain** | **33.3% / 38.5%** | 17.9% / 30.8% | 21.8% / 25.6% | 14.1% / 35.9% |
+| **Word Problem** | **32.5% / 36.1%** | 28.9% / **36.1%** | 27.7% / 30.1% | 20.5% / 28.9% |
 
 ### 📦 Phase 3 Checkpoints & Artifacts Dataset Links
 * **Consolidated Phase 3 Kaggle Artifacts**: [https://www.kaggle.com/code/shubhadeepmandal/lma-phase3-consolidated-artifacts](https://www.kaggle.com/code/shubhadeepmandal/lma-phase3-consolidated-artifacts)
@@ -425,20 +437,20 @@ assert diff == 0.0, 'Future token leaked!'
 
 ### 11. Phase 3: Symbolic Reasoning (Direct SFT vs. Chain-of-Thought)
 
-#### 8-Model Benchmark Matrix (Tiers 1–4 Metrics)
+#### 8-Model Benchmark Matrix (Tiers 1–4 Metrics: Hardened Multi-Hop Suite)
 ```
-+---------------------------------------------------------------------------------------------------------+
-| Model Variant        | Language  | SFT Mode | Ans Acc  | CoT EM   | Token F1 | Char Sim | CoT Decomp    |
-+---------------------------------------------------------------------------------------------------------+
-| Hindi V1 Direct      | Hindi     | Direct   | 85.20%   | —        | 29.77%   | 17.27%   | —             |
-| Hindi V1 CoT         | Hindi     | CoT      | 75.00%   | 44.00%   | 43.40%   | 29.38%   | 61.34%        |
-| Hindi V2 Direct      | Hindi     | Direct   | 71.00%   | —        | 29.19%   | 17.26%   | —             |
-| Hindi V2 CoT         | Hindi     | CoT      | 57.20%   | 14.40%   | 40.55%   | 26.01%   | 56.15%        |
-| Assamese V1 Direct   | Assamese  | Direct   | 65.00%   | —        | 26.37%   | 16.84%   | —             |
-| Assamese V1 CoT      | Assamese  | CoT      | 58.20%   | 0.00%    | 33.70%   | 25.62%   | 33.68%        |
-| Assamese V2 Direct   | Assamese  | Direct   | 23.20%   | —        | 20.54%   | 13.69%   | —             |
-| Assamese V2 CoT      | Assamese  | CoT      | 14.00%   | 0.00%    | 26.05%   | 23.36%   | 32.98%        |
-+---------------------------------------------------------------------------------------------------------+
++------------------------------------------------------------------------------------------------------------------+
+| Model Variant        | Language  | SFT Mode | Ans Acc  | Stance   | Graph Valid | Token F1 | Char Sim | CoT Decomp |
++------------------------------------------------------------------------------------------------------------------+
+| Hindi V1 Direct      | Hindi     | Direct   | 44.00%   | 38.00%   | —           | 83.30%   | 85.10%   | —          |
+| Hindi V1 CoT         | Hindi     | CoT      | 40.60%   | 40.40%   | 9.40%       | 81.89%   | 83.72%   | 50.80%     |
+| Hindi V2 Direct      | Hindi     | Direct   | 42.40%   | 40.80%   | —           | 82.27%   | 84.19%   | —          |
+| Hindi V2 CoT         | Hindi     | CoT      | 38.20%   | 38.00%   | 6.40%       | 82.04%   | 84.51%   | 51.64%     |
+| Assamese V1 Direct   | Assamese  | Direct   | 29.40%   | 34.60%   | —           | 66.78%   | 75.36%   | —          |
+| Assamese V1 CoT      | Assamese  | CoT      | 24.60%   | 34.80%   | 1.80%       | 65.16%   | 72.90%   | 39.52%     |
+| Assamese V2 Direct   | Assamese  | Direct   | 21.00%   | 30.40%   | —           | 56.33%   | 66.36%   | —          |
+| Assamese V2 CoT      | Assamese  | CoT      | 11.80%   | 29.20%   | 3.00%       | 50.65%   | 59.29%   | 30.65%     |
++------------------------------------------------------------------------------------------------------------------+
 ```
 
 #### Reproduce Reasoning Data Generation & Fine-Tuning
