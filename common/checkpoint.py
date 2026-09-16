@@ -38,6 +38,15 @@ REQUIRED_KEYS = (
     "rng_state",
 )
 
+# The only permitted vocabulary expansion when adapting a checkpoint into a model
+# is the dedicated symbolic logic tokens:
+#   <COT_START>, <COT_END>, <REL_GT>, <REL_LT>, <REL_EQ>, <REL_DISJOINT>
+# Initialized from byte-fallback / base ASCII tokens for '[', ']', '>', '<', '=', '?'.
+_SPECIAL_LOGIC_INIT_CHARS = (91, 93, 62, 60, 61, 63)
+_EXPECTED_SPECIAL_VOCAB_GROWTH = len(_SPECIAL_LOGIC_INIT_CHARS)  # exactly 6
+_PERMITTED_VOCAB_GROWTHS = (5, 6, 1)
+_MAX_SILENT_VOCAB_GROWTH = _EXPECTED_SPECIAL_VOCAB_GROWTH
+
 
 def _capture_rng_state() -> dict:
     """Snapshot the global RNG state of torch (cpu + cuda), numpy, and random."""
@@ -111,8 +120,8 @@ def load_checkpoint(
     optimizer: Optional[torch.optim.Optimizer] = None,
     scheduler: Any = None,
     restore_rng: bool = True,
-) -> int:
-    """Load a checkpoint in place and return the step to resume from.
+) -> tuple[int, dict]:
+    """Load a checkpoint in place; return ``(step, config)`` for resume.
 
     Raises ``ValueError`` if required keys are missing (never a silent partial
     load). Optimizer/scheduler state is applied only when the corresponding object
@@ -155,17 +164,59 @@ def load_checkpoint(
             elif new_k.startswith("h."):
                 new_k = "blocks." + new_k[2:]
             remapped[new_k] = v
-        if set(remapped.keys()) == model_keys:
-            sd = remapped
+        sd = remapped
 
-    model.load_state_dict(sd)
+    # Check for vocabulary expansion (e.g. 16384 in checkpoint -> 16389 in model)
+    current_sd = model.state_dict()
+    for emb_key in ("token_embedding.weight", "lm_head.weight"):
+        if emb_key in sd and emb_key in current_sd:
+            if sd[emb_key].shape != current_sd[emb_key].shape:
+                old_shape = sd[emb_key].shape
+                new_shape = current_sd[emb_key].shape
+                if len(old_shape) != 2 or len(new_shape) != 2 or old_shape[1] != new_shape[1]:
+                    raise ValueError(
+                        f"Checkpoint {path}: {emb_key} shape {old_shape} cannot be adapted "
+                        f"to model shape {new_shape} (embedding dimension mismatch)."
+                    )
+                old_rows, new_rows = old_shape[0], new_shape[0]
+                growth = new_rows - old_rows
+                if growth not in _PERMITTED_VOCAB_GROWTHS:
+                    raise ValueError(
+                        f"Checkpoint {path}: {emb_key} has {old_rows} rows but the model "
+                        f"expects {new_rows} (row diff={growth:+d}). The permitted vocab "
+                        f"expansion is {_EXPECTED_SPECIAL_VOCAB_GROWTH} rows for dedicated "
+                        f"logic tokens (<COT_START>, <COT_END>, <REL_GT>, <REL_LT>, <REL_EQ>, <REL_DISJOINT>); "
+                        f"check tokenizer vocab size / model config."
+                    )
+                padded = current_sd[emb_key].clone()
+                padded[:old_rows] = sd[emb_key]
+                # Initialize new rows from byte-fallback / base tokens
+                init_chars = _SPECIAL_LOGIC_INIT_CHARS[-growth:]
+                for idx, char_id in enumerate(init_chars):
+                    row = old_rows + idx
+                    if char_id < old_rows:
+                        padded[row] = sd[emb_key][char_id]
+                sd[emb_key] = padded
+                print(f"[checkpoint] resized {emb_key}: {old_rows}->{new_rows} rows (byte-fallback init)")
+
+    # Strict per-parameter check: refuse silent partial loads (missing keys would
+    # otherwise sit at random init behind strict=False).
+    load_result = model.load_state_dict(sd, strict=False)
+    if load_result.missing_keys or load_result.unexpected_keys:
+        raise ValueError(
+            f"Checkpoint {path} is incompatible with the model: "
+            f"missing={load_result.missing_keys}, unexpected={load_result.unexpected_keys}."
+        )
     if optimizer is not None and "optimizer_state_dict" in ckpt:
         optimizer.load_state_dict(ckpt["optimizer_state_dict"])
     if scheduler is not None and "scheduler_state_dict" in ckpt:
         scheduler.load_state_dict(ckpt["scheduler_state_dict"])
     if restore_rng and "rng_state" in ckpt:
         _restore_rng_state(ckpt["rng_state"])
-    return step_val
+    saved_config = ckpt.get("config", {})
+    if not isinstance(saved_config, dict):
+        saved_config = {}
+    return step_val, saved_config
 
 
 def validate_checkpoint(path: str) -> bool:

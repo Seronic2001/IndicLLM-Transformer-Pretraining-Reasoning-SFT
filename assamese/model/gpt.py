@@ -234,12 +234,48 @@ class GPTLanguageModel(nn.Module):
         top_p: Optional[float] = None,
         repetition_penalty: float = 1.0,
         repetition_window: int = 64,
+        eos_id: Optional[int] = None,
+        prompt_bias: float = 0.0,
+        extra_allowed_tokens: Optional[Union[torch.Tensor, list, set, tuple]] = None,
     ) -> torch.Tensor:
-        """Autoregressively extend idx (B, T) by max_new_tokens tokens with top-k, top-p, and repetition penalty."""
+        """Autoregressively extend idx (B, T) by max_new_tokens tokens with top-k, top-p, repetition penalty, and optional prompt_bias."""
         self.eval()
+        allowed_prompt_tokens = None
+        if prompt_bias > 0.0 and idx.size(1) > 0:
+            prompt_tokens = torch.unique(idx)
+            special_ids = torch.tensor(
+                [tid for tid in range(16384, 16390) if tid < self.config.vocab_size],
+                device=idx.device,
+                dtype=idx.dtype,
+            )
+            cat_list = [prompt_tokens, special_ids]
+            if extra_allowed_tokens is not None:
+                if isinstance(extra_allowed_tokens, (list, tuple, set)):
+                    extra_tensor = torch.tensor(list(extra_allowed_tokens), device=idx.device, dtype=idx.dtype)
+                else:
+                    extra_tensor = extra_allowed_tokens.to(device=idx.device, dtype=idx.dtype).view(-1)
+                if extra_tensor.numel() > 0:
+                    cat_list.append(extra_tensor)
+            allowed_prompt_tokens = torch.unique(torch.cat(cat_list))
+
         for _ in range(max_new_tokens):
             idx_cond = idx if idx.size(1) <= self.config.block_size else idx[:, -self.config.block_size :]
             logits = self(idx_cond)["logits"][:, -1, :].clone()
+
+            # Boost tokens appearing in the input prompt (and special logic tokens)
+            if prompt_bias > 0.0 and allowed_prompt_tokens is not None:
+                logits[:, allowed_prompt_tokens] += prompt_bias
+
+                # Constrained Rationale Entity Decoding:
+                # If currently inside <COT_START> (16384) without <COT_END> (16385),
+                # boost prompt tokens and logic tokens by an extra +2.0 to eliminate
+                # out-of-prompt training entity intrusion / unigram prior bleed.
+                for b in range(idx.size(0)):
+                    seq = idx[b]
+                    cot_start_seen = (seq == 16384).any().item()
+                    cot_end_seen = (seq == 16385).any().item()
+                    if cot_start_seen and not cot_end_seen:
+                        logits[b, allowed_prompt_tokens] += 2.0
 
             # Apply repetition penalty to recently generated tokens
             if repetition_penalty > 1.0 and idx.size(1) > 0:
@@ -270,6 +306,8 @@ class GPTLanguageModel(nn.Module):
                 probs = F.softmax(logits, dim=-1)
                 idx_next = torch.multinomial(probs, num_samples=1)
             idx = torch.cat((idx, idx_next), dim=1)
+            if eos_id is not None and (idx_next == eos_id).all():
+                break
         return idx
 
 

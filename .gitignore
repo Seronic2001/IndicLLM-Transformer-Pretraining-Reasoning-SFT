@@ -3,12 +3,10 @@ __pycache__/
 *.py[cod]
 *$py.class
 
-# Caches
+# Caches & Environment
 .pytest_cache/
 .coverage
 htmlcov/
-
-# Environments
 .venv/
 venv/
 ENV/
@@ -19,6 +17,32 @@ ENV/
 raw/
 clean/
 splits/
+
+# Checkpoint Folders & Compressed Weights
+checkpoints/
+*checkpoint*/
+phase3 checkpoints download/
+*.zip
+
+# Scratch Files & Temporary Data
+scratch/
+.freebuff
+
+# Evaluation Matrices, Qualitative Diagnostics & Diagnostic Patterns
+*eval_results*
+*qualitative_diagnostics*
+*qualitative_patterns*
+
+# PDF Documents (ignore all except final report PDF)
+*.pdf
+!report/final_report.pdf
+
+# Test Files & Suites
+test_*.py
+*_test.py
+tests/
+**/test_*.py
+**/*_test.py
 
 # OS specific
 .DS_Store
@@ -39,3 +63,5 @@ _kaggle_stage/
 # Development tooling & scratch notebooks (kept in project experimentation/)
 notebooks/
 scripts/
+final_report*
+qual_analysis/

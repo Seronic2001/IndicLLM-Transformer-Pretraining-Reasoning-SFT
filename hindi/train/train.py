@@ -35,6 +35,11 @@ from typing import Optional, Union
 import numpy as np
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
+
+if torch.cuda.is_available():
+    torch.backends.cuda.matmul.allow_tf32 = True
+    torch.backends.cudnn.allow_tf32 = True
 
 # Make `model.` / `tokenizer.` style imports work when run as a script from <lang>/.
 _LANG_ROOT = Path(__file__).resolve().parents[1]
@@ -161,6 +166,10 @@ class TrainConfig:
     mixed_precision: bool = True
     seed: int = 1337
     kaggle_auto_stage: bool = False  # stage snapshots to /kaggle/working + Drive
+    early_stop_patience: int = 0  # evals without val improvement before stopping (0 = disabled)
+    stance_margin_weight: float = 1.5  # weight of the contrastive stance margin penalty
+    stance_margin_gamma: float = 2.0  # required P(gt) - P(opp) logit margin
+    entity_coverage_coef: float = 0.3  # weight of the query-entity coverage reward
     notes: str = ""
 
     @classmethod
@@ -248,9 +257,14 @@ class Trainer:
         self.eval_generator = torch.Generator(device="cpu").manual_seed(
             (config.seed or 0) + 999_983
         )
+        self.train_eval_generator = torch.Generator(device="cpu").manual_seed(
+            (config.seed or 0) + 777_749
+        )
         self.step = 0
+        self.last_train_loss: Optional[float] = None
         self.best_val_loss = float("inf")
         self._consecutive_nan = 0
+        self._no_improve_evals = 0
         self._val_history: list[float] = []
         self.logs: list[dict] = []
 
@@ -262,13 +276,12 @@ class Trainer:
     def _resume_from(self, path: str) -> None:
         if not os.path.exists(path):
             raise FileNotFoundError(f"resume checkpoint not found: {path}")
-        step = load_checkpoint(
+        step, saved_cfg = load_checkpoint(
             path, self.model, self.optimizer, self.scheduler, restore_rng=True
         )
         self.step = step
         # The checkpoint holds the full config used to produce it — surface arch
         # mismatches loudly rather than silently training a different architecture.
-        saved_cfg = torch.load(path, map_location="cpu", weights_only=False).get("config", {})
         saved_model = saved_cfg.get("model", {})
         cur_model = {
             "vocab_size": self.model.config.vocab_size,
@@ -294,7 +307,7 @@ class Trainer:
     # ------------------------------------------------------------------ eval
 
     @torch.no_grad()
-    def evaluate(self, data: Optional[TokenDataset] = None) -> float:
+    def evaluate(self, data: Optional[TokenDataset] = None, is_train: bool = False) -> float:
         """Mean loss over eval_batches random windows; model kept in train() state
         afterwards by the caller (we save/restore train/eval mode here)."""
         data = data or self.val_data
@@ -302,11 +315,13 @@ class Trainer:
             return float("nan")
         was_training = self.model.training
         self.model.eval()
+        gen = getattr(self, "train_eval_generator", self.eval_generator) if is_train else self.eval_generator
         total, count = 0.0, 0
         for _ in range(self.config.eval_batches):
-            x, y = data.get_batch(
-                self.config.micro_batch_size, self.device, generator=self.eval_generator
+            batch = data.get_batch(
+                self.config.micro_batch_size, self.device, generator=gen
             )
+            x, y = batch[0], batch[1]
             try:
                 autocast_ctx = torch.amp.autocast("cuda", enabled=self.use_amp)
             except (TypeError, AttributeError):
@@ -327,24 +342,72 @@ class Trainer:
 
         Any non-finite micro-loss aborts the whole step immediately (returns NaN)
         so a NaN in an early micro-batch can't poison later gradients."""
-        last = None
+        total_loss = 0.0
         try:
             autocast_ctx_fn = lambda: torch.amp.autocast("cuda", enabled=self.use_amp)
         except (TypeError, AttributeError):
             autocast_ctx_fn = lambda: torch.cuda.amp.autocast(enabled=self.use_amp)
 
         for _ in range(accum):
-            x, y = self.train_data.get_batch(micro_batch_size, self.device)
+            batch = self.train_data.get_batch(micro_batch_size, self.device)
+            x, y = batch[0], batch[1]
             with autocast_ctx_fn():
-                loss = self.model(x, targets=y)["loss"] / accum
+                out = self.model(x, targets=y)
+                loss = out["loss"]
+                # Contrastive stance margin loss (if dataset provides stance tokens)
+                if len(batch) >= 5 and "logits" in out:
+                    stance_pos, stance_gt, stance_opp = batch[2], batch[3], batch[4]
+                    logits = out["logits"]
+                    valid_b, valid_p, valid_g, valid_o = [], [], [], []
+                    for b_i in range(x.size(0)):
+                        pos, g_id, o_id = stance_pos[b_i], stance_gt[b_i], stance_opp[b_i]
+                        if pos is not None and pos >= 0 and g_id is not None and o_id is not None:
+                            valid_b.append(b_i)
+                            valid_p.append(min(int(pos), logits.size(1) - 1))
+                            valid_g.append(int(g_id))
+                            valid_o.append(int(o_id))
+                    if valid_b:
+                        vb = torch.tensor(valid_b, device=x.device, dtype=torch.long)
+                        vp = torch.tensor(valid_p, device=x.device, dtype=torch.long)
+                        vg = torch.tensor(valid_g, device=x.device, dtype=torch.long)
+                        vo = torch.tensor(valid_o, device=x.device, dtype=torch.long)
+                        l_tgt = logits[vb, vp, vg]
+                        l_opp = logits[vb, vp, vo]
+                        diffs = torch.clamp(l_opp - l_tgt + self.config.stance_margin_gamma, min=0.0)
+                        loss = loss + self.config.stance_margin_weight * diffs.mean()
+
+                # Entity-coverage auxiliary loss (if dataset provides entity spans):
+                # maximize log-prob of query-entity tokens at their mention
+                # positions to ground rationales in prompt entities.
+                if len(batch) >= 7 and "logits" in out:
+                    ent_pos_list, ent_ids_list = batch[5], batch[6]
+                    logits = out["logits"]
+                    last_idx = logits.size(1) - 1
+                    cov_b, cov_p, cov_t = [], [], []
+                    for b_i in range(x.size(0)):
+                        for p_raw, tok in zip(ent_pos_list[b_i], ent_ids_list[b_i]):
+                            p = int(p_raw)
+                            if 0 <= p <= last_idx:
+                                cov_b.append(b_i)
+                                cov_p.append(p)
+                                cov_t.append(int(tok))
+                    if cov_b:
+                        cb = torch.tensor(cov_b, device=x.device, dtype=torch.long)
+                        cp = torch.tensor(cov_p, device=x.device, dtype=torch.long)
+                        ct = torch.tensor(cov_t, device=x.device, dtype=torch.long)
+                        sel_logits = logits[cb, cp].float()
+                        cov_loss = F.cross_entropy(sel_logits, ct)
+                        loss = loss + self.config.entity_coverage_coef * cov_loss
+
+                loss = loss / accum
             if loss is None or not torch.isfinite(loss):
                 return float("nan")
-            last = loss.item() * accum
+            total_loss += loss.item() * accum
             if self.scaler is not None and self.use_amp:
                 self.scaler.scale(loss).backward()
             else:
                 loss.backward()
-        return float(last)
+        return float(total_loss / accum)
 
     def _clip_and_step(self) -> None:
         if self.use_amp:
@@ -457,19 +520,47 @@ class Trainer:
                 self._save(self.step)
             if self.step % self.config.eval_interval == 0 or self.step == max_steps:
                 self._evaluate_and_log(self.step)
+                if self._should_early_stop():
+                    log.info(
+                        "Early stopping at step %d: no val improvement for %d evals "
+                        "(best val %.4f). Best checkpoint kept at best.pt.",
+                        self.step, self._no_improve_evals, self.best_val_loss,
+                    )
+                    print(
+                        f"[EARLY STOP] step {self.step}: no val improvement for "
+                        f"{self._no_improve_evals} evals (best val {self.best_val_loss:.4f})"
+                    )
+                    break
 
         log.info("Training complete at step %d.", self.step)
         self._save(self.step)
 
     # ------------------------------------------------------------------ helpers
 
+    def _should_early_stop(self) -> bool:
+        """True once val loss has failed to improve for `early_stop_patience` evals."""
+        patience = self.config.early_stop_patience or 0
+        return patience > 0 and self._no_improve_evals >= patience
+
     def _evaluate_and_log(self, step: int) -> None:
-        val_loss = self.evaluate()
+        train_loss = (
+            self.evaluate(self.train_data, is_train=True)
+            if self.train_data is not None
+            else self.last_train_loss
+        )
+        val_loss = self.evaluate(self.val_data, is_train=False)
         lr = self.scheduler.get_lr()
-        entry = {"step": step, "val_loss": val_loss, "lr": lr, "loss": self.last_train_loss}
+        entry = {
+            "step": step,
+            "train_loss": train_loss,
+            "val_loss": val_loss,
+            "lr": lr,
+            "loss": train_loss,
+            "step_loss": self.last_train_loss,
+        }
         self.logs.append(entry)
         print(
-            f"[step {step:5d}] train_loss={self.last_train_loss:.4f} "
+            f"[step {step:5d}] train_loss={train_loss:.4f} "
             f"val_loss={val_loss:.4f} lr={lr:.2e}"
         )
         # Val-loss-worsening detector: loud warning, no silent bad training.
@@ -485,8 +576,11 @@ class Trainer:
                 )
             if val_loss < self.best_val_loss:
                 self.best_val_loss = val_loss
+                self._no_improve_evals = 0
                 best_path = os.path.join(self.checkpoint_dir, "best.pt")
                 self._save(step, path=best_path)
+            else:
+                self._no_improve_evals += 1
 
     def _save(self, step: int, path: Optional[str] = None) -> str:
         path = path or os.path.join(self.checkpoint_dir, f"ckpt_{step}.pt")
