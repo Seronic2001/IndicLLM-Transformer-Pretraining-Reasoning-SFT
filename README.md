@@ -131,7 +131,7 @@ Phase 3 formulates anti-leakage symbolic relational reasoning datasets and evalu
 | **Word Problem** | **32.5% / 36.1%** | 28.9% / **36.1%** | 27.7% / 30.1% | 20.5% / 28.9% |
 
 ### 📦 Phase 3 Checkpoints & Artifacts Dataset Links
-* **Consolidated Phase 3 Kaggle Artifacts**: [https://www.kaggle.com/code/shubhadeepmandal/lma-phase3-consolidated-artifacts](https://www.kaggle.com/code/shubhadeepmandal/lma-phase3-consolidated-artifacts)
+* **Consolidated Phase 3 Kaggle Artifacts**: [https://www.kaggle.com/datasets/shubhadeepmandal/lma-phase3-artifact](https://www.kaggle.com/datasets/shubhadeepmandal/lma-phase3-artifact)
   * **Artifact Directory:** `phase3_artifacts/` containing all 8 fine-tuned checkpoints (`checkpoints/`), evaluation JSONs, and figures (`figures/`).
   * **Hindi Fine-Tuned Checkpoints:**
     * `hindi_v1_sft_direct.pt` & `hindi_v1_sft_cot.pt`
