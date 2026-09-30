@@ -1,0 +1,938 @@
+{
+  "hindi_v1_direct": {
+    "mode": "direct",
+    "pretrained_baseline": {
+      "accuracy_answer_only": 0.002,
+      "accuracy_exact_match": 0.0,
+      "accuracy_cot_graph_valid": 0.0,
+      "accuracy_semantic_decision": 0.16,
+      "f1_answer_only": 0.343067,
+      "f1_exact_match": 0.254611,
+      "char_similarity_answer_only": 0.327499,
+      "cot_decomposed_score": 0.20584,
+      "n_examples": 500,
+      "per_paradigm_accuracy_answer_only": {
+        "conversational": 0.011364,
+        "indeterminate": 0.0,
+        "multi_hop": 0.0,
+        "negation": 0.0,
+        "transitive": 0.0,
+        "word_problem": 0.0
+      },
+      "per_paradigm_accuracy_cot_graph_valid": {
+        "conversational": 0.0,
+        "indeterminate": 0.0,
+        "multi_hop": 0.0,
+        "negation": 0.0,
+        "transitive": 0.0,
+        "word_problem": 0.0
+      },
+      "per_paradigm_decision_accuracy": {
+        "conversational": 0.136364,
+        "indeterminate": 0.0,
+        "multi_hop": 0.265957,
+        "negation": 0.168675,
+        "transitive": 0.153846,
+        "word_problem": 0.204819
+      },
+      "per_paradigm_f1_answer_only": {
+        "conversational": 0.286308,
+        "indeterminate": 0.135343,
+        "multi_hop": 0.445684,
+        "negation": 0.419687,
+        "transitive": 0.351828,
+        "word_problem": 0.387376
+      },
+      "per_paradigm_accuracy": {
+        "conversational": 0.0,
+        "indeterminate": 0.0,
+        "multi_hop": 0.0,
+        "negation": 0.0,
+        "transitive": 0.0,
+        "word_problem": 0.0
+      }
+    },
+    "finetuned": {
+      "accuracy_answer_only": 0.44,
+      "accuracy_exact_match": 0.0,
+      "accuracy_cot_graph_valid": 0.0,
+      "accuracy_semantic_decision": 0.38,
+      "f1_answer_only": 0.832956,
+      "f1_exact_match": 0.620282,
+      "char_similarity_answer_only": 0.851023,
+      "cot_decomposed_score": 0.499773,
+      "n_examples": 500,
+      "per_paradigm_accuracy_answer_only": {
+        "conversational": 0.488636,
+        "indeterminate": 0.0,
+        "multi_hop": 0.478723,
+        "negation": 0.506024,
+        "transitive": 0.564103,
+        "word_problem": 0.554217
+      },
+      "per_paradigm_accuracy_cot_graph_valid": {
+        "conversational": 0.0,
+        "indeterminate": 0.0,
+        "multi_hop": 0.0,
+        "negation": 0.0,
+        "transitive": 0.0,
+        "word_problem": 0.0
+      },
+      "per_paradigm_decision_accuracy": {
+        "conversational": 0.443182,
+        "indeterminate": 0.0,
+        "multi_hop": 0.382979,
+        "negation": 0.506024,
+        "transitive": 0.474359,
+        "word_problem": 0.433735
+      },
+      "per_paradigm_f1_answer_only": {
+        "conversational": 0.935606,
+        "indeterminate": 0.2,
+        "multi_hop": 0.939716,
+        "negation": 0.950602,
+        "transitive": 0.948718,
+        "word_problem": 0.941098
+      },
+      "per_paradigm_accuracy": {
+        "conversational": 0.0,
+        "indeterminate": 0.0,
+        "multi_hop": 0.0,
+        "negation": 0.0,
+        "transitive": 0.0,
+        "word_problem": 0.0
+      }
+    },
+    "delta_accuracy": 0.438,
+    "delta_accuracy_answer_only": 0.438,
+    "delta_accuracy_cot_exact": 0.0,
+    "config": {
+      "lr": 3e-05,
+      "max_steps": 750,
+      "block_size": 128,
+      "n_train_examples": 20000,
+      "n_val_examples": 200,
+      "n_test_examples": 500,
+      "checkpoint": "/kaggle/working/hindi_v1_direct/hindi_v1_sft_direct.pt"
+    }
+  },
+  "hindi_v1_cot": {
+    "mode": "cot",
+    "pretrained_baseline": {
+      "accuracy_answer_only": 0.002,
+      "accuracy_exact_match": 0.0,
+      "accuracy_cot_graph_valid": 0.0,
+      "accuracy_semantic_decision": 0.164,
+      "f1_answer_only": 0.328512,
+      "f1_exact_match": 0.239048,
+      "char_similarity_answer_only": 0.287033,
+      "cot_decomposed_score": 0.197107,
+      "n_examples": 500,
+      "per_paradigm_accuracy_answer_only": {
+        "conversational": 0.011364,
+        "indeterminate": 0.0,
+        "multi_hop": 0.0,
+        "negation": 0.0,
+        "transitive": 0.0,
+        "word_problem": 0.0
+      },
+      "per_paradigm_accuracy_cot_graph_valid": {
+        "conversational": 0.0,
+        "indeterminate": 0.0,
+        "multi_hop": 0.0,
+        "negation": 0.0,
+        "transitive": 0.0,
+        "word_problem": 0.0
+      },
+      "per_paradigm_decision_accuracy": {
+        "conversational": 0.147727,
+        "indeterminate": 0.0,
+        "multi_hop": 0.265957,
+        "negation": 0.180723,
+        "transitive": 0.153846,
+        "word_problem": 0.204819
+      },
+      "per_paradigm_f1_answer_only": {
+        "conversational": 0.282002,
+        "indeterminate": 0.131032,
+        "multi_hop": 0.429235,
+        "negation": 0.401378,
+        "transitive": 0.319608,
+        "word_problem": 0.37532
+      },
+      "per_paradigm_accuracy": {
+        "conversational": 0.0,
+        "indeterminate": 0.0,
+        "multi_hop": 0.0,
+        "negation": 0.0,
+        "transitive": 0.0,
+        "word_problem": 0.0
+      }
+    },
+    "finetuned": {
+      "accuracy_answer_only": 0.406,
+      "accuracy_exact_match": 0.0,
+      "accuracy_cot_graph_valid": 0.094,
+      "accuracy_semantic_decision": 0.404,
+      "f1_answer_only": 0.818882,
+      "f1_exact_match": 0.687322,
+      "char_similarity_answer_only": 0.83721,
+      "cot_decomposed_score": 0.507969,
+      "n_examples": 500,
+      "per_paradigm_accuracy_answer_only": {
+        "conversational": 0.454545,
+        "indeterminate": 0.0,
+        "multi_hop": 0.43617,
+        "negation": 0.506024,
+        "transitive": 0.474359,
+        "word_problem": 0.518072
+      },
+      "per_paradigm_accuracy_cot_graph_valid": {
+        "conversational": 0.090909,
+        "indeterminate": 0.121622,
+        "multi_hop": 0.053191,
+        "negation": 0.084337,
+        "transitive": 0.115385,
+        "word_problem": 0.108434
+      },
+      "per_paradigm_decision_accuracy": {
+        "conversational": 0.443182,
+        "indeterminate": 0.121622,
+        "multi_hop": 0.414894,
+        "negation": 0.506024,
+        "transitive": 0.435897,
+        "word_problem": 0.46988
+      },
+      "per_paradigm_f1_answer_only": {
+        "conversational": 0.907828,
+        "indeterminate": 0.285135,
+        "multi_hop": 0.895981,
+        "negation": 0.922448,
+        "transitive": 0.903134,
+        "word_problem": 0.930388
+      },
+      "per_paradigm_accuracy": {
+        "conversational": 0.0,
+        "indeterminate": 0.0,
+        "multi_hop": 0.0,
+        "negation": 0.0,
+        "transitive": 0.0,
+        "word_problem": 0.0
+      }
+    },
+    "delta_accuracy": 0.404,
+    "delta_accuracy_answer_only": 0.404,
+    "delta_accuracy_cot_exact": 0.0,
+    "config": {
+      "lr": 3e-05,
+      "max_steps": 750,
+      "block_size": 160,
+      "n_train_examples": 20000,
+      "n_val_examples": 200,
+      "n_test_examples": 500,
+      "checkpoint": "/kaggle/working/hindi_v1_cot/hindi_v1_sft_cot.pt"
+    }
+  },
+  "hindi_v2_direct": {
+    "mode": "direct",
+    "pretrained_baseline": {
+      "accuracy_answer_only": 0.0,
+      "accuracy_exact_match": 0.0,
+      "accuracy_cot_graph_valid": 0.0,
+      "accuracy_semantic_decision": 0.302,
+      "f1_answer_only": 0.485659,
+      "f1_exact_match": 0.347091,
+      "char_similarity_answer_only": 0.405816,
+      "cot_decomposed_score": 0.291395,
+      "n_examples": 500,
+      "per_paradigm_accuracy_answer_only": {
+        "conversational": 0.0,
+        "indeterminate": 0.0,
+        "multi_hop": 0.0,
+        "negation": 0.0,
+        "transitive": 0.0,
+        "word_problem": 0.0
+      },
+      "per_paradigm_accuracy_cot_graph_valid": {
+        "conversational": 0.0,
+        "indeterminate": 0.0,
+        "multi_hop": 0.0,
+        "negation": 0.0,
+        "transitive": 0.0,
+        "word_problem": 0.0
+      },
+      "per_paradigm_decision_accuracy": {
+        "conversational": 0.375,
+        "indeterminate": 0.0,
+        "multi_hop": 0.297872,
+        "negation": 0.409639,
+        "transitive": 0.333333,
+        "word_problem": 0.361446
+      },
+      "per_paradigm_f1_answer_only": {
+        "conversational": 0.574791,
+        "indeterminate": 0.190368,
+        "multi_hop": 0.5073,
+        "negation": 0.576033,
+        "transitive": 0.495359,
+        "word_problem": 0.530428
+      },
+      "per_paradigm_accuracy": {
+        "conversational": 0.0,
+        "indeterminate": 0.0,
+        "multi_hop": 0.0,
+        "negation": 0.0,
+        "transitive": 0.0,
+        "word_problem": 0.0
+      }
+    },
+    "finetuned": {
+      "accuracy_answer_only": 0.424,
+      "accuracy_exact_match": 0.0,
+      "accuracy_cot_graph_valid": 0.0,
+      "accuracy_semantic_decision": 0.408,
+      "f1_answer_only": 0.82273,
+      "f1_exact_match": 0.611696,
+      "char_similarity_answer_only": 0.841921,
+      "cot_decomposed_score": 0.493638,
+      "n_examples": 500,
+      "per_paradigm_accuracy_answer_only": {
+        "conversational": 0.511364,
+        "indeterminate": 0.0,
+        "multi_hop": 0.43617,
+        "negation": 0.554217,
+        "transitive": 0.474359,
+        "word_problem": 0.518072
+      },
+      "per_paradigm_accuracy_cot_graph_valid": {
+        "conversational": 0.0,
+        "indeterminate": 0.0,
+        "multi_hop": 0.0,
+        "negation": 0.0,
+        "transitive": 0.0,
+        "word_problem": 0.0
+      },
+      "per_paradigm_decision_accuracy": {
+        "conversational": 0.477273,
+        "indeterminate": 0.121622,
+        "multi_hop": 0.37234,
+        "negation": 0.566265,
+        "transitive": 0.410256,
+        "word_problem": 0.46988
+      },
+      "per_paradigm_f1_answer_only": {
+        "conversational": 0.941919,
+        "indeterminate": 0.285135,
+        "multi_hop": 0.885343,
+        "negation": 0.938935,
+        "transitive": 0.878917,
+        "word_problem": 0.935743
+      },
+      "per_paradigm_accuracy": {
+        "conversational": 0.0,
+        "indeterminate": 0.0,
+        "multi_hop": 0.0,
+        "negation": 0.0,
+        "transitive": 0.0,
+        "word_problem": 0.0
+      }
+    },
+    "delta_accuracy": 0.424,
+    "delta_accuracy_answer_only": 0.424,
+    "delta_accuracy_cot_exact": 0.0,
+    "config": {
+      "lr": 2.55e-05,
+      "max_steps": 750,
+      "block_size": 128,
+      "n_train_examples": 20000,
+      "n_val_examples": 200,
+      "n_test_examples": 500,
+      "checkpoint": "/kaggle/working/hindi_v2_direct/hindi_v2_sft_direct.pt"
+    }
+  },
+  "hindi_v2_cot": {
+    "mode": "cot",
+    "pretrained_baseline": {
+      "accuracy_answer_only": 0.0,
+      "accuracy_exact_match": 0.0,
+      "accuracy_cot_graph_valid": 0.0,
+      "accuracy_semantic_decision": 0.298,
+      "f1_answer_only": 0.473113,
+      "f1_exact_match": 0.336031,
+      "char_similarity_answer_only": 0.391519,
+      "cot_decomposed_score": 0.283868,
+      "n_examples": 500,
+      "per_paradigm_accuracy_answer_only": {
+        "conversational": 0.0,
+        "indeterminate": 0.0,
+        "multi_hop": 0.0,
+        "negation": 0.0,
+        "transitive": 0.0,
+        "word_problem": 0.0
+      },
+      "per_paradigm_accuracy_cot_graph_valid": {
+        "conversational": 0.0,
+        "indeterminate": 0.0,
+        "multi_hop": 0.0,
+        "negation": 0.0,
+        "transitive": 0.0,
+        "word_problem": 0.0
+      },
+      "per_paradigm_decision_accuracy": {
+        "conversational": 0.375,
+        "indeterminate": 0.0,
+        "multi_hop": 0.297872,
+        "negation": 0.409639,
+        "transitive": 0.333333,
+        "word_problem": 0.337349
+      },
+      "per_paradigm_f1_answer_only": {
+        "conversational": 0.569218,
+        "indeterminate": 0.190046,
+        "multi_hop": 0.482511,
+        "negation": 0.563553,
+        "transitive": 0.468239,
+        "word_problem": 0.527086
+      },
+      "per_paradigm_accuracy": {
+        "conversational": 0.0,
+        "indeterminate": 0.0,
+        "multi_hop": 0.0,
+        "negation": 0.0,
+        "transitive": 0.0,
+        "word_problem": 0.0
+      }
+    },
+    "finetuned": {
+      "accuracy_answer_only": 0.382,
+      "accuracy_exact_match": 0.0,
+      "accuracy_cot_graph_valid": 0.064,
+      "accuracy_semantic_decision": 0.38,
+      "f1_answer_only": 0.820409,
+      "f1_exact_match": 0.692284,
+      "char_similarity_answer_only": 0.84505,
+      "cot_decomposed_score": 0.516406,
+      "n_examples": 500,
+      "per_paradigm_accuracy_answer_only": {
+        "conversational": 0.443182,
+        "indeterminate": 0.0,
+        "multi_hop": 0.446809,
+        "negation": 0.53012,
+        "transitive": 0.397436,
+        "word_problem": 0.421687
+      },
+      "per_paradigm_accuracy_cot_graph_valid": {
+        "conversational": 0.090909,
+        "indeterminate": 0.0,
+        "multi_hop": 0.0,
+        "negation": 0.072289,
+        "transitive": 0.115385,
+        "word_problem": 0.108434
+      },
+      "per_paradigm_decision_accuracy": {
+        "conversational": 0.477273,
+        "indeterminate": 0.0,
+        "multi_hop": 0.414894,
+        "negation": 0.554217,
+        "transitive": 0.384615,
+        "word_problem": 0.39759
+      },
+      "per_paradigm_f1_answer_only": {
+        "conversational": 0.92803,
+        "indeterminate": 0.2,
+        "multi_hop": 0.926714,
+        "negation": 0.945973,
+        "transitive": 0.923077,
+        "word_problem": 0.917001
+      },
+      "per_paradigm_accuracy": {
+        "conversational": 0.0,
+        "indeterminate": 0.0,
+        "multi_hop": 0.0,
+        "negation": 0.0,
+        "transitive": 0.0,
+        "word_problem": 0.0
+      }
+    },
+    "delta_accuracy": 0.382,
+    "delta_accuracy_answer_only": 0.382,
+    "delta_accuracy_cot_exact": 0.0,
+    "config": {
+      "lr": 2.55e-05,
+      "max_steps": 750,
+      "block_size": 160,
+      "n_train_examples": 20000,
+      "n_val_examples": 200,
+      "n_test_examples": 500,
+      "checkpoint": "/kaggle/working/hindi_v2_cot/hindi_v2_sft_cot.pt"
+    }
+  },
+  "assamese_v1_direct": {
+    "mode": "direct",
+    "pretrained_baseline": {
+      "accuracy_answer_only": 0.0,
+      "accuracy_exact_match": 0.0,
+      "accuracy_cot_graph_valid": 0.0,
+      "accuracy_semantic_decision": 0.202,
+      "f1_answer_only": 0.24396,
+      "f1_exact_match": 0.140164,
+      "char_similarity_answer_only": 0.296097,
+      "cot_decomposed_score": 0.146376,
+      "n_examples": 500,
+      "per_paradigm_accuracy_answer_only": {
+        "conversational": 0.0,
+        "indeterminate": 0.0,
+        "multi_hop": 0.0,
+        "negation": 0.0,
+        "transitive": 0.0,
+        "word_problem": 0.0
+      },
+      "per_paradigm_accuracy_cot_graph_valid": {
+        "conversational": 0.0,
+        "indeterminate": 0.0,
+        "multi_hop": 0.0,
+        "negation": 0.0,
+        "transitive": 0.0,
+        "word_problem": 0.0
+      },
+      "per_paradigm_decision_accuracy": {
+        "conversational": 0.238636,
+        "indeterminate": 0.0,
+        "multi_hop": 0.202128,
+        "negation": 0.325301,
+        "transitive": 0.25641,
+        "word_problem": 0.168675
+      },
+      "per_paradigm_f1_answer_only": {
+        "conversational": 0.322653,
+        "indeterminate": 0.0,
+        "multi_hop": 0.305854,
+        "negation": 0.206226,
+        "transitive": 0.245686,
+        "word_problem": 0.344047
+      },
+      "per_paradigm_accuracy": {
+        "conversational": 0.0,
+        "indeterminate": 0.0,
+        "multi_hop": 0.0,
+        "negation": 0.0,
+        "transitive": 0.0,
+        "word_problem": 0.0
+      }
+    },
+    "finetuned": {
+      "accuracy_answer_only": 0.294,
+      "accuracy_exact_match": 0.0,
+      "accuracy_cot_graph_valid": 0.0,
+      "accuracy_semantic_decision": 0.346,
+      "f1_answer_only": 0.66778,
+      "f1_exact_match": 0.393539,
+      "char_similarity_answer_only": 0.753638,
+      "cot_decomposed_score": 0.400668,
+      "n_examples": 500,
+      "per_paradigm_accuracy_answer_only": {
+        "conversational": 0.340909,
+        "indeterminate": 0.0,
+        "multi_hop": 0.361702,
+        "negation": 0.361446,
+        "transitive": 0.333333,
+        "word_problem": 0.325301
+      },
+      "per_paradigm_accuracy_cot_graph_valid": {
+        "conversational": 0.0,
+        "indeterminate": 0.0,
+        "multi_hop": 0.0,
+        "negation": 0.0,
+        "transitive": 0.0,
+        "word_problem": 0.0
+      },
+      "per_paradigm_decision_accuracy": {
+        "conversational": 0.420455,
+        "indeterminate": 0.081081,
+        "multi_hop": 0.37234,
+        "negation": 0.421687,
+        "transitive": 0.384615,
+        "word_problem": 0.361446
+      },
+      "per_paradigm_f1_answer_only": {
+        "conversational": 0.786932,
+        "indeterminate": 0.074844,
+        "multi_hop": 0.735309,
+        "negation": 0.814656,
+        "transitive": 0.767979,
+        "word_problem": 0.752572
+      },
+      "per_paradigm_accuracy": {
+        "conversational": 0.0,
+        "indeterminate": 0.0,
+        "multi_hop": 0.0,
+        "negation": 0.0,
+        "transitive": 0.0,
+        "word_problem": 0.0
+      }
+    },
+    "delta_accuracy": 0.294,
+    "delta_accuracy_answer_only": 0.294,
+    "delta_accuracy_cot_exact": 0.0,
+    "config": {
+      "lr": 3e-05,
+      "max_steps": 750,
+      "block_size": 128,
+      "n_train_examples": 20000,
+      "n_val_examples": 200,
+      "n_test_examples": 500,
+      "checkpoint": "/kaggle/working/assamese_v1_direct/assamese_v1_sft_direct.pt"
+    }
+  },
+  "assamese_v1_cot": {
+    "mode": "cot",
+    "pretrained_baseline": {
+      "accuracy_answer_only": 0.0,
+      "accuracy_exact_match": 0.0,
+      "accuracy_cot_graph_valid": 0.0,
+      "accuracy_semantic_decision": 0.204,
+      "f1_answer_only": 0.236722,
+      "f1_exact_match": 0.1333,
+      "char_similarity_answer_only": 0.271655,
+      "cot_decomposed_score": 0.142033,
+      "n_examples": 500,
+      "per_paradigm_accuracy_answer_only": {
+        "conversational": 0.0,
+        "indeterminate": 0.0,
+        "multi_hop": 0.0,
+        "negation": 0.0,
+        "transitive": 0.0,
+        "word_problem": 0.0
+      },
+      "per_paradigm_accuracy_cot_graph_valid": {
+        "conversational": 0.0,
+        "indeterminate": 0.0,
+        "multi_hop": 0.0,
+        "negation": 0.0,
+        "transitive": 0.0,
+        "word_problem": 0.0
+      },
+      "per_paradigm_decision_accuracy": {
+        "conversational": 0.25,
+        "indeterminate": 0.0,
+        "multi_hop": 0.202128,
+        "negation": 0.313253,
+        "transitive": 0.25641,
+        "word_problem": 0.180723
+      },
+      "per_paradigm_f1_answer_only": {
+        "conversational": 0.330719,
+        "indeterminate": 0.0,
+        "multi_hop": 0.299576,
+        "negation": 0.187145,
+        "transitive": 0.225803,
+        "word_problem": 0.336771
+      },
+      "per_paradigm_accuracy": {
+        "conversational": 0.0,
+        "indeterminate": 0.0,
+        "multi_hop": 0.0,
+        "negation": 0.0,
+        "transitive": 0.0,
+        "word_problem": 0.0
+      }
+    },
+    "finetuned": {
+      "accuracy_answer_only": 0.246,
+      "accuracy_exact_match": 0.0,
+      "accuracy_cot_graph_valid": 0.018,
+      "accuracy_semantic_decision": 0.348,
+      "f1_answer_only": 0.651571,
+      "f1_exact_match": 0.512882,
+      "char_similarity_answer_only": 0.728951,
+      "cot_decomposed_score": 0.395196,
+      "n_examples": 500,
+      "per_paradigm_accuracy_answer_only": {
+        "conversational": 0.306818,
+        "indeterminate": 0.0,
+        "multi_hop": 0.361702,
+        "negation": 0.289157,
+        "transitive": 0.179487,
+        "word_problem": 0.289157
+      },
+      "per_paradigm_accuracy_cot_graph_valid": {
+        "conversational": 0.0,
+        "indeterminate": 0.081081,
+        "multi_hop": 0.0,
+        "negation": 0.0,
+        "transitive": 0.0,
+        "word_problem": 0.036145
+      },
+      "per_paradigm_decision_accuracy": {
+        "conversational": 0.363636,
+        "indeterminate": 0.081081,
+        "multi_hop": 0.446809,
+        "negation": 0.481928,
+        "transitive": 0.307692,
+        "word_problem": 0.361446
+      },
+      "per_paradigm_f1_answer_only": {
+        "conversational": 0.725379,
+        "indeterminate": 0.074844,
+        "multi_hop": 0.765426,
+        "negation": 0.802697,
+        "transitive": 0.711854,
+        "word_problem": 0.750788
+      },
+      "per_paradigm_accuracy": {
+        "conversational": 0.0,
+        "indeterminate": 0.0,
+        "multi_hop": 0.0,
+        "negation": 0.0,
+        "transitive": 0.0,
+        "word_problem": 0.0
+      }
+    },
+    "delta_accuracy": 0.246,
+    "delta_accuracy_answer_only": 0.246,
+    "delta_accuracy_cot_exact": 0.0,
+    "config": {
+      "lr": 3e-05,
+      "max_steps": 750,
+      "block_size": 160,
+      "n_train_examples": 20000,
+      "n_val_examples": 200,
+      "n_test_examples": 500,
+      "checkpoint": "/kaggle/working/assamese_v1_cot/assamese_v1_sft_cot.pt"
+    }
+  },
+  "assamese_v2_direct": {
+    "mode": "direct",
+    "pretrained_baseline": {
+      "accuracy_answer_only": 0.0,
+      "accuracy_exact_match": 0.0,
+      "accuracy_cot_graph_valid": 0.0,
+      "accuracy_semantic_decision": 0.34,
+      "f1_answer_only": 0.274738,
+      "f1_exact_match": 0.160015,
+      "char_similarity_answer_only": 0.310576,
+      "cot_decomposed_score": 0.164843,
+      "n_examples": 500,
+      "per_paradigm_accuracy_answer_only": {
+        "conversational": 0.0,
+        "indeterminate": 0.0,
+        "multi_hop": 0.0,
+        "negation": 0.0,
+        "transitive": 0.0,
+        "word_problem": 0.0
+      },
+      "per_paradigm_accuracy_cot_graph_valid": {
+        "conversational": 0.0,
+        "indeterminate": 0.0,
+        "multi_hop": 0.0,
+        "negation": 0.0,
+        "transitive": 0.0,
+        "word_problem": 0.0
+      },
+      "per_paradigm_decision_accuracy": {
+        "conversational": 0.386364,
+        "indeterminate": 0.0,
+        "multi_hop": 0.43617,
+        "negation": 0.518072,
+        "transitive": 0.307692,
+        "word_problem": 0.337349
+      },
+      "per_paradigm_f1_answer_only": {
+        "conversational": 0.398002,
+        "indeterminate": 0.0,
+        "multi_hop": 0.341506,
+        "negation": 0.25669,
+        "transitive": 0.284,
+        "word_problem": 0.322721
+      },
+      "per_paradigm_accuracy": {
+        "conversational": 0.0,
+        "indeterminate": 0.0,
+        "multi_hop": 0.0,
+        "negation": 0.0,
+        "transitive": 0.0,
+        "word_problem": 0.0
+      }
+    },
+    "finetuned": {
+      "accuracy_answer_only": 0.21,
+      "accuracy_exact_match": 0.0,
+      "accuracy_cot_graph_valid": 0.0,
+      "accuracy_semantic_decision": 0.304,
+      "f1_answer_only": 0.563266,
+      "f1_exact_match": 0.339324,
+      "char_similarity_answer_only": 0.663611,
+      "cot_decomposed_score": 0.33796,
+      "n_examples": 500,
+      "per_paradigm_accuracy_answer_only": {
+        "conversational": 0.284091,
+        "indeterminate": 0.0,
+        "multi_hop": 0.212766,
+        "negation": 0.240964,
+        "transitive": 0.217949,
+        "word_problem": 0.277108
+      },
+      "per_paradigm_accuracy_cot_graph_valid": {
+        "conversational": 0.0,
+        "indeterminate": 0.0,
+        "multi_hop": 0.0,
+        "negation": 0.0,
+        "transitive": 0.0,
+        "word_problem": 0.0
+      },
+      "per_paradigm_decision_accuracy": {
+        "conversational": 0.375,
+        "indeterminate": 0.364865,
+        "multi_hop": 0.212766,
+        "negation": 0.325301,
+        "transitive": 0.25641,
+        "word_problem": 0.301205
+      },
+      "per_paradigm_f1_answer_only": {
+        "conversational": 0.73152,
+        "indeterminate": 0.336798,
+        "multi_hop": 0.474872,
+        "negation": 0.63494,
+        "transitive": 0.507692,
+        "word_problem": 0.667449
+      },
+      "per_paradigm_accuracy": {
+        "conversational": 0.0,
+        "indeterminate": 0.0,
+        "multi_hop": 0.0,
+        "negation": 0.0,
+        "transitive": 0.0,
+        "word_problem": 0.0
+      }
+    },
+    "delta_accuracy": 0.21,
+    "delta_accuracy_answer_only": 0.21,
+    "delta_accuracy_cot_exact": 0.0,
+    "config": {
+      "lr": 2.55e-05,
+      "max_steps": 750,
+      "block_size": 128,
+      "n_train_examples": 20000,
+      "n_val_examples": 200,
+      "n_test_examples": 500,
+      "checkpoint": "/kaggle/working/assamese_v2_direct/assamese_v2_sft_direct.pt"
+    }
+  },
+  "assamese_v2_cot": {
+    "mode": "cot",
+    "pretrained_baseline": {
+      "accuracy_answer_only": 0.0,
+      "accuracy_exact_match": 0.0,
+      "accuracy_cot_graph_valid": 0.0,
+      "accuracy_semantic_decision": 0.326,
+      "f1_answer_only": 0.260491,
+      "f1_exact_match": 0.150093,
+      "char_similarity_answer_only": 0.284843,
+      "cot_decomposed_score": 0.156295,
+      "n_examples": 500,
+      "per_paradigm_accuracy_answer_only": {
+        "conversational": 0.0,
+        "indeterminate": 0.0,
+        "multi_hop": 0.0,
+        "negation": 0.0,
+        "transitive": 0.0,
+        "word_problem": 0.0
+      },
+      "per_paradigm_accuracy_cot_graph_valid": {
+        "conversational": 0.0,
+        "indeterminate": 0.0,
+        "multi_hop": 0.0,
+        "negation": 0.0,
+        "transitive": 0.0,
+        "word_problem": 0.0
+      },
+      "per_paradigm_decision_accuracy": {
+        "conversational": 0.397727,
+        "indeterminate": 0.0,
+        "multi_hop": 0.404255,
+        "negation": 0.506024,
+        "transitive": 0.282051,
+        "word_problem": 0.313253
+      },
+      "per_paradigm_f1_answer_only": {
+        "conversational": 0.387339,
+        "indeterminate": 0.0,
+        "multi_hop": 0.326461,
+        "negation": 0.232126,
+        "transitive": 0.2668,
+        "word_problem": 0.305971
+      },
+      "per_paradigm_accuracy": {
+        "conversational": 0.0,
+        "indeterminate": 0.0,
+        "multi_hop": 0.0,
+        "negation": 0.0,
+        "transitive": 0.0,
+        "word_problem": 0.0
+      }
+    },
+    "finetuned": {
+      "accuracy_answer_only": 0.118,
+      "accuracy_exact_match": 0.0,
+      "accuracy_cot_graph_valid": 0.03,
+      "accuracy_semantic_decision": 0.292,
+      "f1_answer_only": 0.506532,
+      "f1_exact_match": 0.413737,
+      "char_similarity_answer_only": 0.592906,
+      "cot_decomposed_score": 0.306528,
+      "n_examples": 500,
+      "per_paradigm_accuracy_answer_only": {
+        "conversational": 0.147727,
+        "indeterminate": 0.040541,
+        "multi_hop": 0.085106,
+        "negation": 0.084337,
+        "transitive": 0.141026,
+        "word_problem": 0.204819
+      },
+      "per_paradigm_accuracy_cot_graph_valid": {
+        "conversational": 0.0,
+        "indeterminate": 0.175676,
+        "multi_hop": 0.0,
+        "negation": 0.0,
+        "transitive": 0.0,
+        "word_problem": 0.024096
+      },
+      "per_paradigm_decision_accuracy": {
+        "conversational": 0.306818,
+        "indeterminate": 0.175676,
+        "multi_hop": 0.308511,
+        "negation": 0.301205,
+        "transitive": 0.358974,
+        "word_problem": 0.289157
+      },
+      "per_paradigm_f1_answer_only": {
+        "conversational": 0.565319,
+        "indeterminate": 0.139442,
+        "multi_hop": 0.548783,
+        "negation": 0.552637,
+        "transitive": 0.601496,
+        "word_problem": 0.588292
+      },
+      "per_paradigm_accuracy": {
+        "conversational": 0.0,
+        "indeterminate": 0.0,
+        "multi_hop": 0.0,
+        "negation": 0.0,
+        "transitive": 0.0,
+        "word_problem": 0.0
+      }
+    },
+    "delta_accuracy": 0.118,
+    "delta_accuracy_answer_only": 0.118,
+    "delta_accuracy_cot_exact": 0.0,
+    "config": {
+      "lr": 2.55e-05,
+      "max_steps": 750,
+      "block_size": 160,
+      "n_train_examples": 20000,
+      "n_val_examples": 200,
+      "n_test_examples": 500,
+      "checkpoint": "/kaggle/working/assamese_v2_cot/assamese_v2_sft_cot.pt"
+    }
+  }
+}
