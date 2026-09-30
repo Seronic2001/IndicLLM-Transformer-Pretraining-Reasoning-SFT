@@ -161,18 +161,31 @@ We present four empirical pillars explaining the performance dynamics:
 1. **Inductive Bias of Positional Encodings (V1 vs. V2)**:
    * V1 Baseline uses **Absolute Positional Embeddings**, creating static coordinate registers for each position index $t \in [0, 511]$. In rigid synthetic reasoning prompts with invariant sentence structures, V1 easily memorizes that the subject is at index $k_1$ and the attribute is at index $k_2$.
    * V2 Modern uses **Rotary Position Embeddings (RoPE)**, where relative distances govern attention. While RoPE excels at continuous open-domain text (yielding 33–36% lower perplexity in Phase 2), it requires explicit step tokens (Chain-of-Thought) to bridge relative coordinate hops during symbolic deduction.
-2. **Attention Entropy Redistribution (Section 3.2)**:
-   * Post-finetuning attention analysis proves that attention entropy drops by **$30.8\%$** ($2.14 \to 1.48$ nats), and mean attention distance expands by **$+71.3\%$** ($3.42 \to 5.86$ tokens). Models actively shift attention from neighboring local tokens to distant antecedent entities.
+2. **Attention Redistribution After Fine-Tuning (Section 3.2)**:
+   * Pretrained and CoT-finetuned V2 checkpoints were compared on 200 held-out test examples per language, averaged over all 8 layers and 6 heads, with prompt tokens and answer tokens reported separately. Early layers are almost unchanged (Jensen–Shannon divergence at most 0.064 nats in layers 0–2), while layer 7 changes most, and most on answer tokens (**0.280** in Hindi, **0.267** in Assamese; maximum possible 0.693).
+   * At layer 7, answer-token attention entropy drops by **$27.1\%$** (Hindi) and **$22.4\%$** (Assamese), and the share of answer-token attention landing on the prompt rises from 0.69 to 0.82 (Hindi) and from 0.56 to 0.67 (Assamese). Mean attention distance grows in Assamese (+18.2% at layer 7, +38.6% at layer 6) but is flat in Hindi (−1.0% at layer 7).
 
-![Hindi Pretrain vs. Finetune Query-Key Attention Map](figures/phase3_pretrain_vs_finetune_attention_hindi.png)
-*Figure 3.1: Hindi Attention Evolution (Layer 5, Head 0) — Pretrained diffuse diagonal attention (left) vs. Finetuned premise-focused attention (right). Note sharp activation peaks linking query subjects directly to premise entity tokens.*
+![Hindi: attention change by layer](figures/phase3_attn_hindi_v2_cot_jsd.png)
+*Figure 3.1: Hindi V2 CoT — JS divergence between pretrained and finetuned attention by layer (200 test examples), for answer rows, prompt rows, and a prompt-only out-of-template probe sentence.*
 
-![Assamese Pretrain vs. Finetune Query-Key Attention Map](figures/phase3_pretrain_vs_finetune_attention_assamese.png)
-*Figure 3.2: Assamese Attention Evolution (Layer 5, Head 0) — Pretrained local recency bias (left) vs. Finetuned premise-focused attention (right), showing long-range query-to-premise entity binding across complex Eastern Nagari token sequences.*
+![Assamese: attention change by layer](figures/phase3_attn_assamese_v2_cot_jsd.png)
+*Figure 3.2: Assamese V2 CoT — same measurement as Figure 3.1.*
 
-*Analytical Contrast (Figure 3.1 vs. Figure 3.2)*:
-- **Structural Reorganization**: In both languages, the pretrained attention matrices (left panels) display classic autoregressive recency bias—heavy probability concentration along the immediate lower-left subdiagonal ($i \approx j$), reflecting local n-gram language modeling. Finetuned CoT matrices (right panels) undergo a drastic global phase transition, shifting mass away from adjacent syntactic tokens toward distant antecedent premises.
-- **Script-Driven Token Dispersion**: Comparing Figure 3.1 (Hindi) and Figure 3.2 (Assamese) reveals a critical mechanistic distinction. In Hindi, where entities map cleanly to single 16K BPE tokens (e.g. `अमित`, `सुमित`), the attention heads establish pin-point $(i, j)$ coordinate activations with near-zero dispersion. In Assamese, because multi-consonant names (e.g. `বিকাশৰ`) split into root and inflectional case markers (`বিকাশ` + `ৰ`), the query head must disperse its attention across contiguous subword blocks, slightly attenuating peak sharpness and requiring autoregressive scratchpads to retain context without premise inversion.
+![Hindi layer 0: pretrained vs finetuned](figures/phase3_attn_hindi_v2_cot_L0_pair.png)
+*Figure 3.3: Hindi V2, early layer (layer 0, head 1) — Pretrained Base (left) vs. Finetuned CoT (right). Red lines mark the prompt/answer boundary.*
+
+![Hindi layer 7: pretrained vs finetuned](figures/phase3_attn_hindi_v2_cot_pair.png)
+*Figure 3.4: Hindi V2, late layer (layer 7, head 1) — Pretrained Base (left) vs. Finetuned CoT (right).*
+
+![Assamese layer 0: pretrained vs finetuned](figures/phase3_attn_assamese_v2_cot_L0_pair.png)
+*Figure 3.5: Assamese V2, early layer (layer 0, head 2) — Pretrained Base (left) vs. Finetuned CoT (right).*
+
+![Assamese layer 7: pretrained vs finetuned](figures/phase3_attn_assamese_v2_cot_pair.png)
+*Figure 3.6: Assamese V2, late layer (layer 7, head 5) — Pretrained Base (left) vs. Finetuned CoT (right).*
+
+*Reading the figures*:
+- **Where the change is**: the early-layer pairs (Figures 3.3, 3.5) are nearly identical before and after, while the late-layer pairs (Figures 3.4, 3.6) differ clearly below the horizontal red line, i.e. on answer tokens. This matches a fine-tuning loss applied only to the completion.
+- **What the change is**: late-layer answer tokens attend more sharply and look back at the premises more. This is descriptive evidence of where attention moved; it does not establish that a particular head implements a particular reasoning step. The pretrained model has also never been trained on the `<COT_START>`/`<REL_*>` tokens, so part of the answer-token divergence reflects unfamiliar input. Full tables are in the Phase 3 report, Section 7.
 3. **Negation Curriculum Generalization**:
    * Baseline models without negative examples failed completely (0.0% accuracy on negation queries). Introducing a 5% disjoint-entity negation curriculum enabled Assamese to reach **$63.83\%$ accuracy**, demonstrating genuine polarity inversion rather than superficial pattern matching.
 4. **Token F1 vs. Strict Exact Match**:

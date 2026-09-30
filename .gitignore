@@ -68,3 +68,6 @@ final_report*
 !report/final_report.pdf
 qual_analysis/
 qualitative_analysis_phase3*
+
+# Pretrained vs finetuned attention comparison (local diagnostics)
+compare/
