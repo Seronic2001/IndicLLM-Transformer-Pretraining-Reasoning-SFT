@@ -282,64 +282,128 @@ While both Direct and CoT models achieve $40\text{--}56\%$ accuracy across solva
 
 ---
 
-## 7. Section 3.2 Post-Finetune Attention Analysis (4-Layer Empirical Depth Progression)
+## 7. Section 3.2 Post-Finetune Attention Analysis (Test-Set-Averaged, All Layers)
 
-To comprehensively address assignment specification Section 3.2 (*"Compare pretrained vs. finetuned heatmaps for at least one early and one late layer per model. Comment on whether finetuning changed local vs. long-range attention or head specialization"*), we conducted an empirical 4-layer depth progression analysis directly on the serialized model checkpoints:
+Assignment specification Section 3.2 asks us to *"compare pretrained vs. finetuned heatmaps for at least one early and one late layer per model"* and to *"comment on whether finetuning changed local vs. long-range attention or head specialization"*. We compare the serialized checkpoints directly:
 - **Hindi (Model H, Modern V2)**: Pretrained Base (`hindi_v2_modern_16k_best.pt`) vs. Finetuned CoT (`hindi_v2_sft_cot.zip`).
 - **Assamese (Model L, Modern V2)**: Pretrained Base (`assamese_v2_modern_16k_best.pt`) vs. Finetuned CoT (`assamese_v2_sft_cot.zip`).
 
-Rather than inspecting only two layers, we evaluated **four distinct network depths** spanning the entire transformer stack:
-1. **Layer 0 (Earliest)**: Local lexical adjacency and positional encoding grounding.
-2. **Layer 2 (Early-Mid)**: Intra-clause binding and syntactic modifier attachment.
-3. **Layer 5 (Late-Mid)**: Cross-clause premise tracking and relational entity concentration.
-4. **Layer 7 (Latest)**: Transitive graph closure, global premise binding, and deductive query answering across the prompt boundary.
+### 7.1 Method
 
-![Hindi 4-Layer Attention Comparison](figures/phase3_pretrain_vs_finetune_attention_hindi.png)
-*Figure 5: Hindi (Devanagari) 4-Layer Attention Redistribution across Layers 0, 2, 5, and 7 extracted directly from serialized PyTorch checkpoints. Pretrained Base (left, viridis) vs. Finetuned CoT (right, inferno).*
+A single heatmap of one head on one sentence cannot separate a real change from noise, so the comparison is averaged:
 
-![Assamese 4-Layer Attention Comparison](figures/phase3_pretrain_vs_finetune_attention_assamese.png)
-*Figure 6: Assamese (Eastern Nagari) 4-Layer Attention Redistribution across Layers 0, 2, 5, and 7 extracted directly from serialized PyTorch checkpoints. Pretrained Base (left, viridis) vs. Finetuned CoT (right, inferno).*
+- **Inputs**: 200 held-out test examples per language (test entity pool, all six paradigms). Each input is the prompt followed by the gold CoT completion, exactly as the model sees it during fine-tuning.
+- **Coverage**: all 8 layers and all 6 heads. Every number below is the mean over the 200 examples and the 6 heads unless marked "max head".
+- **Two regions**: the fine-tuning loss is applied only to completion tokens (Section 3.1), so we report **prompt rows** (query token inside the prompt) and **answer rows** (query token inside the completion) separately.
+- **Both checkpoints load identically**: the pretrained model is loaded with the same 6-token vocabulary expansion used for the zero-shot baseline in Section 5.
 
-### 7.1 Quantitative Empirical Metrics Across All 4 Layers
+We report four measures:
+1. **Jensen–Shannon divergence** between the pretrained and finetuned attention distributions of the same query token. 0 means identical; the maximum is $\ln 2 \approx 0.693$ nats.
+2. **Attention entropy** $\mathcal{H}(A_h) = -\frac{1}{T}\sum_{i}\sum_{j \le i} A_{h,i,j} \ln A_{h,i,j}$. Lower means sharper.
+3. **Mean attention distance** $\bar{D}(A_h) = \frac{1}{T}\sum_{i}\sum_{j \le i} A_{h,i,j}\,|i - j|$ in tokens.
+4. **Attention to prompt**: the share of an answer token's attention mass that lands on prompt tokens rather than on earlier answer tokens.
 
-We evaluate two standard information-theoretic attention metrics across all token positions $T$:
-1. **Attention Entropy (Concentration Metric)**:
-   $$\mathcal{H}(A_h) = -\frac{1}{T}\sum_{i=1}^{T}\sum_{j=1}^{i} A_{h,i,j} \ln A_{h,i,j}$$
-   Lower entropy indicates sharp, focused head specialization; higher entropy indicates diffuse, unspecialized attention.
-2. **Mean Attention Distance (Reachability Metric)**:
-   $$\bar{D}(A_h) = \frac{1}{T}\sum_{i=1}^{T}\sum_{j=1}^{i} A_{h,i,j} |i - j|$$
-   Higher mean distance indicates long-range contextual binding spanning across multiple reasoning premises.
+### 7.2 How Much Attention Changed, by Layer
 
-#### Table 7.1: Hindi 4-Layer Empirical Attention Metrics (Devanagari)
-| Transformer Layer | Functional Hierarchy | Pretrained Entropy (nats) | Finetuned Entropy (nats) | $\Delta \mathcal{H}$ (%) | Pretrained Mean Dist (tok) | Finetuned Mean Dist (tok) | $\Delta \bar{D}$ (%) | Primary Mechanistic Specialization |
-| :--- | :--- | :---: | :---: | :---: | :---: | :---: | :---: | :--- |
-| **Layer 0 (Head 0)** | Local Lexical | 0.87 | 1.03 | $+18.4\%$ | 1.87 | 2.00 | $+7.0\%$ | Preserves causal recency diagonal and local subword continuity |
-| **Layer 2 (Head 1)** | Clause Binding | 1.16 | 1.23 | $+6.0\%$ | 1.77 | 2.02 | $+14.1\%$ | Binds subject-predicate pairs within immediate premises |
-| **Layer 5 (Head 3)** | Premise Tracking | 1.23 | 0.92 | **$-25.2\%$** | 1.99 | 1.73 | $-13.1\%$ | **Sharp entity specialization**: attention sharply narrows onto antecedent entities |
-| **Layer 7 (Head 3)** | Transitive Closure | 1.71 | 1.58 | **$-7.6\%$** | 3.23 | 4.06 | **$+25.7\%$** | **Long-range deductive span**: terminal query attends directly to root premises |
+#### Table 7.1: Hindi V2 CoT — JS divergence, pretrained vs. finetuned (nats)
+| Layer | 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 |
+| :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
+| Prompt rows | 0.024 | 0.024 | 0.027 | 0.035 | 0.044 | 0.052 | 0.101 | 0.127 |
+| Answer rows | 0.029 | 0.034 | 0.064 | 0.052 | 0.060 | 0.082 | 0.159 | **0.280** |
+| Answer rows, max head | 0.038 | 0.055 | 0.087 | 0.080 | 0.105 | 0.138 | 0.217 | **0.369** |
 
-#### Table 7.2: Assamese 4-Layer Empirical Attention Metrics (Eastern Nagari)
-| Transformer Layer | Functional Hierarchy | Pretrained Entropy (nats) | Finetuned Entropy (nats) | $\Delta \mathcal{H}$ (%) | Pretrained Mean Dist (tok) | Finetuned Mean Dist (tok) | $\Delta \bar{D}$ (%) | Primary Mechanistic Specialization |
-| :--- | :--- | :---: | :---: | :---: | :---: | :---: | :---: | :--- |
-| **Layer 0 (Head 0)** | Local Lexical | 0.96 | 1.10 | $+14.6\%$ | 2.58 | 2.89 | $+12.0\%$ | Preserves morphological agglutination across root+inflection tokens |
-| **Layer 2 (Head 1)** | Clause Binding | 1.54 | 1.47 | $-4.5\%$ | 2.81 | 2.58 | $-8.2\%$ | Stabilizes relational connective tokens (*আৰু*, *পৰা*) |
-| **Layer 5 (Head 1)** | Premise Tracking | 1.66 | 1.39 | **$-16.3\%$** | 2.98 | 3.53 | **$+18.5\%$** | Vertical attention columns form on critical relational entities (*বিকাশ*, *অনিল*) |
-| **Layer 7 (Head 1)** | Transitive Closure | 1.47 | 1.18 | **$-19.7\%$** | 3.98 | 5.57 | **$+39.9\%$** | **Dramatic reachability expansion**: query tokens bind to root entity (*ৰাহুল*) over 6-12 tokens away |
+#### Table 7.2: Assamese V2 CoT — JS divergence, pretrained vs. finetuned (nats)
+| Layer | 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 |
+| :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
+| Prompt rows | 0.014 | 0.014 | 0.034 | 0.039 | 0.070 | 0.074 | 0.099 | 0.138 |
+| Answer rows | 0.023 | 0.024 | 0.047 | 0.062 | 0.107 | 0.130 | 0.140 | **0.267** |
+| Answer rows, max head | 0.060 | 0.038 | 0.055 | 0.117 | 0.160 | 0.186 | 0.213 | **0.305** |
+
+![Hindi V2 CoT: attention change by layer](figures/phase3_attn_hindi_v2_cot_jsd.png)
+*Figure 5: Hindi V2 CoT — JS divergence between pretrained and finetuned attention at every layer, for answer rows and prompt rows (200 test examples), and for a single prompt-only probe sentence outside the training templates (grey).*
+
+![Assamese V2 CoT: attention change by layer](figures/phase3_attn_assamese_v2_cot_jsd.png)
+*Figure 6: Assamese V2 CoT — same measurement as Figure 5.*
+
+The change grows monotonically with depth in both languages. Layers 0–1 are almost untouched (at most 0.034), and the last layer changes roughly ten times more on answer rows. The grey curve shows why an out-of-template, prompt-only sentence makes the two models look alike: it sits well below both test-set curves at the last layer (0.057 vs. 0.280 on answer rows in Hindi, 0.107 vs. 0.267 in Assamese).
+
+### 7.3 What the Change Looks Like (Answer Rows)
+
+#### Table 7.3: Hindi V2 CoT — pretrained → finetuned, answer rows
+| Layer | Entropy (nats) | $\Delta \mathcal{H}$ | Mean distance (tok) | $\Delta \bar{D}$ | Attention to prompt |
+| :--- | :---: | :---: | :---: | :---: | :---: |
+| **0** | 2.49 → 2.54 | $+2.3\%$ | 16.3 → 15.9 | $-2.6\%$ | 0.56 → 0.54 |
+| **2** | 3.13 → 3.06 | $-2.1\%$ | 19.4 → 18.3 | $-5.6\%$ | 0.66 → 0.61 |
+| **5** | 2.60 → 2.30 | $-11.5\%$ | 11.3 → 10.3 | $-8.2\%$ | 0.38 → 0.34 |
+| **6** | 2.69 → 2.55 | $-5.0\%$ | 15.4 → 16.8 | $+8.9\%$ | 0.49 → **0.59** |
+| **7** | 2.69 → 1.96 | **$-27.1\%$** | 22.2 → 22.0 | $-1.0\%$ | 0.69 → **0.82** |
+
+#### Table 7.4: Assamese V2 CoT — pretrained → finetuned, answer rows
+| Layer | Entropy (nats) | $\Delta \mathcal{H}$ | Mean distance (tok) | $\Delta \bar{D}$ | Attention to prompt |
+| :--- | :---: | :---: | :---: | :---: | :---: |
+| **0** | 2.62 → 2.83 | $+8.0\%$ | 17.3 → 17.1 | $-1.0\%$ | 0.63 → 0.62 |
+| **2** | 3.31 → 3.21 | $-2.9\%$ | 16.5 → 16.0 | $-2.8\%$ | 0.63 → 0.62 |
+| **5** | 3.19 → 2.79 | $-12.4\%$ | 14.8 → 15.1 | $+1.5\%$ | 0.57 → 0.60 |
+| **6** | 2.15 → 2.22 | $+3.3\%$ | 8.0 → 11.0 | **$+38.6\%$** | 0.32 → **0.44** |
+| **7** | 2.58 → 2.00 | **$-22.4\%$** | 14.2 → 16.8 | **$+18.2\%$** | 0.56 → **0.67** |
+
+### 7.4 Heatmaps: Early Layer vs. Late Layer
+
+The maps below use the first test example of each language (an *indeterminate* item) and show, for layer 0 and layer 7, the head that changed most on answer rows. Each layer has two figures on the same input: the pretrained and finetuned maps side by side on one colour scale, then the difference map (finetuned minus pretrained; red = attention gained, blue = attention lost). The red lines mark the prompt/answer boundary: rows below the horizontal line are answer tokens, columns left of the vertical line are prompt tokens.
+
+#### Hindi V2 — early layer (layer 0, head 1)
+
+![Hindi V2 layer 0: pretrained vs finetuned attention](figures/phase3_attn_hindi_v2_cot_L0_pair.png)
+*Figure 7a: Hindi V2, layer 0 head 1 — Pretrained Base (left) vs. Finetuned CoT (right).*
+
+![Hindi V2 layer 0: attention difference](figures/phase3_attn_hindi_v2_cot_L0_diff.png)
+*Figure 7b: Hindi V2, layer 0 head 1 — Finetuned minus pretrained.*
+
+#### Hindi V2 — late layer (layer 7, head 1)
+
+![Hindi V2 layer 7: pretrained vs finetuned attention](figures/phase3_attn_hindi_v2_cot_pair.png)
+*Figure 8a: Hindi V2, layer 7 head 1 — Pretrained Base (left) vs. Finetuned CoT (right).*
+
+![Hindi V2 layer 7: attention difference](figures/phase3_attn_hindi_v2_cot_diff.png)
+*Figure 8b: Hindi V2, layer 7 head 1 — Finetuned minus pretrained.*
+
+#### Assamese V2 — early layer (layer 0, head 2)
+
+![Assamese V2 layer 0: pretrained vs finetuned attention](figures/phase3_attn_assamese_v2_cot_L0_pair.png)
+*Figure 9a: Assamese V2, layer 0 head 2 — Pretrained Base (left) vs. Finetuned CoT (right).*
+
+![Assamese V2 layer 0: attention difference](figures/phase3_attn_assamese_v2_cot_L0_diff.png)
+*Figure 9b: Assamese V2, layer 0 head 2 — Finetuned minus pretrained.*
+
+#### Assamese V2 — late layer (layer 7, head 5)
+
+![Assamese V2 layer 7: pretrained vs finetuned attention](figures/phase3_attn_assamese_v2_cot_pair.png)
+*Figure 10a: Assamese V2, layer 7 head 5 — Pretrained Base (left) vs. Finetuned CoT (right).*
+
+![Assamese V2 layer 7: attention difference](figures/phase3_attn_assamese_v2_cot_diff.png)
+*Figure 10b: Assamese V2, layer 7 head 5 — Finetuned minus pretrained.*
 
 ---
 
-### 7.2 Mechanistic Findings & Architectural Insights
+### 7.5 Findings
 
-1. **Early Layers (Layers 0 & 2) Retain Syntactic Stability**:
-   In both languages, Layer 0 exhibits low entropy ($\approx 0.9\text{--}1.1$ nats) tightly concentrated along the immediate sub-diagonal ($i - j \le 2$). Fine-tuning does *not* corrupt this foundational feature extractor; local syntactic parsing remains intact.
-2. **Intermediate Layers (Layer 5) Develop Premise Filtering Heads**:
-   At Layer 5, the model transitions from syntax to relational tracking. While the pretrained model exhibits diffuse, uniform attention across all preceding tokens ($\mathcal{H} = 1.23\text{--}1.66$ nats), the fine-tuned CoT model drops entropy by **$-25.2\%$ in Hindi** and **$-16.3\%$ in Assamese**. As visible in the vertical banding of Figures 5 and 6, intermediate heads develop specialized "entity retriever" behavior, suppressing distractors and attending almost exclusively to active subjects.
-3. **Late Layers (Layer 7) Execute Global Transitive Chaining**:
-   At Layer 7, the difference between pre-training and fine-tuning is most striking. In the pretrained base, attention decays smoothly with token distance. In contrast, the fine-tuned CoT heads establish direct long-range connections spanning across the prompt boundary:
-   - In Hindi, Layer 7 mean distance expands from $3.23 \to 4.06$ tokens (**$+25.7\%$**).
-   - In Assamese, Layer 7 mean distance expands from $3.98 \to 5.57$ tokens (**$+39.9\%$**). The terminal query tokens (*সকলোতকৈ*, *ওখ*, *কোন*, *হয়*) form a distinct, high-weight attention column directly to the primary entity token (*\_ৰাহুল*), traversing intervening distractor premises.
-4. **Script Differences & Subword Dispersion**:
-   In Hindi (Figure 5), entities like *अमित* (Amit) and *सुमित* (Sumit) are single tokens in the SentencePiece vocabulary, producing clean single-coordinate attention activations. In Assamese (Figure 6), inflectional morphology splits names like *বিকাশৰ* into root (*\_বিকাশ*) and genitive case (*ৰ*). Fine-tuning trains the attention mechanism to attend uniformly across both pieces, naturally increasing the baseline mean distance ($\bar{D} = 5.57$ vs $4.06$).
+1. **Early layers are preserved.**
+   Layers 0–2 change by at most 0.064 nats of JS divergence, with entropy and distance within a few percent. Fine-tuning leaves the local, lexical attention learned in pretraining intact, which is why the layer-0 difference maps (Figures 7b and 9b) are nearly blank apart from a few isolated cells.
+2. **The last two layers carry the change, and it is largest on answer tokens.**
+   Layer-7 divergence on answer rows reaches 0.280 (Hindi) and 0.267 (Assamese), against 0.127 and 0.138 on prompt rows. This matches the training objective: the loss is applied only to completion tokens, so the rows that produce the rationale and answer are reshaped most.
+3. **Late-layer attention becomes sharper (head specialization).**
+   Layer-7 entropy on answer rows drops by **27.1% in Hindi** and **22.4% in Assamese**; layer 5 drops by 11–12% in both. The finetuned heads concentrate on fewer keys.
+4. **Answer tokens look back at the premises more.**
+   The share of layer-7 answer-row attention that lands on the prompt rises from 0.69 to 0.82 (Hindi) and from 0.56 to 0.67 (Assamese), with a similar rise at layer 6. In Figure 8b the `<COT_START>`, `<COT_END>` and `<REL_DISJOINT>` rows gain weight on the two queried entity tokens inside the question clause.
+5. **Local vs. long-range: the shift is a redirection, not a uniform lengthening.**
+   In Assamese, mean attention distance on answer rows grows at layers 6 and 7 (+38.6% and +18.2%). In Hindi it is essentially flat at layer 7 (−1.0%) and up 8.9% at layer 6, even though attention to the prompt increases. Hindi's change is therefore better described as the same long-range budget being concentrated on specific premise tokens.
+
+### 7.6 Limitations
+
+- **Unfamiliar tokens in the pretrained model.** The pretrained checkpoint has never been trained on `<COT_START>` or the `<REL_*>` tokens, so part of the answer-row divergence reflects new input tokens and not learned reasoning. The prompt-row figures do not have this confound and still show a clear late-layer change.
+- **Gold completions.** Attention is measured with the correct completion fed in, not with the model's own generated output.
+- **Descriptive, not causal.** These statistics show where attention moved and by how much. They do not establish that a particular head implements a particular reasoning step; that would need ablation or patching experiments.
+- **Heatmaps are single examples.** Figures 7–10 illustrate the averaged result on one input each and should be read alongside Tables 7.1–7.4.
 
 ---
 

@@ -63,7 +63,7 @@ Shubhadeep Mandal \; (Roll No.\ 2025201056)\\
 \vspace{-2pt}
 
 \noindent\textbf{Abstract.}
-This report consolidates the whole project. In Phase~1 I built two strictly separate data pipelines and trained a 16{,}384-piece SentencePiece BPE tokenizer for each language; Hindi reached 723.32M cleaned tokens (20.55\% collected manually) and Assamese 528.50M (22.48\% manually). In Phase~2 I implemented and pretrained two $\sim$25M-parameter decoder-only transformers per language from scratch, a hand-written baseline (V1) and a modern variant (V2) with RoPE, SwiGLU and RMSNorm, on 500M tokens each. The modern model won everywhere: test perplexity 52.26 vs.\ 82.28 (Hindi) and 80.93 vs.\ 120.54 (Assamese). In Phase~3 I generated a leak-proof synthetic relational-reasoning suite and fine-tuned eight models (both architectures $\times$ direct SFT vs.\ chain-of-thought). Chain-of-thought training clearly improves output quality (answer F1, character similarity, decomposed step score), while direct SFT keeps a small edge in strict exact match. A four-layer attention study shows that fine-tuning sharpens entity-focused heads and increases the distance between query and premise tokens. The final section answers the four comparison questions from the assignment brief.
+This report consolidates the whole project. In Phase~1 I built two strictly separate data pipelines and trained a 16{,}384-piece SentencePiece BPE tokenizer for each language; Hindi reached 723.32M cleaned tokens (20.55\% collected manually) and Assamese 528.50M (22.48\% manually). In Phase~2 I implemented and pretrained two $\sim$25M-parameter decoder-only transformers per language from scratch, a hand-written baseline (V1) and a modern variant (V2) with RoPE, SwiGLU and RMSNorm, on 500M tokens each. The modern model won everywhere: test perplexity 52.26 vs.\ 82.28 (Hindi) and 80.93 vs.\ 120.54 (Assamese). In Phase~3 I generated a leak-proof synthetic relational-reasoning suite and fine-tuned eight models (both architectures $\times$ direct SFT vs.\ chain-of-thought). Chain-of-thought training clearly improves output quality (answer F1, character similarity, decomposed step score), while direct SFT keeps a small edge in strict exact match. An attention comparison averaged over 200 test examples per language shows that fine-tuning leaves the early layers almost unchanged and reshapes the last two: answer tokens attend more sharply and place more of their attention on the premises. The final section answers the four comparison questions from the assignment brief.
 
 \vspace{2pt}
 \noindent\footnotesize Artifacts. Phase~1 corpora and tokenizers: \url{https://www.kaggle.com/datasets/shubhadeepmandal/lma-hindi-artifacts} and \url{https://www.kaggle.com/datasets/shubhadeepmandal/lma-assamese-artifact}; Phase~2 checkpoints: \url{https://www.kaggle.com/datasets/shubhadeepmandal/lma-phase2-artifacts}; Phase~3 checkpoints: \url{https://www.kaggle.com/datasets/shubhadeepmandal/lma-phase3-artifact}. Code: \texttt{github.com/CL3-410/individual-project-Seronic2001} (branch \texttt{phase-3}).
@@ -286,34 +286,95 @@ Indeterminate & 0.0 & 0.0 & 0.0 & 4.1 \\
 The indeterminate row deserves a closer look. Both languages score near zero on strict EM because the gold answer is a fixed refusal template (\dv{दिए गए कथनों से यह निर्धारित नहीं किया जा सकता।} / \as{দিয়া তথ্যৰ পৰা এইটো নিৰ্ধাৰণ কৰিব নোৱাৰি}). Under the looser decision metric some models do begin to answer ``undetermined'' correctly (up to 36.5\% stance in Assamese V2 Direct). CoT models are actually \emph{worse} here: once \texttt{<COT\_START>} is emitted, the training prior demands an inequality chain, and the model fabricates a bridge (e.g.\ \as{কিশোৰ} \texttt{<REL\_GT>} \as{কিশোৰ}) instead of emitting \texttt{<REL\_DISJOINT>}. Recognising that \emph{no path exists} is a meta-cognitive operation that 25M parameters barely have room for, so CoT acts as a ``reasoning hammer'' that keeps looking for a transitive path even when there is none. This is a capacity limit rather than a data problem.
 
 \subsection{Attention before and after fine-tuning}
+\label{sec:attn}
 
-Following Section 3.2 of the assignment, I compared pretrained vs.\ CoT-finetuned checkpoints (Modern V2, both languages) at four depths, layers 0, 2, 5 and 7, measuring attention entropy (focus) and mean attention distance (reach):
+Following Section 3.2 of the assignment, I compared the pretrained and CoT-finetuned checkpoints (Modern V2, both languages). A single heatmap of one head on one sentence cannot separate a real change from noise, so the comparison is averaged over 200 held-out test examples per language, all 8 layers and all 6 heads. Each input is the prompt followed by the gold CoT completion, as in fine-tuning. Because the loss is applied only to completion tokens, I report \emph{prompt rows} (query token inside the prompt) and \emph{answer rows} (query token inside the completion) separately. The change is measured as the Jensen--Shannon (JS) divergence between the pretrained and finetuned attention distributions of the same query token (0 = identical, maximum $\ln 2 \approx 0.693$ nats).
 
 \begin{table}[H]
 \centering\footnotesize
-\caption{Pretrained $\to$ finetuned attention statistics (one representative head per layer).}
-\begin{tabular}{@{}lrrrr@{}}
+\caption{JS divergence between pretrained and finetuned attention (nats), mean over 200 test examples and 6 heads.}
+\label{tab:attn-jsd}
+\begin{tabular}{@{}llcccccccc@{}}
 \toprule
- & \multicolumn{2}{c}{\textbf{Hindi}} & \multicolumn{2}{c}{\textbf{Assamese}} \\
-\cmidrule(lr){2-3}\cmidrule(lr){4-5}
-Layer & $\Delta$entropy & $\Delta$mean dist & $\Delta$entropy & $\Delta$mean dist \\
+ & Layer & 0 & 1 & 2 & 3 & 4 & 5 & 6 & 7 \\
 \midrule
-0 (local lexical) & $+18.4\%$ & $+7.0\%$ & $+14.6\%$ & $+12.0\%$ \\
-2 (clause binding) & $+6.0\%$ & $+14.1\%$ & $-4.5\%$ & $-8.2\%$ \\
-5 (premise tracking) & $\mathbf{-25.2\%}$ & $-13.1\%$ & $\mathbf{-16.3\%}$ & $+18.5\%$ \\
-7 (transitive closure) & $-7.6\%$ & $\mathbf{+25.7\%}$ & $\mathbf{-19.7\%}$ & $\mathbf{+39.9\%}$ \\
+\multirow{2}{*}{Hindi} & Prompt rows & 0.024 & 0.024 & 0.027 & 0.035 & 0.044 & 0.052 & 0.101 & 0.127 \\
+ & Answer rows & 0.029 & 0.034 & 0.064 & 0.052 & 0.060 & 0.082 & 0.159 & \textbf{0.280} \\
+\midrule
+\multirow{2}{*}{Assamese} & Prompt rows & 0.014 & 0.014 & 0.034 & 0.039 & 0.070 & 0.074 & 0.099 & 0.138 \\
+ & Answer rows & 0.023 & 0.024 & 0.047 & 0.062 & 0.107 & 0.130 & 0.140 & \textbf{0.267} \\
 \bottomrule
 \end{tabular}
 \end{table}
 
 \begin{figure}[H]
 \centering
-\includegraphics[width=0.48\textwidth]{phase3_pretrain_vs_finetune_attention_hindi.png}\hfill
-\includegraphics[width=0.48\textwidth]{phase3_pretrain_vs_finetune_attention_assamese.png}
-\caption{Pretrained (left) vs.\ finetuned (right) attention at layers 0/2/5/7. Hindi left panel, Assamese right panel.}
+\includegraphics[width=0.49\textwidth]{phase3_attn_hindi_v2_cot_jsd.png}\hfill
+\includegraphics[width=0.49\textwidth]{phase3_attn_assamese_v2_cot_jsd.png}
+\caption{JS divergence by layer for Hindi (left) and Assamese (right). The grey curve is a single prompt-only sentence outside the training templates; it understates the change seen on real test examples.}
+\label{fig:attn-jsd}
 \end{figure}
 
-The pattern is consistent across both languages. Early layers keep their local, syntactic job (entropy roughly unchanged, short distances), while mid and late layers specialise: entropy drops sharply as heads lock onto premise entities and suppress distractors, and mean attention distance grows as the final query tokens reach back across intervening premises to the root entity. In Assamese the effect is stronger at layer 7 ($+39.9\%$ distance) partly because names like \as{বিকাশৰ} split into root + case suffix, so heads must attend across two subword pieces to pin one entity.
+\begin{table}[H]
+\centering\footnotesize
+\caption{Answer-row attention statistics, pretrained $\to$ finetuned. ``To prompt'' is the share of attention mass that lands on prompt tokens.}
+\label{tab:attn-stats}
+\begin{tabular}{@{}lcccccc@{}}
+\toprule
+ & \multicolumn{3}{c}{\textbf{Hindi}} & \multicolumn{3}{c}{\textbf{Assamese}} \\
+\cmidrule(lr){2-4}\cmidrule(lr){5-7}
+Layer & $\Delta$entropy & $\Delta$mean dist & To prompt & $\Delta$entropy & $\Delta$mean dist & To prompt \\
+\midrule
+0 & $+2.3\%$ & $-2.6\%$ & 0.56 $\to$ 0.54 & $+8.0\%$ & $-1.0\%$ & 0.63 $\to$ 0.62 \\
+2 & $-2.1\%$ & $-5.6\%$ & 0.66 $\to$ 0.61 & $-2.9\%$ & $-2.8\%$ & 0.63 $\to$ 0.62 \\
+5 & $-11.5\%$ & $-8.2\%$ & 0.38 $\to$ 0.34 & $-12.4\%$ & $+1.5\%$ & 0.57 $\to$ 0.60 \\
+6 & $-5.0\%$ & $+8.9\%$ & 0.49 $\to$ 0.59 & $+3.3\%$ & $\mathbf{+38.6\%}$ & 0.32 $\to$ 0.44 \\
+7 & $\mathbf{-27.1\%}$ & $-1.0\%$ & 0.69 $\to$ \textbf{0.82} & $\mathbf{-22.4\%}$ & $\mathbf{+18.2\%}$ & 0.56 $\to$ \textbf{0.67} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Figures~\ref{fig:attn-hi-l0}--\ref{fig:attn-diff} show one early and one late layer per model on the first test example of each language (an indeterminate item), using the head that changed most on answer rows. Red lines mark the prompt/answer boundary: rows below the horizontal line are answer tokens, columns left of the vertical line are prompt tokens.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=\textwidth]{phase3_attn_hindi_v2_cot_L0_pair.png}
+\caption{Hindi V2, early layer (layer 0, head 1): pretrained (left) vs.\ finetuned (right).}
+\label{fig:attn-hi-l0}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=\textwidth]{phase3_attn_hindi_v2_cot_pair.png}
+\caption{Hindi V2, late layer (layer 7, head 1): pretrained (left) vs.\ finetuned (right).}
+\label{fig:attn-hi-l7}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=\textwidth]{phase3_attn_assamese_v2_cot_L0_pair.png}
+\caption{Assamese V2, early layer (layer 0, head 2): pretrained (left) vs.\ finetuned (right).}
+\label{fig:attn-as-l0}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=\textwidth]{phase3_attn_assamese_v2_cot_pair.png}
+\caption{Assamese V2, late layer (layer 7, head 5): pretrained (left) vs.\ finetuned (right).}
+\label{fig:attn-as-l7}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.49\textwidth]{phase3_attn_hindi_v2_cot_diff.png}\hfill
+\includegraphics[width=0.49\textwidth]{phase3_attn_assamese_v2_cot_diff.png}
+\caption{Finetuned minus pretrained attention for the layer-7 heads above (Hindi left, Assamese right). Red = attention gained, blue = attention lost.}
+\label{fig:attn-diff}
+\end{figure}
+
+The pattern is the same in both languages. \emph{Early layers are preserved}: layers 0--2 change by at most 0.064 nats, so fine-tuning leaves the local, lexical attention learned in pretraining intact. \emph{The last two layers carry the change, and it is largest on answer tokens} (0.280 and 0.267 at layer 7, against 0.127 and 0.138 on prompt rows), which matches a loss applied only to the completion. \emph{Late-layer heads become sharper}: layer-7 entropy on answer rows drops by 27.1\% in Hindi and 22.4\% in Assamese. \emph{Answer tokens look back at the premises more}: the share of layer-7 attention landing on the prompt rises from 0.69 to 0.82 (Hindi) and from 0.56 to 0.67 (Assamese). On local vs.\ long-range attention the two languages differ: in Assamese the mean attention distance grows at layers 6 and 7 ($+38.6\%$, $+18.2\%$), while in Hindi it is flat at layer 7 ($-1.0\%$), so the Hindi change is a concentration of existing long-range attention onto specific premise tokens, not a lengthening.
+
+Three limits apply. The pretrained model has never been trained on \texttt{<COT\_START>} or the \texttt{<REL\_*>} tokens, so part of the answer-row divergence reflects unfamiliar input; the prompt-row numbers do not have this confound and still show a clear late-layer change. Attention is measured with the gold completion fed in, not the model's own output. And these statistics describe where attention moved; they do not show that a particular head implements a particular reasoning step.
 
 % ============================ QUESTIONS ============================
 \section{The four comparison questions}
@@ -335,7 +396,7 @@ Reasoning results follow the same ordering with a similar nuance. Best strict EM
 
 \begin{enumerate}
   \item \textbf{Fertility.} 1.4426 vs 1.1858 tokens/word means every Assamese sentence costs $\sim$22\% more context positions. For multi-hop prompts this directly shortens how much premise material fits in the window, and it inflates token-level PPL.
-  \item \textbf{Conjunct fragmentation.} Eastern Nagari conjuncts (\as{ক্ষ}, \as{জ্ঞ}, \as{ত্ত}) and inflectional suffixes split into multiple pieces; the attention analysis shows heads must cover root + suffix separately (higher layer-7 attention distance, 5.57 vs 4.06 tokens finetuned).
+  \item \textbf{Conjunct fragmentation.} Eastern Nagari conjuncts (\as{ক্ষ}, \as{জ্ঞ}, \as{ত্ত}) and inflectional suffixes split into multiple pieces, so a single entity occupies several attention positions (e.g.\ \as{বিনীতাৰ} is three pieces in Figure~\ref{fig:attn-as-l7}).
   \item \textbf{Vocabulary size choice.} A 32K vocab would have compressed Assamese better (1.31 fertility), but at 25M parameters the embedding cost would have eaten two transformer layers for both languages. 16K was the right trade-off for \emph{model} quality even though it is not optimal for Assamese \emph{tokenisation} in isolation.
   \item \textbf{Corpus register.} The textbook-heavy Assamese manual share provided clean, consistent case morphology (\as{-ৰ}, \as{-ক}, \as{-তকৈ}), which suits the Phase~3 templates, but the overall register mix is thinner than Hindi's news, literature and web text.
 \end{enumerate}
@@ -344,7 +405,7 @@ Reasoning results follow the same ordering with a similar nuance. Best strict EM
 
 \begin{itemize}
   \item The fine-tuned scores reflect learning rather than memorisation. Zero-shot (pretrained, no SFT), all eight models score 0.0--0.2\% strict EM on the reasoning test (16--34\% stance, barely above chance), so the Phase~3 accuracies come from SFT on fully disjoint entities.
-  \item The attention study points to a concrete mechanism. After CoT fine-tuning, mid-layer entropy drops 16--25\% (entity-focused heads) and late-layer attention distance grows 26--40\% (query-to-premise binding). This is what we would expect from a model that learned to chain premises, and it shows up in both languages.
+  \item The attention study shows where fine-tuning acted. Averaged over 200 test examples, early layers are almost unchanged, while at layer 7 the answer tokens attend 22--27\% more sharply (entropy) and place more of their attention on the premises (0.69 $\to$ 0.82 in Hindi, 0.56 $\to$ 0.67 in Assamese). This is consistent with a model that learned to consult the premises while writing its rationale, and it shows up in both languages; it is descriptive evidence, not a causal test (Section~\ref{sec:attn}).
   \item The failure modes are systematic. Greedy generation collapse (rep-3 75--77\%) in Phase~2 and the CoT ``compulsion to reason'' on indeterminate queries in Phase~3 have the same root cause: a small model's strong training prior overriding the actual input. CoT helps when a chain exists and hurts when the correct answer is to stop.
   \item Capacity is the main constraint. Where the two languages behave alike (architecture deltas, temperature behaviour, negation curriculum effects) the explanation is general; where they differ (fertility, conjunct splitting, the EM gap) the explanation traces back to tokenisation and corpus supply, since both pipelines are otherwise identical.
 \end{itemize}
