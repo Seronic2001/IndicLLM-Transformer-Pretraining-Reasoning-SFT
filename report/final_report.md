@@ -12,7 +12,7 @@
 
 ## Executive Abstract
 
-We design, build, pretrain, and evaluate two completely independent monolingual decoder-only Transformer Language Models (~25.6M parameters each) from scratch in PyTorch without any pretrained initialization or cross-lingual weight sharing. Through multi-source web crawling and digital OCR extraction of educational textbooks, we curated balanced **500M+ token corpora** for both languages, meeting the mandatory $\ge 20\%$ manual collection threshold. Custom 16,384-vocabulary SentencePiece BPE tokenizers achieve character coverage $>99.99\%$ with $0.0\%$ unknown token rate. Pretraining on 500M tokens across 1,907 optimizer steps yields smooth convergence and competitive held-out test perplexities ($52.26$ for Hindi V2, $80.93$ for Assamese V2). In Phase 3, we formulate an anti-leakage relational reasoning solver and conduct Supervised Fine-Tuning across an 8-model experimental matrix ($4 \times 2$: Baseline V1 vs. Modern V2 $\times$ Direct SFT vs. Chain-of-Thought). Chain-of-Thought SFT combined with a controlled 5% negation curriculum yields dramatic performance improvements (+101.7% relative gain in Assamese, achieving 63.83% accuracy on negated logic queries and +13.5% to +27.7% relative boost in Token $F_1$), effectively closing the reasoning gap between the resource tiers.
+We design, build, pretrain, and evaluate two completely independent monolingual decoder-only Transformer Language Models (~25M parameters each) from scratch in PyTorch without any pretrained initialization or cross-lingual weight sharing. Through multi-source web crawling and digital OCR extraction of educational textbooks, we curated balanced **500M+ token corpora** for both languages, meeting the mandatory $\ge 20\%$ manual collection threshold. Custom 16,384-vocabulary SentencePiece BPE tokenizers achieve character coverage $>99.99\%$ with $0.0\%$ unknown token rate. Pretraining on 500M tokens across 1,907 optimizer steps yields smooth convergence and competitive held-out test perplexities ($52.26$ for Hindi V2, $80.93$ for Assamese V2). In Phase 3, we formulate an anti-leakage relational reasoning solver and conduct Supervised Fine-Tuning across an 8-model experimental matrix ($4 \times 2$: Baseline V1 vs. Modern V2 $\times$ Direct SFT vs. Chain-of-Thought). Fine-tuning lifts strict answer accuracy from about 0% zero-shot to 38.2–44.0% in Hindi and 11.8–29.4% in Assamese. Direct SFT keeps a small edge over Chain-of-Thought on strict accuracy and answer-level Token $F_1$ in every pair; Chain-of-Thought adds a scratchpad that can be verified (graph validity up to 9.4%, decomposed step score up to 51.6%). The resource gap between the two languages persists on every metric.
 
 ---
 
@@ -25,7 +25,7 @@ We design, build, pretrain, and evaluate two completely independent monolingual 
 | Phase 1: Data & Tokenization       | Phase 2: Architecture & Pretraining| Phase 3: Symbolic Reasoning   |
 | • 723M tokens (Hindi, 20.55% man)  | • Hand-written Decoder-Only GPT    | • Synthetic relational graphs |
 | • 528M tokens (Assam, 22.48% man)  | • V1 Baseline (Pre-LN, GELU, pos)  | • Anti-leakage entity pools   |
-| • MinHash LSH deduplication (s=0.8)| • V2 Modern (RMSNorm, SwiGLU, RoPE)| • Direct vs. CoT SFT          |
+| • MinHash LSH deduplication (s=0.6)| • V2 Modern (RMSNorm, SwiGLU, RoPE)| • Direct vs. CoT SFT          |
 | • Custom 16K BPE Tokenizers        | • 500M pretraining budget (AdamW)  | • Multi-tier metric suite     |
 | • Byte-fallback (<unk> = 0.0%)     | • Test PPL: 52.26 (HI), 80.93 (AS) | • Negation curriculum         |
 +------------------------------------+------------------------------------+-------------------------------+
@@ -44,7 +44,7 @@ Both languages satisfy the $\sim 500\text{M}$ token requirement with $>20\%$ man
 | **Script Family** | Devanagari (`U+0900–U+097F`) | Eastern Nagari (`U+0980–U+09FF`) | Non-English Indian Languages |
 | **Total Pretraining Tokens** | **723,321,981 (~723.32M)** | **528,500,000 (~528.50M)** | $\sim 500\text{M}$ target |
 | **Manual Collection Fraction** | **148,676,877 (20.55%)** | **118,800,000 (22.48%)** | $\ge 20.0\%$ mandatory |
-| **Deduplication Method** | MinHash LSH ($s=0.8, 64$ hashes) | MinHash LSH ($s=0.8, 64$ hashes) | Exact / near-dup removal |
+| **Deduplication Method** | MinHash LSH ($s=0.6$) | MinHash LSH ($s=0.6$) | Exact / near-dup removal |
 | **Vocabulary Size** | 16,384 pieces | 16,384 pieces | $\ge 10\text{k}$ recommended |
 | **Unknown Token Rate (`<unk>`)** | **0.000000%** | **0.000000%** | Byte fallback enabled |
 | **Subword Fertility** | 1.1858 tokens / word | 1.4426 tokens / word | Optimal compression |
@@ -85,34 +85,34 @@ Pretraining was conducted on dedicated Nvidia GPUs with mixed precision fp16 (AM
 
 ### 2.3 Phase 3: Symbolic Reasoning Benchmark Matrix (8 Models)
 
-Supervised fine-tuning across 20,000 synthetic reasoning examples evaluated on 2,000 held-out examples with strictly disjoint entity pools:
+Supervised fine-tuning on 20,000 synthetic reasoning examples, evaluated on 500 held-out test queries per model with strictly disjoint entity pools (numbers from `report/finetuning_eval.json`; "—" marks scratchpad metrics that do not apply to Direct SFT):
 
-| Model Key | Language | Architecture | SFT Mode | Strict Acc (Ans) | Decision Acc | Token F1 (Ans) | Char Sim | CoT Decomp |
-| :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
-| **Hindi V1 Direct** | Hindi | Baseline V1 | Direct | 40.80% | 39.80% | 73.83% | 76.33% | 44.30% |
-| **Hindi V1 CoT** | Hindi | Baseline V1 | CoT | **42.80%** | **42.20%** | **81.31%** | **83.28%** | **58.46%** |
-| **Hindi V2 Direct** | Hindi | Modern V2 | Direct | 40.00% | 39.80% | 70.07% | 72.58% | 42.04% |
-| **Hindi V2 CoT** | Hindi | Modern V2 | CoT | 37.40% | 40.20% | 80.13% | 81.88% | 55.06% |
-| **Assamese V1 Direct**| Assamese| Baseline V1 | Direct | **27.60%** | **41.40%** | 62.35% | 69.95% | 37.41% |
-| **Assamese V1 CoT** | Assamese| Baseline V1 | CoT | 20.40% | 41.00% | **62.77%** | 69.08% | **44.78%** |
-| **Assamese V2 Direct**| Assamese| Modern V2 | Direct | 10.60% | 28.80% | 41.55% | 52.86% | 24.93% |
-| **Assamese V2 CoT** | Assamese| Modern V2 | CoT | 6.20% | 38.00% | 50.30% | 58.82% | 35.98% |
+| Model Key | Language | Architecture | SFT Mode | Strict Acc (Ans) | Decision Acc | Graph Valid | Token F1 (Ans) | Char Sim | CoT Decomp |
+| :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
+| **Hindi V1 Direct** | Hindi | Baseline V1 | Direct | **44.00%** | 38.00% | — | **83.30%** | **85.10%** | — |
+| **Hindi V1 CoT** | Hindi | Baseline V1 | CoT | 40.60% | 40.40% | **9.40%** | 81.89% | 83.72% | 50.80% |
+| **Hindi V2 Direct** | Hindi | Modern V2 | Direct | 42.40% | **40.80%** | — | 82.27% | 84.19% | — |
+| **Hindi V2 CoT** | Hindi | Modern V2 | CoT | 38.20% | 38.00% | 6.40% | 82.04% | 84.51% | **51.64%** |
+| **Assamese V1 Direct**| Assamese| Baseline V1 | Direct | **29.40%** | 34.60% | — | **66.78%** | **75.36%** | — |
+| **Assamese V1 CoT** | Assamese| Baseline V1 | CoT | 24.60% | **34.80%** | 1.80% | 65.16% | 72.90% | **39.52%** |
+| **Assamese V2 Direct**| Assamese| Modern V2 | Direct | 21.00% | 30.40% | — | 56.33% | 66.36% | — |
+| **Assamese V2 CoT** | Assamese| Modern V2 | CoT | 11.80% | 29.20% | **3.00%** | 50.65% | 59.29% | 30.65% |
 
 ![Phase 3 Answer Accuracy Comparison](figures/phase3_reasoning_accuracy_comparison.png)
 *Figure 2.5: Direct SFT vs. Chain-of-Thought (CoT) Answer Accuracy across Hindi and Assamese (V1 Baseline vs. V2 Modern).*
 
 ![Multi-Tier Token F1 Comparison](figures/phase3_multi_tier_f1_comparison.png)
-*Figure 2.6: Continuous Multi-Tier Token F1 gains unlocked by Chain-of-Thought reasoning scratchpads.*
+*Figure 2.6: Answer-level Token F1 for Direct SFT and Chain-of-Thought models.*
 
 ![Continuous Quality & Decomposed CoT Score](figures/phase3_char_similarity_and_decomp.png)
-*Figure 2.7: Continuous multi-tier evaluation showing dramatic character similarity and decomposed CoT step score improvements.*
+*Figure 2.7: Character similarity for all models and the decomposed CoT step score for CoT models.*
 
 ![Per-Paradigm CoT Reasoning Accuracy Breakdown: Hindi vs. Assamese](figures/phase3_per_paradigm_breakdown.png)
-*Figure 2.8: Reasoning Accuracy Across 6 Symbolic Logic Paradigms (Conversational, Indeterminate, Multi-Hop, Negation, Transitive, Word Problem) under CoT SFT. Hindi (Left) maintains balanced deductive reasoning across conversational, multi-hop, and word problems (~44–59%), while Assamese (Right) achieves strong semantic decision stance on Negation (57.5%) and Transitive chains (51.3%), outperforming rigid exact match.*
+*Figure 2.8: Reasoning accuracy across the six paradigms (Conversational, Indeterminate, Multi-Hop, Negation, Transitive, Word Problem) under CoT SFT, Hindi (left) and Assamese (right). Exact per-paradigm values are tabulated in the Phase 3 report, Section 6.*
 
 *Analytical Contrast across Phase 3 Figures*:
-1. **The Strict vs. Continuous Duality (Figure 2.5 vs. Figure 2.6 & 2.7)**: Comparing Figure 2.5 against Figures 2.6 and 2.7 exposes the fundamental inadequacy of relying exclusively on strict answer accuracy. Under hardened premise chains, Direct SFT achieves strict answer accuracy of 40.80% in Hindi and 27.60% in Assamese. However, CoT triggers massive multi-tier gains—elevating Hindi V1 Answer F1 to 81.31% (+10.1% relative) and Hindi V2 to 80.13% (+14.4% relative), elevating Character Similarity to 83.28% and 81.88%, and securing a 58.46% (Hindi) and 44.78% (Assamese) decomposed intermediate step score. In Assamese, while strict exact match is penalized by morphological case suffixes (20.40% / 6.20%), semantic decision stance confirms robust logical derivation reaching 41.00% and 38.00%. CoT models genuinely construct valid logical reasoning trajectories.
-2. **Cross-Language Paradigm Robustness (Figure 2.8)**: Contrasting the Hindi and Assamese panels in Figure 2.8 highlights the behavioral divergence across resource tiers. Hindi models demonstrate balanced competence across all six reasoning paradigms, showing strong performance on complex multi-hop transitive chains ($A > B > C > D$) and word problems (58.9% in V1 CoT). In Assamese, the 5% negation curriculum successfully equips Assamese with bidirectional polarity reasoning (reaching 57.5% Decision Stance in V1 and 49.3% in V2) and strong transitive reasoning (51.3% in V1 and 47.4% in V2), proving authentic intermediate relational graph construction.
+1. **Strict vs. Continuous Metrics (Figure 2.5 vs. Figures 2.6 & 2.7)**: Strict answer accuracy is 38.2–44.0% in Hindi and 11.8–29.4% in Assamese, while answer-level Token $F_1$ is 81.9–83.3% and 50.7–66.8%. The gap shows that models usually produce the right sentence frame and entities and slip on the relation word or an inflection. Direct SFT is slightly ahead of CoT on both strict accuracy and Token $F_1$ in every pair; CoT models additionally produce a scratchpad, scored by the decomposed step score (50.80% and 51.64% in Hindi, 39.52% and 30.65% in Assamese) and by solver-verified graph validity (9.4% and 6.4% in Hindi, 1.8% and 3.0% in Assamese).
+2. **Cross-Language Paradigm Profile (Figure 2.8)**: Hindi is fairly even across the five solvable paradigms (39.7–56.4% strict accuracy) and scores 0% strict on indeterminate queries. Assamese is lower throughout (8.4–36.2%). On negated premises, decision stance reaches 50.6–56.6% in Hindi and 30.1–48.2% in Assamese; the best Assamese figure (48.2%, V1 CoT) is close to the corresponding Hindi one (50.6%).
 
 ---
 
@@ -134,12 +134,10 @@ Supervised fine-tuning across 20,000 synthetic reasoning examples evaluated on 2
 1. **Pretraining Convergence Gap**:
    * Hindi reached a lower test perplexity ($52.26$) than Assamese ($80.93$). This $\Delta \approx 28.67$ PPL gap directly reflects the higher morphological complexity and conjunct ligature density in Eastern Nagari, where rare compound characters incur higher cross-entropy loss.
 2. **Reasoning Acquisition Divergence**:
-   * While Direct SFT reflects pretraining scale advantages, Chain-of-Thought fine-tuning unlocks consistent multi-tier improvements across all models:
-     - Hindi V1 CoT: Answer $F_1$ reaches **81.31%** (+10.1% rel over Direct's 73.83%), Char Sim **83.28%**, Decomposed CoT score **58.46%**.
-     - Hindi V2 CoT: Answer $F_1$ reaches **80.13%** (+14.4% rel over Direct's 70.07%), Char Sim **81.88%**, Decomposed CoT score **55.06%**.
-     - Assamese V1 CoT: Answer $F_1$ reaches **62.77%**, Char Sim **69.08%**, Decomposed CoT score **44.78%**, Semantic Decision Stance **41.00%**.
-     - Assamese V2 CoT: Answer $F_1$ reaches **50.30%** (+21.1% rel over Direct's 41.55%), Char Sim **58.82%**, Decomposed CoT score **35.98%**, Semantic Decision Stance **38.00%**.
-   * This confirms that autoregressive reasoning scratchpads provide vital multi-step guidance across both high-resource and low-resource Indic language models.
+   * The ordering carries over to reasoning. Best strict answer accuracy is **44.0%** in Hindi (V1 Direct) against **29.4%** in Assamese (V1 Direct); best decision accuracy is 40.8% against 34.8%.
+   * Direct SFT vs. Chain-of-Thought is a trade-off, not a win for CoT. Direct is ahead on strict accuracy in all four pairs (44.0 vs. 40.6, 42.4 vs. 38.2, 29.4 vs. 24.6, 21.0 vs. 11.8) and on answer Token $F_1$ in all four (83.3 vs. 81.9, 82.3 vs. 82.0, 66.8 vs. 65.2, 56.3 vs. 50.7). Decision accuracy is within about 3 points either way.
+   * What CoT adds is a verifiable scratchpad: graph validity of 9.4% / 6.4% (Hindi V1 / V2) and 1.8% / 3.0% (Assamese), and decomposed step scores of 50.8% / 51.6% and 39.5% / 30.7%.
+   * The gap between languages is larger on surface form than on the decision: Assamese trails Hindi by 15–26 points on strict accuracy but by 6–9 points on decision accuracy.
 
 ---
 
@@ -158,9 +156,9 @@ Supervised fine-tuning across 20,000 synthetic reasoning examples evaluated on 2
 
 We present four empirical pillars explaining the performance dynamics:
 
-1. **Inductive Bias of Positional Encodings (V1 vs. V2)**:
-   * V1 Baseline uses **Absolute Positional Embeddings**, creating static coordinate registers for each position index $t \in [0, 511]$. In rigid synthetic reasoning prompts with invariant sentence structures, V1 easily memorizes that the subject is at index $k_1$ and the attribute is at index $k_2$.
-   * V2 Modern uses **Rotary Position Embeddings (RoPE)**, where relative distances govern attention. While RoPE excels at continuous open-domain text (yielding 33–36% lower perplexity in Phase 2), it requires explicit step tokens (Chain-of-Thought) to bridge relative coordinate hops during symbolic deduction.
+1. **Architecture Ordering Reverses Between Pretraining and Reasoning (V1 vs. V2)**:
+   * V2 Modern is clearly better at language modelling (33–36% lower test perplexity in Phase 2), but V1 Baseline is equal or better at the reasoning task: 44.0% vs. 42.4% strict accuracy in Hindi (Direct) and 29.4% vs. 21.0% in Assamese (Direct).
+   * One possible reason is that V1's absolute positional embeddings suit the rigid, fixed-layout reasoning templates, while RoPE's relative positions give no such anchor. This was not tested with an ablation.
 2. **Attention Redistribution After Fine-Tuning (Section 3.2)**:
    * Pretrained and CoT-finetuned V2 checkpoints were compared on 200 held-out test examples per language, averaged over all 8 layers and 6 heads, with prompt tokens and answer tokens reported separately. Early layers are almost unchanged (Jensen–Shannon divergence at most 0.064 nats in layers 0–2), while layer 7 changes most, and most on answer tokens (**0.280** in Hindi, **0.267** in Assamese; maximum possible 0.693).
    * At layer 7, answer-token attention entropy drops by **$27.1\%$** (Hindi) and **$22.4\%$** (Assamese), and the share of answer-token attention landing on the prompt rises from 0.69 to 0.82 (Hindi) and from 0.56 to 0.67 (Assamese). Mean attention distance grows in Assamese (+18.2% at layer 7, +38.6% at layer 6) but is flat in Hindi (−1.0% at layer 7).
@@ -186,14 +184,15 @@ We present four empirical pillars explaining the performance dynamics:
 *Reading the figures*:
 - **Where the change is**: the early-layer pairs (Figures 3.3, 3.5) are nearly identical before and after, while the late-layer pairs (Figures 3.4, 3.6) differ clearly below the horizontal red line, i.e. on answer tokens. This matches a fine-tuning loss applied only to the completion.
 - **What the change is**: late-layer answer tokens attend more sharply and look back at the premises more. This is descriptive evidence of where attention moved; it does not establish that a particular head implements a particular reasoning step. The pretrained model has also never been trained on the `<COT_START>`/`<REL_*>` tokens, so part of the answer-token divergence reflects unfamiliar input. Full tables are in the Phase 3 report, Section 7.
-3. **Negation Curriculum Generalization**:
-   * Baseline models without negative examples failed completely (0.0% accuracy on negation queries). Introducing a 5% disjoint-entity negation curriculum enabled Assamese to reach **$63.83\%$ accuracy**, demonstrating genuine polarity inversion rather than superficial pattern matching.
-4. **Token F1 vs. Strict Exact Match**:
-   * Continuous multi-tier metrics prove that models produce semantically valid answers even when string-level exact match fails: Hindi V1 CoT achieves **$74.20\%$ Token $F_1$** and **$79.80\%$ Character Similarity**, confirming high deductive comprehension.
-5. **Dynamic Prompt Lemma Whitelisting & Error Taxonomy Evolution (750 Steps)**:
-   * Extending fine-tuning to 750 steps with dynamic prompt lemma whitelisting (`lemmatize_entity_safely` and `extract_prompt_lemma_token_ids`) and 85% balanced anti-echo contrastive sampling eliminated genuine entity hallucinations from $66.7\%$ to **$0.0\%$ across all 8 models**.
-   * In `Hindi V2 CoT`, decision stance accuracy reached **$50.0\%$** (and **$80.0\%$ on Transitive chains**), producing structurally valid solver derivation graphs for the first time (**$10.0\%$ overall, $60.0\%$ on Indeterminate queries**).
-   * Direct models exhibited acute vulnerability to **question polarity priming** ($30\text{--}43\%$ inverted polarity errors caused by parroting the prompt's question clause), which Chain-of-Thought systematically resolves through explicit intermediate relational graph construction.
+3. **Fine-Tuning Is What Produces the Exact-Match Scores**:
+   * Zero-shot (pretrained, no SFT, same decoding), all eight models score 0.0–0.2% strict answer accuracy on the 500 test queries; after SFT they score 11.8–44.0%, on entities never seen in training.
+   * Decision accuracy is a weaker signal. It rises for both V1 models (16–20% to 35–40%) and for Hindi V2 (30% to 38–41%), but not for Assamese V2 (33–34% zero-shot, 29–30% after SFT). For that model, fine-tuning taught the answer format more than the decision.
+4. **Negation**:
+   * Negated premises make up about 18% of training examples. On the held-out negation queries, fine-tuned strict accuracy is 50.6–55.4% in Hindi and 8.4–36.1% in Assamese, with decision stance of 50.6–56.6% and 30.1–48.2%. Zero-shot strict accuracy on the same queries is 0%.
+5. **Token F1 vs. Strict Exact Match**:
+   * Continuous metrics show that outputs are close to the target even when exact match fails: Hindi V1 CoT reaches **81.9% Token $F_1$** and **83.7% Character Similarity** at 40.6% strict accuracy; Assamese V1 CoT reaches 65.2% and 72.9% at 24.6%.
+6. **Indeterminate Queries Remain Unsolved**:
+   * Strict accuracy on queries with no deductive path is 0% for seven of the eight models (4.1% for Assamese V2 CoT). Decision stance reaches at most 36.5% (Assamese V2 Direct) and 12.2% in Hindi. Indeterminate items are about 10% of the training mix; we did not test whether a larger share or a larger model would fix this.
 
 ---
 

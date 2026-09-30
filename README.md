@@ -90,9 +90,9 @@ python -m assamese.eval.attention_analysis --checkpoint <assamese-best.pt> \
 
 Phase 3 formulates anti-leakage symbolic relational reasoning datasets and evaluates **Direct Supervised Fine-Tuning (Direct SFT)** versus **Chain-of-Thought Fine-Tuning (CoT SFT)** across an 8-model experimental matrix ($4 \times 2$: V1 Baseline vs. V2 Modern $\times$ Direct SFT vs. CoT).
 
-* **Zero-Leakage Guarantee**: Disjoint entity sets (20 train entities vs. 15 held-out test entities). No test entity was ever seen in training.
+* **Zero-Leakage Guarantee**: Disjoint entity pools (236 training names plus ~30 abstract symbols vs. 15 held-out names: 7 validation, 8 test). No held-out entity was ever seen in training.
 * **Target-Only Prompt-Masked Loss**: Prompts masked with `ignore_index = -100` so 100% of gradient updates target reasoning steps and answers.
-* **5% Negation Curriculum**: Controlled negative polarity instances within the training pool, completely resolving negative polarity collapse.
+* **Negation Curriculum**: Negated premises make up about 18% of training examples, all within the training pool; fine-tuned models reach 50.6–55.4% (Hindi) and 8.4–36.1% (Assamese) strict accuracy on held-out negation queries.
 * **Multi-Tier Continuous Metrics**: Evaluated across 4 tiers: Strict Exact Match, Token $F_1$, Normalized Levenshtein Character Similarity, and Decomposed CoT Graph Credit.
 
 ### 📊 Comprehensive 8-Model Benchmark Matrix (Hardened Multi-Hop & Anti-Leakage Suite)

@@ -9,13 +9,13 @@
 
 ## 1. Executive Summary & Experimental Design
 
-Phase 3 evaluates the acquisition of symbolic relational and multi-hop reasoning in compact, monolingual Transformer Language Models (~25.6M parameters) trained from scratch without pretrained initialization. We conduct a rigorous head-to-head empirical investigation contrasting:
+Phase 3 evaluates the acquisition of symbolic relational and multi-hop reasoning in compact, monolingual Transformer Language Models (~25M parameters: 24.98M for V1, 25.17M for V2) trained from scratch without pretrained initialization. We conduct a rigorous head-to-head empirical investigation contrasting:
 1. **Direct Supervised Fine-Tuning (Direct SFT)**: Autoregressively mapping a multi-premise reasoning prompt directly to the final deductive answer.
 2. **Chain-of-Thought Supervised Fine-Tuning (CoT SFT)**: Autoregressively producing intermediate reasoning traces (premise formalization, step-by-step transitive chaining, and negation resolution) before committing to the final answer.
 
 Across both **Hindi** (Model H, higher-resource) and **Assamese** (Model L, lower-resource), we fine-tune and evaluate across two distinct architectural generations:
 * **Version 1.0 (Baseline LM)**: Hand-written Pre-LN Transformer, GELU activation ($d_{\text{ff}}=2240$), Absolute Learned Positional Embeddings.
-* **Version 2.0 (Modern LM)**: Pre-RMSNorm, SwiGLU Gated Multi-Layer Perceptrons ($d_{\text{ff}}=1376$), Rotary Position Embeddings (RoPE), Greedy Argmax Decoding.
+* **Version 2.0 (Modern LM)**: Pre-RMSNorm, SwiGLU Gated Multi-Layer Perceptrons ($d_{\text{ff}}=1536$), Rotary Position Embeddings (RoPE), Greedy Argmax Decoding.
 
 ```
 +---------------------------------------------------------------------------------------+
@@ -42,23 +42,23 @@ The reasoning suite covers six distinct comparative and deductive logic paradigm
 1. **Transitive Chain Reasoning**: Given $A > B$ and $B > C$, determine the extremity or ordering between $A$ and $C$.
 2. **Multi-Hop Relational Deduction**: Two-hop relational chains across three entities ($A > B, B > C \implies A \text{ vs. } C$) with distractor premises and non-linear premise presentation:
    $$\text{Premises}: X > Y, Y > Z \implies \text{Query}: X \text{ vs. } Z$$
-3. **Word Problems**: Real-world attribute grounding across 5 distinct domains:
-   * **Hindi**: उम्र (age), लंबाई (height), बचत (savings), वज़न (weight), गति (speed).
-   * **Assamese**: বয়স (age), ওখ/উচ্চতা (height), সঞ্চয় (savings), ওজন (weight), বেগ/গতি (speed).
+3. **Word Problems**: Narrative framing over three attributes:
+   * **Hindi**: उम्र (age), लंबाई (height), बचत (savings).
+   * **Assamese**: বয়স (age), উচ্চতা (height), সঞ্চয় (savings).
 4. **Conversational Multi-Party Reasoning**: Multi-turn dialogue scenarios involving comparative claims between dialogue participants.
 5. **Bidirectional Negation Curriculum**: Controlled negation statements (e.g., "A, B से छोटा नहीं है") requiring polarity inversion.
-6. **Indeterminate Logic (Disjoint Component Deduction)**: Premise graphs where the queried pair belongs to disjoint, disconnected relational clusters ($A \mathrel{\text{disjoint}} B$), requiring the model to deduce indeterminate stance ("दिए गए कथनों से यह निर्धारित नहीं किया जा सकता।" / "দিয়া তথ্যৰ পৰা এইটো নিৰ্ধাৰণ কৰিব নোৱাৰি।").
+6. **Indeterminate Logic (Disjoint Component Deduction)**: Premise graphs where the queried pair belongs to disjoint, disconnected relational clusters ($A \mathrel{\text{disjoint}} B$), requiring the model to deduce indeterminate stance ("दी गई जानकारी से यह तय नहीं किया जा सकता है।" / "দিয়া তথ্যৰ পৰা এইটো নিৰ্ধাৰণ কৰিব নোৱাৰি।").
 
 ### 2.2 Anti-Leakage Protocol & Train/Val/Test Splits
-To mathematically guarantee that models cannot solve reasoning questions through memorization:
-* **Strictly Disjoint Entity Sets**: The entity vocabulary is partitioned into disjoint sets. No entity appearing in the test set ever appeared during training:
-  * *Training Pool (20 entities per language)*: Dedicated names (e.g. अमित, सुमित, राहुल, नेहा...).
-  * *Evaluation Pool (15 held-out entities per language)*: Distinct regional names (e.g. कबीर, आरव, दीया, प्रियांशु, মালা, তাৰা, হৰিশ...).
+To prevent models from solving reasoning questions through memorization:
+* **Strictly Disjoint Entity Sets**: The entity vocabulary is partitioned into disjoint pools (asserted in `generate_reasoning.py`). No held-out entity ever appears during training:
+  * *Training Pool*: 236 names per language (e.g. राम, सीता, अमित, राहुल, नेहा...), plus about 30 abstract symbols (single letters such as क, ख, A, B) that replace names in 30% of training examples.
+  * *Held-Out Pools (15 names per language)*: 7 validation names (e.g. अर्जुन, लता, किशोर, माला / অৰ্জুন, লতা, কিশোৰ, মালা) and 8 test names (e.g. सरिता, प्रमोद, विनीता, कमल / সৰিতা, প্ৰমোদ, বিনীতা, কমল).
 * **Dataset Scale**:
   * **Training Split**: 20,000 synthetic reasoning examples.
-  * **Validation Split**: 1,000 synthetic reasoning examples.
-  * **Held-Out Test Split**: 2,000 synthetic reasoning examples (N=500 per evaluation matrix condition).
-* **Controlled 5% Negation Curriculum**: In standard training, models suffer from negation collapse (0.0% accuracy on negative polarity). We introduced a strictly controlled 5% negation curriculum within the training entity pool, enabling polarity inversion without leaking test entity combinations.
+  * **Validation Split**: 1,000 synthetic reasoning examples (a stratified sample of 200 is used for early stopping).
+  * **Held-Out Test Split**: 2,000 synthetic reasoning examples (N=500 sampled per evaluation matrix condition).
+* **Negation Curriculum**: Models trained without negated premises scored 0.0% on negative-polarity queries. Negated premises now make up about 18% of training examples (paradigm sampling weights: transitive 20%, multi-hop 20%, negation 18%, word problem 16%, conversational 16%, indeterminate 10%), all drawn from the training entity pool.
 
 ### 2.3 Dataset Design Choices, Assignment Baseline Contrast & Case Studies
 
@@ -75,7 +75,7 @@ While a minimal implementation satisfying this spec would consist of canonical, 
 | **Premise Negation** | Unspecified / Positive comparisons only. | **Controlled Negation Curriculum**: Inversion using native language particles (`नहीं` in Hindi, sentence-final `নহয়` in Assamese). | Tests true semantic polarity inversion ($A \not> B \implies A \le B$) vs. lexical echoing. |
 | **Indeterminate Scenarios** | Unspecified (always assumes solvable relations). | **Disjoint Relational Subgraphs**: Premise pairs belonging to disconnected clusters ($A > B, C > D$; query asks $A \text{ vs } D$). | Measures resistance to hallucination when no deductive bridge exists. |
 | **Target Output Format** | Direct answer only (greater, smaller, equal). | **Dual Evaluation**: Direct SFT vs. Formal **Chain-of-Thought (CoT)** scratchpads with strict operator token grammar (`<COT_START> ... <COT_END>`). | Isolates superficial answer guessing from verifiable step-by-step reasoning. |
-| **Question Balancing** | Unspecified. | **85% balanced question sampling**: Queries alternate between opposite questions ("Is $A > B$?" vs. "Is $A < B$?") for the same premise facts. | Prevents the model from just echoing the question's wording. |
+| **Question Balancing** | Unspecified. | **Random polarity plus contrastive twins**: The question polarity ("Is $A > B$?" vs. "Is $A < B$?") is sampled at random, and 85% of training chains also get a twin (the reversed query or the opposite framing) over the same premise facts. | Prevents the model from just echoing the question's wording. |
 
 ---
 
@@ -94,7 +94,7 @@ To illustrate how each design choice elevates the benchmark beyond simple templa
   ```text
   <COT_START> विनीता <REL_GT> प्रमोद और प्रमोद <REL_GT> अर्जुन <COT_END> विनीता की बचत अर्जुन की बचत से अधिक है।
   ```
-* **Failure Mode of Naive Positional Models**: Direct SFT without CoT incorrectly outputs `प्रमोद की बचत अर्जुन की बचत से अधिक है।`, blindly copying the entity residing at absolute coordinate index 0.
+* **Failure Mode of a Positional Shortcut**: A model that copies the entity at absolute coordinate index 0 would output `प्रमोद की बचत अर्जुन की बचत से अधिक है।`, which is wrong here.
 
 ##### Case 2: Linguistic Polarity Inversion (Controlled Negation Curriculum)
 * **Design Motivation**: Without negative examples during training, models suffer from 100% negation collapse, assuming every stated comparison is positive. Furthermore, in Assamese, the negative particle `নহয়` ("is not") appears sentence-finally, creating surface-form entanglement.
@@ -111,23 +111,23 @@ To illustrate how each design choice elevates the benchmark beyond simple templa
 
 ##### Case 3: Indeterminate / Disjoint Relational Subgraphs (Adversarial Hallucination Defense)
 * **Design Motivation**: Standard datasets teach models that every query possesses a deterministic answer. When faced with disconnected entities, models hallucinate relationships. We introduce decoupled premise clusters where the query spans disconnected components.
-* **Concrete Input (Hindi Indeterminate Deduction)**:
+* **Concrete Input (Hindi Indeterminate Deduction, illustrative, in generator format)**:
   ```text
-  अमित की लंबाई सुमित से अधिक है। राहुल की लंबाई नेहा से अधिक है। क्या अमित की लंबाई नेहा से अधिक है?
+  सरिता की लंबाई प्रमोद की लंबाई से अधिक है। कमल की लंबाई सुधा की लंबाई से अधिक है। क्या सरिता की लंबाई सुधा की लंबाई से अधिक है?
   ```
-  *(Logical Structure: Graph Cluster 1 = {अमित > सुमित}; Graph Cluster 2 = {राहुल > नेहा}; Query asks अमित vs. नेहा).*
+  *(Logical Structure: Graph Cluster 1 = {सरिता > प्रमोद}; Graph Cluster 2 = {कमल > सुधा}; Query asks सरिता vs. सुधा).*
 * **Gold Ground-Truth Target**:
   ```text
-  <COT_START> अमित <REL_GT> सुमित और राहुल <REL_GT> नेहा और अमित <REL_DISJOINT> नेहा <COT_END> दिए गए कथनों से यह निर्धारित नहीं किया जा सकता।
+  <COT_START> सरिता <REL_DISJOINT> सुधा <COT_END> दी गई जानकारी से यह तय नहीं किया जा सकता है।
   ```
-* **Mechanistic Significance**: The model must emit `<REL_DISJOINT>` upon recognizing that no path connects the two entities in the premise graph, providing a strict mathematical check against confabulation.
+* **Mechanistic Significance**: The model must emit `<REL_DISJOINT>` upon recognizing that no path connects the two entities in the premise graph, which the graph-validity metric can then check.
 
-##### Case 4: Balanced Question Sampling (Preventing Question Echoing)
-* **Design Motivation**: Direct SFT models frequently exhibit confirmation bias, parroting whatever comparative predicate appeared in the query question (e.g., outputting "कम" if the query asked "क्या A, B से कम है?"). We enforce 85% balanced question sampling across identical premise facts.
-* **Premise Baseline**: $A$ is taller than $B$ (`A की लंबाई B से अधिक है।`).
-  * **Concordant Query**: `क्या A की लंबाई B से अधिक है?` $\implies$ **Target**: `हाँ, A की लंबाई B से अधिक है।`
-  * **Inverted / Discordant Query**: `क्या A की लंबाई B से कम है?` $\implies$ **Target**: `नहीं, A की लंबाई B से अधिक है।`
-* **Mechanistic Significance**: By forcing the model to emit `नहीं` when the query predicate contradicts the premise fact, this mechanism prevents the autoregressive head from using the question token as a superficial completion trigger.
+##### Case 4: Contrastive Question Sampling (Preventing Question Echoing)
+* **Design Motivation**: A Direct SFT model can score well by parroting whatever comparative word appeared in the question (e.g., outputting "कम" if the query asked "क्या A, B से कम है?"). The question polarity is therefore sampled at random, and 85% of training chains get a contrastive twin over identical premise facts.
+* **Premise Baseline**: $A$ is taller than $B$ (`A की लंबाई B की लंबाई से अधिक है।`).
+  * **Concordant Query**: `क्या A की लंबाई B की लंबाई से अधिक है?` $\implies$ **Target**: `A की लंबाई B की लंबाई से अधिक है।`
+  * **Discordant Query**: `क्या A की लंबाई B की लंबाई से कम है?` $\implies$ **Target**: `A की लंबाई B की लंबाई से अधिक है।`
+* **Mechanistic Significance**: The target is always the true relation in its canonical form, whichever way the question is phrased, so the comparative word in the question carries no information about the answer.
 
 ---
 
@@ -146,16 +146,17 @@ For CoT models, we registered explicit relational special tokens into each token
   * **Assamese CoT Format**: `<COT_START> ৰাহুল <REL_GT> বিকাশ আৰু বিকাশ <REL_GT> অনিল <COT_END> ৰাহুলৰ উচ্চতা অনিলৰ উচ্চতাতকৈ অধিক।`
 
 ### 3.3 Training Hyperparameters & Decoding Settings
-* **Effective Batch Size**: 32 sequences (micro-batch size 8, gradient accumulation 4).
-* **Max Sequence Length**: 128 tokens.
-* **Optimizer**: AdamW ($\beta_1=0.9, \beta_2=0.95, \epsilon=10^{-8}$).
-* **Learning Rate Schedule**: Cosine decay over 750 optimizer steps with linear warmup (50 steps) and early stopping (patience 3).
-  * *V1 Baseline*: Initial LR $3.0 \times 10^{-5}$, weight decay 0.1.
-  * *V2 Modern*: Initial LR $5.0 \times 10^{-5}$, linear warmup 50 steps, decoupled weight decay 0.01 (protecting SwiGLU gating projections).
-* **Balanced Question Sampling**: 85% of training examples include both question directions ($A > B$ vs. $A < B$) for the same premise facts, preventing the model from simply echoing words from the question.
+* **Effective Batch Size**: 32 sequences (micro-batch size 32, no gradient accumulation).
+* **Max Sequence Length**: 128 tokens for Direct SFT, 160 tokens for CoT SFT.
+* **Optimizer**: AdamW ($\beta_1=0.9, \beta_2=0.95$), gradient clipping at 1.0, dropout 0.1 during fine-tuning.
+* **Learning Rate Schedule**: Cosine decay over up to 750 optimizer steps with linear warmup and early stopping on validation loss (patience 3 evaluations); the best-validation checkpoint is restored.
+  * *V1 Baseline*: Initial LR $3.0 \times 10^{-5}$, warmup 10 steps, weight decay 0.1.
+  * *V2 Modern*: Initial LR $2.55 \times 10^{-5}$, warmup 20 steps, weight decay 0.05.
+* **Auxiliary Losses**: Two terms are added to the prompt-masked loss of Section 3.1: a margin loss on the "more"/"less" token of the answer (weight 1.5, margin 2.0) and an entity-coverage term that rewards emitting the queried names (weight 0.3).
+* **Contrastive Question Sampling**: Question polarity is sampled at random, and 85% of training chains also get a contrastive twin (the reversed query or the opposite framing) for the same premise facts, preventing the model from simply echoing words from the question.
 * **Decoding Settings & Word Constraints**:
   * **Greedy Decoding**: Standard greedy decoding ($\text{temperature} = 0.0$) with a repetition penalty of 1.15 to prevent repetitive generation loops.
-  * **Prompt Word Boosting & Allowed Comparison Words**: Applies a positive logit boost ($+3.5$ in Hindi, $+4.5$ in Assamese) to words from the prompt to keep entity names grounded, while keeping core comparison words (`अधिक`, `कम`, `बेছি`, `সমান`) allowed so correct answer words are never penalized.
+  * **Prompt Word Boosting & Allowed Comparison Words**: Applies a positive logit boost ($+3.5$ in Hindi, $+4.5$ in Assamese, with a further $+2$ inside the scratchpad) to tokens from the prompt to keep entity names grounded, while keeping core comparison words (`अधिक`, `कम`, `বেছি`, `সমান`) allowed so correct answer words are never penalized. The zero-shot baseline is decoded with the same settings.
 
 ---
 
@@ -221,10 +222,23 @@ Evaluation was conducted on a hardened test suite of 2,000 queries ($N=500$ held
 *Figure 1: Direct SFT vs. Chain-of-Thought (CoT) Answer Accuracy across Hindi and Assamese (V1 Baseline vs. V2 Modern).*
 
 ![Continuous Multi-Tier Token F1 Comparison](figures/phase3_multi_tier_f1_comparison.png)
-*Figure 2: Multi-Tier Quality: Continuous Token F1 gains unlocked by Chain-of-Thought reasoning scratchpads.*
+*Figure 2: Answer-level Token F1 for Direct SFT and Chain-of-Thought models.*
 
 ![Character Similarity & Decomposed Score](figures/phase3_char_similarity_and_decomp.png)
-*Figure 3: Continuous multi-tier evaluation showing dramatic character similarity and decomposed CoT step score improvements.*
+*Figure 3: Character similarity for all models and the decomposed CoT step score for CoT models.*
+
+### 5.3 Zero-Shot Baseline (Pretrained, No SFT)
+
+The same 500 test queries were scored on each pretrained checkpoint before fine-tuning, with identical decoding. Each model has two baseline runs (one per SFT mode, which differ only in generation length); the ranges below cover both.
+
+| Pretrained Model | Strict Acc (Ans) | Decision Acc | Token $F_1$ (Ans) | Decision Acc after SFT (Direct / CoT) |
+| :--- | :---: | :---: | :---: | :---: |
+| **Hindi V1** | 0.20% | 16.0–16.4% | 32.9–34.3% | 38.0% / 40.4% |
+| **Hindi V2** | 0.00% | 29.8–30.2% | 47.3–48.6% | 40.8% / 38.0% |
+| **Assamese V1** | 0.00% | 20.2–20.4% | 23.7–24.4% | 34.6% / 34.8% |
+| **Assamese V2** | 0.00% | 32.6–34.0% | 26.0–27.5% | 30.4% / 29.2% |
+
+Strict answer accuracy is essentially zero before fine-tuning and 11.8–44.0% after it, so the exact-match scores come from SFT. Decision accuracy is a weaker signal: it rises clearly for both V1 models and for Hindi V2, but **not for Assamese V2**, whose fine-tuned decision accuracy (29.2–30.4%) is slightly below its zero-shot value (32.6–34.0%). For that model, fine-tuning taught the answer format more than the decision. All numbers in Sections 5 and 6 are taken from `report/finetuning_eval.json`.
 
 ---
 
@@ -258,7 +272,7 @@ Evaluating performance across fine-grained reasoning categories confirms distinc
 ![Assamese Per-Paradigm Reasoning Accuracy](figures/phase3_per_paradigm_assamese.png)
 *Figure 4b: Assamese (Model L, Lower-Resource) symbolic reasoning accuracy across 6 logic paradigms (Direct SFT vs. CoT SFT, with CoT Decision Stance overlay).*
 
-> **Continuous Metric Insights**: While binary Exact Match requires rigid word-for-word generation of synthetic templates, Chain-of-Thought fine-tuning unlocks massive relative Token F1 gains (reaching **81.89%** in Hindi V1, **82.04%** in Hindi V2, **65.16%** in Assamese V1, and **50.65%** in Assamese V2) and enables decomposed step credit reaching **50.80%** in Hindi V1, **51.64%** in Hindi V2, and **39.52%** in Assamese V1. Moreover, Direct SFT models achieve strong holistic grounding, with Token $F_1$ reaching **83.30%** in Hindi V1, **82.27%** in Hindi V2, **66.78%** in Assamese V1, and **56.33%** in Assamese V2.
+> **Continuous Metric Insights**: Answer-level Token $F_1$ is high for both modes and slightly higher for Direct SFT in every pair: **83.30%** vs. 81.89% in Hindi V1, **82.27%** vs. 82.04% in Hindi V2, **66.78%** vs. 65.16% in Assamese V1, and **56.33%** vs. 50.65% in Assamese V2. What Chain-of-Thought adds is a scratchpad that can be scored separately: the decomposed step score reaches **50.80%** in Hindi V1, **51.64%** in Hindi V2, **39.52%** in Assamese V1, and 30.65% in Assamese V2. The gap between high $F_1$ and low exact match indicates that models usually produce the right sentence frame and entities and slip on the relation word or an inflection.
 
 ### 6.3 The "Indeterminate Paradox": Why Disjoint Logic Remains Challenging
 
@@ -268,17 +282,17 @@ A key divergence in Tables 6.1 and 6.2 is the **Indeterminate Component**:
   * In Assamese, Decision Stance reaches **36.5%** in Assamese V2 Direct and **17.6%** in Assamese V2 CoT.
   * In Hindi, Decision Stance reaches **12.2%** in Hindi V1 CoT and Hindi V2 Direct.
 
-While both Direct and CoT models achieve $40\text{--}56\%$ accuracy across solvable relational tasks (Transitive Chains, Multi-Hop Chains, Word Problems, and Negated Logic), they experience significant difficulty when presented with disconnected premise clusters. Mechanistically, this stems from three factors:
+The comparison between modes is mixed. For V2, CoT is below Direct on indeterminate stance (0.0% vs. 12.2% in Hindi, 17.6% vs. 36.5% in Assamese); for V1, CoT is equal or better (12.2% vs. 0.0% in Hindi, 8.1% for both in Assamese). On the solvable paradigms, Hindi models reach roughly 40–56% strict accuracy and Assamese models 8–36%. Three factors plausibly contribute to the difficulty with disconnected premise clusters; none of them was isolated experimentally:
 
-1. **The "Compulsion to Reason"**:
-   CoT fine-tuning instills a strong structural prior: emitting `<COT_START>` signals that intermediate relational chaining steps must follow. When no deductive path connects $A$ and $D$, compact ~25M parameter models struggle to halt or emit the formal disjoint marker `<REL_DISJOINT>`. Instead, the autoregressive head forces an artificial connection, hallucinating a nonexistent pivot (e.g., fabricating self-referential reflexive loops like $A > A$ or $B > B$).
+1. **A Strong Chaining Prior in the Scratchpad**:
+   Indeterminate items are only about 10% of the training mix, so after `<COT_START>` the model has mostly seen inequality chains. When no deductive path connects $A$ and $D$, CoT models often write a chain anyway instead of the disjoint marker `<REL_DISJOINT>`, sometimes with a reflexive step such as $A > A$ (see Failure Case 1 in Section 8.2).
 
-2. **Self-Conditioned Confirmation Cascades**:
-   * In **Direct SFT**, the model maps the global premise representation directly to output logits. When premise clusters are disconnected, the lack of mutual cross-attention between clusters can trigger the learned fallback template (*"दिए गए विवरण से यह तय नहीं किया जा सकता है"* / *"দিয়া তথ্যৰ পৰা এইটো নিৰ্ধাৰণ কৰিব নোৱাৰি"*).
-   * In **CoT SFT**, final answer generation is conditioned on the model's own intermediate scratchpad. Once the model emits a single inequality step inside `<COT_START> ... <COT_END>`, downstream attention heads treat that step as ground truth, eagerly concluding with high confidence that one entity is greater than the other. The model traps itself in a self-reinforcing confabulation loop.
+2. **Conditioning on the Model's Own Scratchpad**:
+   * In **Direct SFT**, the model maps the prompt straight to an answer sentence and can fall back on the learned refusal template (*"दी गई जानकारी से यह तय नहीं किया जा सकता है।"* / *"দিয়া তথ্যৰ পৰা এইটো নিৰ্ধাৰণ কৰিব নোৱাৰি।"*).
+   * In **CoT SFT**, the final answer is conditioned on the model's own scratchpad. Once an inequality step has been emitted, the answer sentence tends to follow it, so an early scratchpad error is carried into the conclusion.
 
-3. **Capacity Constraints of ~25M Parameter Models**:
-   Recognizing the *absence* of a path (negative reachability in a directed graph) is a higher-order meta-cognitive operation than traversing an existing linear chain. While compact 25M architectures have enough capacity to memorize relational chaining rules, they lack the parameter depth to run simultaneous path search and graph-disconnection verification. In this regime, CoT acts as a "reasoning hammer" that attempts to find a transitive path in every scenario.
+3. **Model Capacity (Untested)**:
+   Recognising the *absence* of a path may simply be harder for a ~25M-parameter model than following an existing chain. We did not train a larger model or raise the indeterminate share, so whether this is a capacity limit or a data-mix effect remains open.
 
 ---
 
@@ -536,8 +550,8 @@ To understand the qualitative mechanics, reasoning capabilities, and architectur
   <COT_START>কিশোৰ<REL_GT>কিশোৰ<COT_END>কিশোৰৰ সঞ্চয় যশৰ সঞ্চয়তকৈ বেছি।
   ```
 * **Mechanistic Failure Diagnosis**:
-  * **Compulsion to Reason**: CoT fine-tuning instills a structural prior that emitting `<COT_START>` must be followed by inequality chaining. When no connecting path exists between the query endpoints, the compact ~25M model struggles to emit `<REL_DISJOINT>`. Instead, it generates a self-referential reflexive step (`কিশোৰ > কিশোৰ`) and confabulates a positive inequality (`কিশোৰৰ সঞ্চয় যশৰ সঞ্চয়তকৈ বেছি`).
-  * In contrast, Direct SFT models directly emit the learned fallback template (*"দিয়া তথ্যৰ পৰা এইটো নিৰ্ধাৰণ কৰিব নোৱাৰি"*), explaining why Direct SFT outperforms CoT on indeterminate logic.
+  * **Chaining Prior**: After `<COT_START>` the model has mostly seen inequality chains during training. When no connecting path exists between the query endpoints, the compact ~25M model struggles to emit `<REL_DISJOINT>`. Instead, it generates a self-referential reflexive step (`কিশোৰ > কিশোৰ`) and confabulates a positive inequality (`কিশোৰৰ সঞ্চয় যশৰ সঞ্চয়তকৈ বেছি`).
+  * In contrast, Direct SFT models can directly emit the learned fallback template (*"দিয়া তথ্যৰ পৰা এইটো নিৰ্ধাৰণ কৰিব নোৱাৰি"*), which is consistent with Assamese V2 Direct outscoring Assamese V2 CoT on indeterminate stance (36.5% vs. 17.6%).
 
 ---
 
@@ -558,7 +572,7 @@ To understand the qualitative mechanics, reasoning capabilities, and architectur
   ```
 * **Mechanistic Failure Diagnosis**:
   * The model retained accurate syntax and entity binding, but flipped the polarity word (`अधिक` instead of `कम`).
-  * In double-negated prompts with directional question inversions (*"A is not greater than B; is B smaller than A?"*), 6-layer compact transformers lack the attention depth to execute both the relational inequality reversal and the syntactic negation binding simultaneously.
+  * In double-negated prompts with directional question inversions (*"A is not greater than B; is B smaller than A?"*), these compact 8-layer transformers appear unable to execute both the relational inequality reversal and the syntactic negation binding simultaneously.
 
 ---
 
