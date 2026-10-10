@@ -29,7 +29,7 @@ In standard autoregressive Transformers, sequence ordering is supplied by explic
 In the ablated model (`NoPosGPTLanguageModel`), **all positional representations are completely eliminated**:
 $$x_t = \text{Dropout}(E_{\text{tok}}(t))$$
 
-Causal self-attention operates purely on pairwise token dot products modulated by the lower-triangular causal mask:
+In the first layer, causal self-attention operates purely on pairwise token dot products modulated by the lower-triangular causal mask (deeper layers attend over contextualised states, which is how order information re-enters the model; see Section 8):
 $$A_{i,j} = \text{Softmax}\left(\frac{(E_{\text{tok}}(i) W_Q)(E_{\text{tok}}(j) W_K)^T}{\sqrt{d_k}} + M_{i,j}\right), \quad M_{i,j} = \begin{cases} 0 & j \le i \\ -\infty & j > i \end{cases}$$
 
 ```
@@ -99,24 +99,46 @@ The model was pretrained from scratch over the full $500\text{M}$-token budget o
 
 ## 4. Intrinsic Language Modeling Evaluation: PPL & BPB (Deliverable 5a)
 
-Held-out evaluation was conducted on strictly unseen test partitions (`test.bin`, 300 non-overlapping sequence windows, 153,300 tokens, 1,653,287 UTF-8 bytes):
+Held-out evaluation of the ablated model was conducted on the unseen test partition (`test.bin`, 300 non-overlapping sequence windows, 153,300 tokens, 1,653,287 UTF-8 bytes):
 
 $$\text{BPB} = \frac{\mathcal{L}_{\text{CE}}}{\ln(2)} \times \frac{\text{Total Evaluated Tokens}}{\text{Total UTF-8 Bytes}}$$
 
-### Comparative Benchmark Matrix (Full 500M Pretraining)
-| Benchmark Metric | Ablated No-Pos V1 (Model H) | Baseline V1-16K (Model H) | Modern V2-16K (Model H) | Key Observation |
-|---|---|---|---|---|
-| **Positional Scheme** | **None ($E_{\text{pos}} = 0$)** | Learned Absolute (Table) | Rotary (RoPE) | Complete structural omission |
-| **Trainable Parameters** | **24,785,664** (~24.78M) | 24,982,272 (~24.98M) | 25,172,352 (~25.17M) | Exactly $-196,608$ params saved |
-| **Pretrained Budget** | **500,000,000 tokens** | 500,000,000 tokens | 500,000,000 tokens | Identical pretraining regime (1,907 steps) |
-| **Held-Out Test Loss** | **4.1129 nats** | 4.4102 nats | 3.9562 nats | Converges cleanly on next-token cross-entropy |
-| **Held-Out Perplexity (PPL)**| **61.13** | 82.28 | 52.26 | Lower PPL than V1 due to bigram memorization |
-| **Bits-Per-Byte (BPB)** | **0.5502** | 0.5764 | 0.5189 | Strong surface compression |
-| **chrF++ (@ Temp 1.0)** | **19.82** | 18.95 | 19.86 | Matches baseline character overlap |
-| **Repetition Rate (@ T=0.0)**| **0.7757 (77.6%)** | 0.7716 (77.2%) | 0.6842 (68.4%) | **Severe looping failure mode** |
-| **Distinct-1 (@ Temp 1.0)** | **0.3733** | 0.4056 | 0.4612 | Degraded unigram variety |
-| **Distinct-2 (@ Temp 1.0)** | **0.8611** | 0.8828 | 0.9124 | Reduced bigram variety |
-| **ROUGE-L (All temps)** | **0.00** | 0.0892 | 0.0988 | **Total failure of sequential order matching** |
+### 4.1 Like-for-Like Comparison: Validation Loss
+
+The validation loss logged by the trainer is computed the same way for all three models (random 512-token windows from `val.bin`, 20 evaluation batches), so it is the comparison to rely on.
+
+| Model (Hindi, 500M tokens, 1,907 steps) | Positional Scheme | Trainable Parameters | Best Val Loss | Best Val PPL | Final Val Loss (Step 1907) |
+|---|---|---|---|---|---|
+| **Ablated No-Pos V1** | **None ($E_{\text{pos}} = 0$)** | **24,785,664** | **4.0792** (step 1900) | **59.10** | **4.1200** |
+| Baseline V1-16K | Learned Absolute (Table) | 24,982,272 | 4.1250 (step 1907) | 61.87 | 4.1250 |
+| Modern V2-16K | Rotary (RoPE) | 25,172,352 | 3.7624 (step 1900) | 43.05 | 3.7889 |
+
+**Reading**: removing the positional table from V1 produced **no measurable change** in validation loss. The ablated model's own validation loss moved by 0.04 nats between steps 1900 and 1907 at a near-minimum learning rate, so evaluation noise is of that order, and the 0.005–0.05 nat gap to Baseline V1 is inside it. The ablated run used micro-batch 16, so its estimate averages 320 windows against 640 for the other two. All three are single-seed runs.
+
+### 4.2 Held-Out Test Metrics (Evaluation Protocols Differ)
+
+| Benchmark Metric | Ablated No-Pos V1 | Baseline V1-16K | Modern V2-16K |
+|---|---|---|---|
+| **Test windows × scored tokens** | 300 × 511 = 153,300 | 200 × 95 = 19,000 | 200 × 95 = 19,000 |
+| **Held-Out Test Loss** | **4.1129 nats** | 4.4102 nats | 3.9562 nats |
+| **Held-Out Perplexity (PPL)** | **61.13** | 82.28 | 52.26 |
+| **Bits-Per-Byte (BPB)** | **0.5502** | 0.5764 | 0.5189 |
+
+These columns are **not directly comparable**. The ablated model was scored on 511-token windows and the Phase 2 models on 95-token windows; a shorter context gives every token less to condition on and raises the loss. The effect is visible inside each model: Baseline V1 scores 4.125 on validation (512-token windows) but 4.410 on test (95-token windows), while the ablated model scores 4.120 and 4.113 when both use long windows. The 61.13 vs. 82.28 figures therefore do **not** show the ablated model beating Baseline V1. A like-for-like test number would require re-scoring V1 and V2 on 511-token windows, which was not done.
+
+### 4.3 Generation Metrics Side by Side
+
+V1 and V2 values are taken from the Phase 2 report (Section 4.1, $N = 100$ prompts); the ablated model was evaluated on 150 prompts.
+
+| Generation Metric | Ablated No-Pos V1 | Baseline V1-16K | Modern V2-16K |
+|---|---|---|---|
+| **chrF++ (@ T=1.0)** | **19.82** | 18.95 | 19.86 |
+| **Repetition Rate, 3-gram (@ T=0.0)** | **0.7757** | 0.7924 | 0.7716 |
+| **Distinct-1 (@ T=1.0)** | **0.3733** | 0.3842 | 0.4056 |
+| **Distinct-2 (@ T=1.0)** | **0.8611** | 0.8410 | 0.8828 |
+| **ROUGE-L (@ T=1.0)** | not measured (see Section 5.2) | 0.0892 | 0.0988 |
+
+On every metric the ablated model is within a small margin of Baseline V1, the model it differs from only by the positional table, and the differences do not point in one direction (slightly lower repetition and Distinct-1, slightly higher chrF++ and Distinct-2).
 
 ---
 
@@ -127,37 +149,41 @@ Text generation was evaluated across 150 prompt prefixes extracted from the unse
 ### 5.1 Multi-Temperature Performance Matrix
 | Temperature ($T$) | BLEU-4 | chrF++ | ROUGE-L | Rep-3 $\downarrow$ | Distinct-1 $\uparrow$ | Distinct-2 $\uparrow$ | OOR Rate |
 |---|---|---|---|---|---|---|---|
-| **0.0 (Greedy)** | 0.58 | 13.05 | **0.00** | **0.7757 (77.6%)** | 0.0704 | 0.1658 | **0.0000%** |
-| **0.5 (Low Entropy)** | 1.02 | 16.98 | **0.00** | **0.3814 (38.1%)** | 0.1361 | 0.4247 | **0.0000%** |
-| **1.0 (Standard)** | 0.33 | 19.82 | **0.00** | **0.0256 (2.6%)** | 0.3733 | 0.8611 | **0.0000%** |
-| **1.5 (High Entropy)** | 0.07 | 18.52 | **0.00** | **0.0004** | 0.6578 | 0.9880 | **0.0000%** |
+| **0.0 (Greedy)** | 0.58 | 13.05 | n/a† | **0.7757 (77.6%)** | 0.0704 | 0.1658 | **0.0000%** |
+| **0.5 (Low Entropy)** | 1.02 | 16.98 | n/a† | **0.3814 (38.1%)** | 0.1361 | 0.4247 | **0.0000%** |
+| **1.0 (Standard)** | 0.33 | 19.82 | n/a† | **0.0256 (2.6%)** | 0.3733 | 0.8611 | **0.0000%** |
+| **1.5 (High Entropy)** | 0.07 | 18.52 | n/a† | **0.0004** | 0.6578 | 0.9880 | **0.0000%** |
+
+† The evaluation run logged ROUGE-L = 0.00 at every temperature. This is a measurement artefact and not a model property; see point 1 below.
 
 ### 5.2 Critical Generation Insights:
-1. **ROUGE-L Total Collapse ($0.00$)**:
-   * ROUGE-L measures the Longest Common Subsequence (LCS). Unlike character n-grams, matching LCS requires preserving sequential token ordering.
-   * Without positional embeddings, the model cannot coordinate multi-token phrase order, resulting in $0.00$ LCS alignment with ground truth reference texts across all decoding temperatures.
-2. **Greedy Decoding Loop Trap ($77.6\%$)**:
-   * Under greedy argmax sampling ($T=0.0$), the model succumbs to periodic cyclic attractors, repeating identical 3-grams over $77.6\%$ of the generation window.
-3. **Lexical Diversity vs. Standard Models**:
-   * At $T=1.0$, Distinct-1 drops to $0.3733$ (compared to $0.4056$ in Baseline V1 and $0.4612$ in Modern V2), showing noticeable unigram vocabulary restriction.
+1. **The logged ROUGE-L of 0.00 is a tokenizer artefact**:
+   * `common/metrics.py` calls `rouge_score` with its default tokenizer, which keeps only the characters `a–z` and `0–9`. Devanagari text is reduced to an empty token list, so the score is 0 regardless of the output. The Phase 2 report (Section 4.2) describes this same pitfall.
+   * A true value of zero is ruled out by the other columns: ROUGE-L is based on the longest common subsequence of words, so a single shared word makes it positive, and a chrF++ of 13–20 (which includes word n-grams) cannot occur without shared words.
+   * ROUGE-L is therefore reported as not measured for the ablated model. It gives no evidence about word-order modelling in either direction.
+2. **Greedy repetition is not caused by the ablation**:
+   * Under greedy decoding ($T=0.0$) the ablated model repeats 3-grams over $77.6\%$ of the generation window. The models **with** positional information behave the same way: $79.2\%$ for Baseline V1 and $77.2\%$ for Modern V2 (Phase 2 report, Section 4.1). Looping is a property of argmax decoding at this model scale, and it disappears at $T=1.0$ in all three models ($2.6\%$, $2.4\%$, $1.7\%$).
+3. **Lexical diversity is close to Baseline V1**:
+   * At $T=1.0$, Distinct-1 is $0.3733$ against $0.3842$ for Baseline V1, and Distinct-2 is $0.8611$ against $0.8410$. One is slightly lower and the other slightly higher, so there is no consistent diversity effect of removing the positional table.
+4. **Overall**: none of the generation metrics separates the ablated model from Baseline V1.
 
 ---
 
 ## 6. Qualitative Generation Samples from Held-Out Prompts
 
-Direct empirical text continuations generated from the final 500M checkpoint (`hindi_no_pos_latest.pt`):
+Direct empirical text continuations generated from the final 500M checkpoint (`hindi_no_pos_latest.pt`). Note that the clauses below are grammatically ordered Hindi (noun before postposition, verb-final), which a model with no access to token order could not produce:
 
 #### Sample 1: Patriotic / Geopolitical Discourse
 * **Prompt**: `भारत एक महान देश है` *(India is a great country)*
 * **Greedy Continuation ($T = 0.0$):**  
   `भारत एक महान देश है। भारत में भारत के सबसे बड़े देश हैं। भारत में सबसे बड़ा देश है। भारत में सबसे बड़ा देश है। भारत में सबसे बड़ा देश है`  
-  *(Analysis: Immediate entry into an infinite cyclic loop: `भारत में सबसे बड़ा देश है` repeats indefinitely.)*
+  *(Analysis: Immediate entry into a cyclic loop: `भारत में सबसे बड़ा देश है` repeats. The repeated clause is itself well-formed Hindi, with the postposition `में` after its noun and the verb in final position.)*
 * **Low-Entropy Sampling ($T = 0.5$):**  
   `भारत एक महान देश है। भारत में दुनिया में सबसे बड़ा देश है। इस देश में सबसे बड़ा देश है। दुनिया में सबसे बड़ा देश है। भारत का सबसे बड़ा देश`  
-  *(Analysis: Coherent local words, but phrase order collapses into tautological repetition.)*
+  *(Analysis: Word order inside each clause is grammatical; the weakness is tautological repetition of content, which the positional models also show at this temperature.)*
 * **Standard Sampling ($T = 1.0$):**  
   `भारत एक महान देश है। भारत के पूर्वपश्चिम ईरानी राज्य हैं और मोदी सरकार के महासचिव सुभाष चंद्रमान आईएएनएस की नई दिल्ली में हुई मॉब लिंचिंग मामले में सुप्रीम कोर्ट से मिला`  
-  *(Analysis: Natural vocabulary richness and absence of phrase looping, but syntax is topical rather than logically continuous.)*
+  *(Analysis: Natural vocabulary richness and absence of phrase looping, with correct local case marking (`के`, `की`, `में`, `से`); the text drifts topically, as the Phase 2 samples do at $T=1.0$.)*
 
 #### Sample 2: Philosophical / Educational Discourse
 * **Prompt**: `शिक्षा का महत्व जीवन में बहुत` *(The importance of education in life is very)*
@@ -169,7 +195,7 @@ Direct empirical text continuations generated from the final 500M checkpoint (`h
   *(Analysis: Grammatically fluent local clauses, but rapid semantic drift from education to nature/religion.)*
 * **Standard Sampling ($T = 1.0$):**  
   `शिक्षा का महत्व जीवन में बहुत नफरत यूनानऔजिया इंडस्ट्री का एक महत्व है। जैसा कि हम जानते हैं कि हमारे विज्ञान और अनुसंधान व्यक्ति के अस्मिता हत्याकांड की जानकारी`  
-  *(Analysis: Disjoint semantic associations characteristic of bag-of-words topic attraction.)*
+  *(Analysis: Semantic drift and some invented words, comparable to the positional models at $T=1.0$; phrases such as `जैसा कि हम जानते हैं कि` remain correctly ordered.)*
 
 ---
 
@@ -186,42 +212,62 @@ Direct empirical text continuations generated from the final 500M checkpoint (`h
   * Attention Entropy $H(A)$: **$1.2894\text{ nats}$**
   * Mean Attention Distance: **$3.43\text{ tokens}$**
 
-### Comparative Head Specialization:
-* **Standard Models (V1 / V2)**: In standard models with positional encodings, early layers show sharp diagonal recency tracking ($2.5 - 2.8$ tokens), while late layers expand attention distance up to **$5.86\text{ tokens}$** to bind long-range syntactic premises and predicate agreements.
-* **Ablated Model (No-Pos)**: In the ablated model, attention distance remains completely flat ($3.20 \to 3.43\text{ tokens}$). Because the model cannot distinguish relative or absolute token positions, late attention heads cannot specialize into functional long-range circuits.
+### Comparison with the Positional Models
+* **Reference values**: for the models with positional information, the Phase 2 report (Section 5.3) gives a mean attention distance of $2.5 - 2.8$ tokens in early layers and $3.2 - 3.8$ tokens in late layers, with entropy of $1.45 - 1.62$ and $1.35 - 1.55$ nats.
+* **Ablated model**: distance is $3.20$ (layer 0) and $3.43$ (layer 7), and entropy is $1.39$ and $1.29$ nats. The late-layer distance lies inside the range of the positional models, the early-layer distance is slightly above it, and entropy is slightly below.
+* **What this supports**: these two heads do not show a failure to form long-range attention. They also cannot show the opposite: the figures come from one head per layer on a single short sentence, and on a sentence of this length even position-blind attention would give a mean distance of a few tokens. A reliable comparison would average over all heads and many held-out sentences for both models, which was not done here.
 
 ---
 
-## 8. Mechanistic Explanation: What Breaks Without Position Information?
+## 8. Mechanistic Explanation: Why Removing Positional Embeddings Cost So Little
 
-1. **Permutation Equivariance & Causal Bag-of-Words Collapse**:
-   * Standard self-attention without position encodings is strictly permutation-equivariant: for any permutation matrix $\Pi$, $\text{Attn}(\Pi X) = \Pi \text{Attn}(X)$.
-   * When combined with causal autoregressive masking, the model only knows *which* tokens appeared previously in the prefix, but has **zero signal about the internal order** of tokens within any antecedent window.
-   * Consequently, the model cannot distinguish between:
-     - `राम ने मोहन को मारा` *(Ram hit Mohan)*
-     - `मोहन ने राम को मारा` *(Mohan hit Ram)*
-   * The network degenerates into an autoregressive Bag-of-Words (BoW) frequency estimator.
+### 8.1 The Result to Explain
+Removing the learned positional table from Baseline V1 left validation loss unchanged within noise (4.08–4.12 vs. 4.125 nats, Section 4.1) and left the generation metrics within small margins of V1 (Section 4.3). The ablated model also writes correctly ordered Hindi clauses (Section 6). The model therefore did not lose access to word order.
 
-2. **Syntax and Grammatical Inflexion Failure in Indic Scripts**:
-   * Hindi follows an SOV (Subject-Object-Verb) grammatical topology where postpositions (`ने`, `को`, `से`, `का`) bind strictly to their immediate preceding noun phrase.
-   * Without positional distance cues, postpositions bind uniformly to all nouns in the context window, causing catastrophic case-role confusion and syntax scrambling.
+### 8.2 The Causal Mask Already Carries Order Information
+The statement "self-attention without positional encodings is permutation-equivariant", $\text{Attn}(\Pi X) = \Pi\,\text{Attn}(X)$, holds for **bidirectional** attention, where every token sees the same set of tokens. A decoder-only model is different: the causal mask gives each position a different visible set, and that asymmetry is enough to recover order.
 
-3. **Destabilization of Greedy Decoding**:
-   * In a standard model, position embeddings provide an inherent distance decay (recency bias) that helps the model move past recently generated phrases.
-   * Without positional decay, once a frequent subword is output, its attention score remains identically attractive for the next step, creating a positive feedback loop that causes the model to repeat the same phrase endlessly (77.6% 3-gram repetition rate).
+1. **Each position sees a different prefix.** The layer-1 output at position $i$ is a function of the token $x_i$ and of the set $\{x_1, \dots, x_i\}$:
+   $$h_i^{(1)} = f\big(x_i, \{x_1, \dots, x_i\}\big)$$
+   Because attention weights at position $i$ are normalised over exactly $i$ items, the statistics of this output depend on $i$ (under near-uniform attention, each earlier token receives weight $1/i$). A count of preceding tokens is thus available after one layer.
+2. **Prefixes are nested, so order is recoverable.** From layer 2 onwards, position $i$ attends over $h_1^{(1)}, \dots, h_i^{(1)}$. These are summaries of the nested prefixes $\{x_1\} \subset \{x_1, x_2\} \subset \dots$, and a nested chain of sets determines the order in which the tokens arrived. Layer 1 alone is order-blind within the prefix; the stack as a whole is not.
+3. **Example.** Take `राम ने मोहन को मारा` and `मोहन ने राम को मारा`. In the first sentence the token `ने` has seen $\{$राम, ने$\}$; in the second it has seen $\{$मोहन, ने$\}$. Its representation after layer 1 already differs, so later layers can tell which noun `ने` marks, and the two sentences receive different representations.
+
+With 8 layers, the ablated model has ample depth to build these signals, which is consistent with it matching Baseline V1.
+
+### 8.3 Agreement with Prior Work
+This behaviour has been reported before. Haviv et al. (2022), *Transformer Language Models without Positional Encodings Still Learn Positional Information*, show that causal language models trained without positional encodings remain competitive and that position can be decoded from their hidden states, while the same removal does damage bidirectional (masked) models. Kazemnejad et al. (2023), *The Impact of Positional Encoding on Length Generalization in Transformers*, find that a decoder with no positional encoding is competitive with explicit schemes.
+
+### 8.4 What Positional Encoding Is Still For
+1. **It is required when there is no causal mask.** In an encoder-style model every token sees the same set, the equivariance argument applies in full, and the model without positions is a bag of words.
+2. **In a decoder it is an inductive bias.** It supplies position at the input, so the model need not spend early layers and capacity reconstructing it, and it supplies it exactly, whereas the implicit signal becomes coarse at long range (a weight of $1/400$ is hard to tell from $1/401$).
+3. **The scheme matters.** What language modelling mostly needs is relative offset. Relative schemes such as RoPE provide it directly in the attention score. Modern V2 does reach a lower validation loss (3.76 nats), but it also changes the activation, the normalisation and the dropout rate, so this project cannot attribute that gain to RoPE.
+
+### 8.5 Why Learned Absolute Embeddings Gave No Gain Here (Hypotheses, Not Tested)
+1. **Absolute index carries little meaning in this training setup.** Training windows are random 512-token slices of the token stream, so index 0 is an arbitrary point in a document. The absolute table is useful only as a route to relative offsets, which the model must still derive.
+2. **The table is trained from scratch in few steps.** $512 \times 384$ parameters are learned in 1,907 optimizer steps, under one pass over the corpus.
+3. **Perplexity on news and web text is dominated by local context**, where the implicit order signal of Section 8.2 is at its strongest.
+
+### 8.6 Limitations
+* One seed, one language (Hindi), and a difference smaller than the evaluation noise: the result is "no measurable effect", not "positional embeddings are harmful or useless".
+* The ablation was evaluated on perplexity and open-ended generation only. Tasks that depend on exact order or long-range position, such as the Phase 3 reasoning templates, were not tested with the ablated model.
+* Test-set perplexity was measured with a different window length from Phase 2 (Section 4.2), and ROUGE-L was not validly measured (Section 5.2).
+* The attention diagnostics cover two heads on one sentence (Section 7).
 
 ---
 
 ## 9. Conclusion & Deliverable Summary
+
+Removing learned absolute positional embeddings from the Hindi Baseline V1 model had no measurable effect on validation loss or on generation metrics. The explanation is that a causal mask lets a decoder-only Transformer infer token order without explicit positional input; explicit encodings act as an inductive bias whose value depends on the scheme and on the task.
 
 | Phase 2 Evaluation Component | Covered in Bonus Report? | Key Result / Deliverable |
 |---|---|---|
 | **Architecture & Parameters** | **Yes** | 24.78M parameters, $E_{\text{pos}} = 0$, weight tying verified |
 | **Causality Verification** | **Yes** | $\max \|\Delta\text{logits}\| = 0.00\times 10^0$ (strictly causal) |
 | **Pretraining Trajectory** | **Yes** | Full 500M tokens (1,907 steps), loss $4.1879$, val PPL $61.56$ |
-| **Intrinsic Evaluation (PPL/BPB)**| **Yes** | Held-out Test Loss $4.1129$, PPL $61.13$, BPB $0.5502$ |
-| **Generation Metrics Sweep** | **Yes** | $T \in \{0.0, 0.5, 1.0, 1.5\}$: BLEU, chrF++, ROUGE-L ($0.00$) |
-| **Fluency & Diversity Diagnostics**| **Yes** | Repetition-3 ($77.6\%$), Distinct-1/2, OOR ($0.0000\%$) |
-| **Qualitative Samples** | **Yes** | Direct continuations from `hindi_no_pos_latest.pt` |
-| **Attention Diagnostics** | **Yes** | High-res Devanagari heatmaps, Entropy ($1.39/1.29$), Distance ($3.20/3.43$) |
-| **Linguistic & Mechanistic Root-Cause** | **Yes** | Permutation equivariance, Indic SOV postposition breakdown, BoW collapse |
+| **Intrinsic Evaluation (PPL/BPB)**| **Yes** | Val loss $4.08$–$4.12$ vs. $4.125$ for V1 (like-for-like); test loss $4.1129$, PPL $61.13$, BPB $0.5502$ on 511-token windows |
+| **Generation Metrics Sweep** | **Yes** | $T \in \{0.0, 0.5, 1.0, 1.5\}$: BLEU, chrF++; ROUGE-L not validly measured (tokenizer artefact) |
+| **Fluency & Diversity Diagnostics**| **Yes** | Repetition-3 ($77.6\%$ greedy, same as positional models), Distinct-1/2, OOR ($0.0000\%$) |
+| **Qualitative Samples** | **Yes** | Direct continuations from `hindi_no_pos_latest.pt`; clause-level word order is grammatical |
+| **Attention Diagnostics** | **Yes** | Devanagari heatmaps, Entropy ($1.39/1.29$), Distance ($3.20/3.43$), within the range of the positional models |
+| **Linguistic & Mechanistic Root-Cause** | **Yes** | Causal mask breaks permutation symmetry; order recovered from nested prefixes; positional encoding as inductive bias |
