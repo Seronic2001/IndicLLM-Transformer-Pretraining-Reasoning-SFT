@@ -161,7 +161,7 @@ V1 and V2 values are taken from the Phase 2 report (Section 4.1, $N = 100$ promp
 | **Repetition Rate, 3-gram (@ T=0.0)** | **0.7757** | 0.7924 | 0.7716 |
 | **Distinct-1 (@ T=1.0)** | **0.3733** | 0.3842 | 0.4056 |
 | **Distinct-2 (@ T=1.0)** | **0.8611** | 0.8410 | 0.8828 |
-| **ROUGE-L (@ T=1.0)** | not measured (see Section 5.2) | 0.0892 | 0.0988 |
+| **ROUGE-L (@ T=1.0)** | **0.00** (as logged; see Section 5.2) | 0.0892 | 0.0988 |
 
 On every metric the ablated model is within a small margin of Baseline V1, the model it differs from only by the positional table, and the differences do not point in one direction (slightly lower repetition and Distinct-1, slightly higher chrF++ and Distinct-2).
 
@@ -174,18 +174,18 @@ Text generation was evaluated across 150 prompt prefixes extracted from the unse
 ### 5.1 Multi-Temperature Performance Matrix
 | Temperature ($T$) | BLEU-4 | chrF++ | ROUGE-L | Rep-3 $\downarrow$ | Distinct-1 $\uparrow$ | Distinct-2 $\uparrow$ | OOR Rate |
 |---|---|---|---|---|---|---|---|
-| **0.0 (Greedy)** | 0.58 | 13.05 | n/a† | **0.7757 (77.6%)** | 0.0704 | 0.1658 | **0.0000%** |
-| **0.5 (Low Entropy)** | 1.02 | 16.98 | n/a† | **0.3814 (38.1%)** | 0.1361 | 0.4247 | **0.0000%** |
-| **1.0 (Standard)** | 0.33 | 19.82 | n/a† | **0.0256 (2.6%)** | 0.3733 | 0.8611 | **0.0000%** |
-| **1.5 (High Entropy)** | 0.07 | 18.52 | n/a† | **0.0004** | 0.6578 | 0.9880 | **0.0000%** |
+| **0.0 (Greedy)** | 0.58 | 13.05 | 0.00† | **0.7757 (77.6%)** | 0.0704 | 0.1658 | **0.0000%** |
+| **0.5 (Low Entropy)** | 1.02 | 16.98 | 0.00† | **0.3814 (38.1%)** | 0.1361 | 0.4247 | **0.0000%** |
+| **1.0 (Standard)** | 0.33 | 19.82 | 0.00† | **0.0256 (2.6%)** | 0.3733 | 0.8611 | **0.0000%** |
+| **1.5 (High Entropy)** | 0.07 | 18.52 | 0.00† | **0.0004** | 0.6578 | 0.9880 | **0.0000%** |
 
-† The evaluation run logged ROUGE-L = 0.00 at every temperature. This is a measurement artefact and not a model property; see point 1 below.
+† ROUGE-L is shown as logged by the evaluation run (0.00 at every temperature). This value is a measurement artefact and not a model property; see point 1 below.
 
 ### 5.2 Critical Generation Insights:
 1. **The logged ROUGE-L of 0.00 is a tokenizer artefact**:
    * `common/metrics.py` calls `rouge_score` with its default tokenizer, which keeps only the characters `a–z` and `0–9`. Devanagari text is reduced to an empty token list, so the score is 0 regardless of the output. The Phase 2 report (Section 4.2) describes this same pitfall.
    * A true value of zero is ruled out by the other columns: ROUGE-L is based on the longest common subsequence of words, so a single shared word makes it positive, and a chrF++ of 13–20 (which includes word n-grams) cannot occur without shared words.
-   * ROUGE-L is therefore reported as not measured for the ablated model. It gives no evidence about word-order modelling in either direction.
+   * The logged 0.00 is kept in the tables as the recorded output of the run, but it gives no evidence about word-order modelling in either direction and is not comparable with the Phase 2 values for V1 and V2.
 2. **Greedy repetition is not caused by the ablation**:
    * Under greedy decoding ($T=0.0$) the ablated model repeats 3-grams over $77.6\%$ of the generation window. The models **with** positional information behave the same way: $79.2\%$ for Baseline V1 and $77.2\%$ for Modern V2 (Phase 2 report, Section 4.1). Looping is a property of argmax decoding at this model scale, and it disappears at $T=1.0$ in all three models ($2.6\%$, $2.4\%$, $1.7\%$).
 3. **Lexical diversity is close to Baseline V1**:
@@ -293,7 +293,7 @@ Removing learned absolute positional embeddings from the Hindi Baseline V1 model
 | **Causality Verification** | **Yes** | $\max \|\Delta\text{logits}\| = 0.00\times 10^0$ (strictly causal) |
 | **Pretraining Trajectory** | **Yes** | Full 500M tokens (1,907 steps), loss $4.1879$, val PPL $61.56$ |
 | **Intrinsic Evaluation (PPL/BPB)**| **Yes** | Val loss $4.08$–$4.12$ vs. $4.125$ for V1; on identical test windows, loss $4.1281$ (PPL $62.06$, BPB $0.5468$) vs. $4.1397$ (PPL $62.79$) for V1 |
-| **Generation Metrics Sweep** | **Yes** | $T \in \{0.0, 0.5, 1.0, 1.5\}$: BLEU, chrF++; ROUGE-L not validly measured (tokenizer artefact) |
+| **Generation Metrics Sweep** | **Yes** | $T \in \{0.0, 0.5, 1.0, 1.5\}$: BLEU, chrF++, ROUGE-L (logged $0.00$, a tokenizer artefact) |
 | **Fluency & Diversity Diagnostics**| **Yes** | Repetition-3 ($77.6\%$ greedy, same as positional models), Distinct-1/2, OOR ($0.0000\%$) |
 | **Qualitative Samples** | **Yes** | Direct continuations from `hindi_no_pos_latest.pt`; clause-level word order is grammatical |
 | **Attention Diagnostics** | **Yes** | Devanagari heatmaps, Entropy ($1.39/1.29$), Distance ($3.20/3.43$), within the range of the positional models |
