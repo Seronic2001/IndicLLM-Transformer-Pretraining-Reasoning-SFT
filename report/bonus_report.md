@@ -115,16 +115,41 @@ The validation loss logged by the trainer is computed the same way for all three
 
 **Reading**: removing the positional table from V1 produced **no measurable change** in validation loss. The ablated model's own validation loss moved by 0.04 nats between steps 1900 and 1907 at a near-minimum learning rate, so evaluation noise is of that order, and the 0.005–0.05 nat gap to Baseline V1 is inside it. The ablated run used micro-batch 16, so its estimate averages 320 windows against 640 for the other two. All three are single-seed runs.
 
-### 4.2 Held-Out Test Metrics (Evaluation Protocols Differ)
+### 4.2 Held-Out Test Metrics on Identical Windows
+
+All three checkpoints were re-scored with `hindi/eval/evaluate.py` on the **same** 2,000 evenly spaced, non-overlapping 512-token windows of the Hindi `test.bin`, once at full length (511 scored tokens per window, 1,022,000 tokens) and once cut to the Phase 2 window (95 scored tokens, 190,000 tokens). Outputs are in `hindi/eval/like_for_like/`.
 
 | Benchmark Metric | Ablated No-Pos V1 | Baseline V1-16K | Modern V2-16K |
 |---|---|---|---|
-| **Test windows × scored tokens** | 300 × 511 = 153,300 | 200 × 95 = 19,000 | 200 × 95 = 19,000 |
-| **Held-Out Test Loss** | **4.1129 nats** | 4.4102 nats | 3.9562 nats |
-| **Held-Out Perplexity (PPL)** | **61.13** | 82.28 | 52.26 |
-| **Bits-Per-Byte (BPB)** | **0.5502** | 0.5764 | 0.5189 |
+| **Checkpoint step** | 1907 (final) | 1907 (best) | 1900 (best) |
+| **Test Loss, 511-token windows (nats)** | **4.1281** | 4.1397 | 3.8100 |
+| **Test PPL, 511-token windows** | **62.06** | 62.79 | 45.15 |
+| **BPB, 511-token windows** | **0.5468** | 0.5483 | 0.5047 |
+| **Test Loss, 95-token windows (nats)** | **4.3198** | 4.3257 | 4.0005 |
+| **Test PPL, 95-token windows** | **75.17** | 75.62 | 54.63 |
+| **BPB, 95-token windows** | **0.5675** | 0.5683 | 0.5256 |
 
-These columns are **not directly comparable**. The ablated model was scored on 511-token windows and the Phase 2 models on 95-token windows; a shorter context gives every token less to condition on and raises the loss. The effect is visible inside each model: Baseline V1 scores 4.125 on validation (512-token windows) but 4.410 on test (95-token windows), while the ablated model scores 4.120 and 4.113 when both use long windows. The 61.13 vs. 82.28 figures therefore do **not** show the ablated model beating Baseline V1. A like-for-like test number would require re-scoring V1 and V2 on 511-token windows, which was not done.
+**Reading**: on identical windows the ablated model and Baseline V1 differ by 0.006–0.012 nats (about 1% in perplexity), with the ablated model marginally lower. This confirms the validation-loss result of Section 4.1: removing the positional table had no meaningful effect. A gap this small should not be read as the ablated model being better; it comes from one training run per model.
+
+**Loss by context length** (mean loss of tokens that have the stated number of preceding tokens, 511-token windows):
+
+| Preceding tokens | Ablated No-Pos V1 | Baseline V1-16K | Modern V2-16K |
+|---|---|---|---|
+| 1–31 | 4.5604 | 4.5676 | 4.2853 |
+| 32–95 | 4.2032 | 4.2086 | 3.8626 |
+| 96–255 | 4.0972 | 4.1099 | 3.7776 |
+| 256–511 | 4.0762 | 4.0893 | 3.7596 |
+
+The ablated model gains from longer context exactly as Baseline V1 does, including beyond 256 tokens, so there is no sign that it loses track of order at long range. The table also shows why window length matters: every model is about 0.19 nats worse on 95-token windows than on 511-token windows.
+
+**Reproduction** (repeat with each checkpoint and its config: `ablation_no_pos.yaml`, `model_H_16k.yaml`, `model_H_v2.yaml`):
+```bash
+python -m hindi.eval.evaluate --checkpoint <checkpoint> --model-config hindi/configs/<config>.yaml \
+    --tokenizer hindi/tokenizer/hindi.model --test-bin <test.bin> \
+    --out-dir hindi/eval/like_for_like/<name> --n-prompts 200 --ppl-only
+```
+
+**Note on the originally reported figures**: the first evaluation runs gave test loss 4.1129 (PPL 61.13, BPB 0.5502) for the ablated model on 300 windows of 511 tokens, and 4.4102 (PPL 82.28) and 3.9562 (PPL 52.26) for V1 and V2 on 200 windows of 95 tokens. The apparent 61 vs. 82 perplexity gap between the ablated model and V1 was therefore a difference of protocol, not of model. Re-running the Phase 2 protocol itself (200 seeded windows, 19,000 tokens) reproduces the V2 figure exactly (3.9562) but gives 4.2726 (PPL 71.71) for the published V1 checkpoint and 4.2599 (PPL 70.81) for the ablated one. The 4.4102 reported for V1 in Phase 2 could not be reproduced from that checkpoint.
 
 ### 4.3 Generation Metrics Side by Side
 
@@ -222,7 +247,7 @@ Direct empirical text continuations generated from the final 500M checkpoint (`h
 ## 8. Mechanistic Explanation: Why Removing Positional Embeddings Cost So Little
 
 ### 8.1 The Result to Explain
-Removing the learned positional table from Baseline V1 left validation loss unchanged within noise (4.08–4.12 vs. 4.125 nats, Section 4.1) and left the generation metrics within small margins of V1 (Section 4.3). The ablated model also writes correctly ordered Hindi clauses (Section 6). The model therefore did not lose access to word order.
+Removing the learned positional table from Baseline V1 left validation loss unchanged within noise (4.08–4.12 vs. 4.125 nats, Section 4.1), left test loss on identical windows unchanged (4.128 vs. 4.140 nats, Section 4.2), and left the generation metrics within small margins of V1 (Section 4.3). The ablated model also writes correctly ordered Hindi clauses (Section 6). The model therefore did not lose access to word order.
 
 ### 8.2 The Causal Mask Already Carries Order Information
 The statement "self-attention without positional encodings is permutation-equivariant", $\text{Attn}(\Pi X) = \Pi\,\text{Attn}(X)$, holds for **bidirectional** attention, where every token sees the same set of tokens. A decoder-only model is different: the causal mask gives each position a different visible set, and that asymmetry is enough to recover order.
@@ -251,7 +276,9 @@ This behaviour has been reported before. Haviv et al. (2022), *Transformer Langu
 ### 8.6 Limitations
 * One seed, one language (Hindi), and a difference smaller than the evaluation noise: the result is "no measurable effect", not "positional embeddings are harmful or useless".
 * The ablation was evaluated on perplexity and open-ended generation only. Tasks that depend on exact order or long-range position, such as the Phase 3 reasoning templates, were not tested with the ablated model.
-* Test-set perplexity was measured with a different window length from Phase 2 (Section 4.2), and ROUGE-L was not validly measured (Section 5.2).
+* The no-position checkpoint was produced by a separate training script from Baseline V1 (micro-batch 16 with 32 accumulation steps instead of 32 with 16). Its weights have the same shapes as V1 minus the positional table and reproduce the reported loss when loaded into the repository model, but settings that are not stored in the checkpoint, such as dropout and initialisation, could not be verified as identical.
+* The ablated checkpoint is the final step (1907), not its best validation step (1900).
+* ROUGE-L was not validly measured (Section 5.2).
 * The attention diagnostics cover two heads on one sentence (Section 7).
 
 ---
@@ -265,7 +292,7 @@ Removing learned absolute positional embeddings from the Hindi Baseline V1 model
 | **Architecture & Parameters** | **Yes** | 24.78M parameters, $E_{\text{pos}} = 0$, weight tying verified |
 | **Causality Verification** | **Yes** | $\max \|\Delta\text{logits}\| = 0.00\times 10^0$ (strictly causal) |
 | **Pretraining Trajectory** | **Yes** | Full 500M tokens (1,907 steps), loss $4.1879$, val PPL $61.56$ |
-| **Intrinsic Evaluation (PPL/BPB)**| **Yes** | Val loss $4.08$–$4.12$ vs. $4.125$ for V1 (like-for-like); test loss $4.1129$, PPL $61.13$, BPB $0.5502$ on 511-token windows |
+| **Intrinsic Evaluation (PPL/BPB)**| **Yes** | Val loss $4.08$–$4.12$ vs. $4.125$ for V1; on identical test windows, loss $4.1281$ (PPL $62.06$, BPB $0.5468$) vs. $4.1397$ (PPL $62.79$) for V1 |
 | **Generation Metrics Sweep** | **Yes** | $T \in \{0.0, 0.5, 1.0, 1.5\}$: BLEU, chrF++; ROUGE-L not validly measured (tokenizer artefact) |
 | **Fluency & Diversity Diagnostics**| **Yes** | Repetition-3 ($77.6\%$ greedy, same as positional models), Distinct-1/2, OOR ($0.0000\%$) |
 | **Qualitative Samples** | **Yes** | Direct continuations from `hindi_no_pos_latest.pt`; clause-level word order is grammatical |

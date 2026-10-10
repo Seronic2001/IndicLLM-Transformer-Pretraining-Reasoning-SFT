@@ -1,0 +1,25 @@
+{
+  "windows": 2000,
+  "full_context": {
+    "loss": 4.1397187185044855,
+    "perplexity": 62.78515866188598,
+    "bits_per_byte": 0.5483301282440868,
+    "tokens_evaluated": 1022000,
+    "utf8_bytes": 11131512,
+    "window_tokens": 512
+  },
+  "short_context": {
+    "loss": 4.325724669125206,
+    "perplexity": 75.62029270005861,
+    "bits_per_byte": 0.5683001656376254,
+    "tokens_evaluated": 190000,
+    "utf8_bytes": 2086456,
+    "window_tokens": 96
+  },
+  "loss_by_context_length": {
+    "1-31": 4.567613632694367,
+    "32-95": 4.208559702396393,
+    "96-255": 4.109932376217842,
+    "256-511": 4.089309536695481
+  }
+}
