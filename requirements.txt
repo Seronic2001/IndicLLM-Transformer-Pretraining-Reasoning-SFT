@@ -9,7 +9,7 @@ numpy>=1.26.0
 sentencepiece>=0.1.99        # tokenizer training
 sacrebleu>=2.4.0             # BLEU / chrF
 rouge-score>=0.1.2           # ROUGE-L
-matplotlib>=3.7.0            # plots
+matplotlib>=3.11.0           # plots; 3.11 shapes Indic text (common/plot_fonts.py)
 PyYAML>=6.0                  # configs
 pytest>=8.0                  # acceptance tests (every module, spec Section 0.6)
 
