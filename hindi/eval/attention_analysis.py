@@ -33,6 +33,10 @@ _LANG_ROOT = Path(__file__).resolve().parents[1]
 if str(_LANG_ROOT) not in sys.path:
     sys.path.insert(0, str(_LANG_ROOT))
 
+from common.plot_fonts import use_indic_fonts  # noqa: E402
+
+use_indic_fonts()  # token labels are Devanagari
+
 
 def attention_entropy(attn_weights: torch.Tensor) -> torch.Tensor:
     """attn_weights: (n_head, T, T) post-softmax, rows sum to 1.
