@@ -78,7 +78,7 @@ class CausalSelfAttention(nn.Module):
         )
         self.register_buffer("mask", mask)
 
-    def forward(self, x: torch.Tensor, return_attn: bool = False):
+    def forward(self, x: torch.Tensor, return_attn: bool = False, cache: Optional[dict] = None):
         B, T, C = x.shape
         q, k, v = self.c_attn(x).split(self.d_model, dim=2)  # (B, T, d_model) each
 
@@ -88,10 +88,19 @@ class CausalSelfAttention(nn.Module):
         k = k.view(B, T, self.n_head, self.d_k).transpose(1, 2)
         v = v.view(B, T, self.n_head, self.d_k).transpose(1, 2)
 
+        # KV cache (generation): keys/values of earlier positions are kept, so x holds
+        # only the new tokens and the queries attend to cached + new keys.
+        if cache is not None:
+            if "k" in cache:
+                k = torch.cat((cache["k"], k), dim=2)
+                v = torch.cat((cache["v"], v), dim=2)
+            cache["k"], cache["v"] = k, v
+        S = k.size(2)  # number of keys: S == T without a cache
+
         # Scale by 1/sqrt(d_k) BEFORE masking.
-        att = (q @ k.transpose(-2, -1)) * (1.0 / math.sqrt(self.d_k))  # (B, n_head, T, T)
+        att = (q @ k.transpose(-2, -1)) * (1.0 / math.sqrt(self.d_k))  # (B, n_head, T, S)
         # Additive -inf on the upper triangle: future positions excluded by softmax.
-        att = att.masked_fill(self.mask[None, None, :T, :T], float("-inf"))
+        att = att.masked_fill(self.mask[None, None, S - T:S, :S], float("-inf"))
         att = torch.softmax(att, dim=-1)
         att = self.attn_dropout(att)
 
@@ -129,13 +138,13 @@ class Block(nn.Module):
         self.ln_2 = nn.LayerNorm(config.d_model)
         self.mlp = MLP(config)
 
-    def forward(self, x: torch.Tensor, return_attn: bool = False):
+    def forward(self, x: torch.Tensor, return_attn: bool = False, cache: Optional[dict] = None):
         if return_attn:
-            y, att = self.attn(self.ln_1(x), return_attn=True)
+            y, att = self.attn(self.ln_1(x), return_attn=True, cache=cache)
             x = x + y
             x = x + self.mlp(self.ln_2(x))
             return x, att
-        x = x + self.attn(self.ln_1(x))
+        x = x + self.attn(self.ln_1(x), cache=cache)
         x = x + self.mlp(self.ln_2(x))
         return x
 
@@ -178,31 +187,37 @@ class GPTLanguageModel(nn.Module):
         idx: torch.Tensor,
         targets: Optional[torch.Tensor] = None,
         return_attn: bool = False,
+        kv_cache: Optional[list] = None,
     ) -> dict:
         """idx: (B, T) token ids. targets: (B, T) next-token ids or None.
+
+        kv_cache: one dict per layer (start with empty dicts) holding the keys and
+        values of earlier positions; idx then holds only the tokens after them.
 
         Returns {"logits": (B, T, vocab), "loss": scalar | None,
                  "attn_weights": list | None}  # one (B,n_head,T,T) tensor per layer
         """
         B, T = idx.shape
-        assert T <= self.config.block_size, (
-            f"sequence length {T} exceeds block_size {self.config.block_size}"
+        past = kv_cache[0]["k"].size(2) if kv_cache is not None and "k" in kv_cache[0] else 0
+        assert past + T <= self.config.block_size, (
+            f"sequence length {past + T} exceeds block_size {self.config.block_size}"
         )
 
         tok = self.token_embedding(idx)  # (B, T, d_model)
         if self.position_embedding is not None:
-            pos = self.position_embedding(torch.arange(T, device=idx.device))  # (T, d_model)
+            pos = self.position_embedding(torch.arange(past, past + T, device=idx.device))  # (T, d_model)
             x = self.drop(tok + pos)
         else:
             x = self.drop(tok)
 
         attn_weights: list[torch.Tensor] = []
-        for block in self.blocks:
+        for i, block in enumerate(self.blocks):
+            cache = kv_cache[i] if kv_cache is not None else None
             if return_attn:
-                x, att = block(x, return_attn=True)
+                x, att = block(x, return_attn=True, cache=cache)
                 attn_weights.append(att)
             else:
-                x = block(x)
+                x = block(x, cache=cache)
         x = self.ln_f(x)
 
         logits = self.lm_head(x)  # (B, T, vocab)
@@ -243,16 +258,26 @@ class GPTLanguageModel(nn.Module):
         repetition_penalty: float = 1.0,
         repetition_window: int = 64,
         eos_id: Optional[int] = None,
+        use_cache: bool = False,
     ) -> torch.Tensor:
         """Autoregressively extend idx (B, T) by max_new_tokens tokens with top-k, top-p, and repetition penalty.
 
         With eos_id set, generation stops once every sequence has emitted it.
+        use_cache keeps each layer's keys and values, so every step runs only the new
+        token (much faster on CPU). It applies when prompt + new tokens fit in block_size;
+        logits can differ from the uncached path by float rounding, so evaluation keeps
+        the default (False) for reproducible scores.
         """
         self.eval()
         finished = torch.zeros(idx.size(0), dtype=torch.bool, device=idx.device)
-        for _ in range(max_new_tokens):
-            idx_cond = idx if idx.size(1) <= self.config.block_size else idx[:, -self.config.block_size :]
-            logits = self(idx_cond)["logits"][:, -1, :].clone()
+        cache = ([{} for _ in self.blocks]
+                 if use_cache and idx.size(1) + max_new_tokens <= self.config.block_size else None)
+        for step in range(max_new_tokens):
+            if cache is not None:
+                logits = self(idx if step == 0 else idx[:, -1:], kv_cache=cache)["logits"][:, -1, :].clone()
+            else:
+                idx_cond = idx if idx.size(1) <= self.config.block_size else idx[:, -self.config.block_size :]
+                logits = self(idx_cond)["logits"][:, -1, :].clone()
 
             # Apply repetition penalty to recently generated tokens
             if repetition_penalty > 1.0 and idx.size(1) > 0:

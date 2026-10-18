@@ -416,6 +416,16 @@ python -m assamese.finetune.finetune --mode both \
 
 ---
 
+## 🖥️ Demo (Gradio, CPU)
+
+[`demo/app.py`](demo/app.py) serves both languages in one Gradio app: **Generate** continues a prompt with the pretrained Modern V2 model, and **Reasoning** answers a fresh comparison question (2–10 hops) with the Direct-finetuned Baseline V1 model and checks it against the symbolic solver. Generation uses a key/value cache (`generate(..., use_cache=True)`), so answers take well under a second on 2 CPU threads.
+
+* **Build a Space folder**: `python -m demo.build_space --out <dir> --checkpoint hindi_lm=<best.pt> hindi_reasoning=<finetuned_direct.pt> assamese_lm=... assamese_reasoning=...`. Checkpoints are slimmed to fp16 weights + config (~50 MB each).
+* **Build and upload from Kaggle** (no local download of checkpoints): the `seronic2001/lma-export-demo` notebook ([`notebooks/kaggle_eval/lma-export-demo/`](notebooks/kaggle_eval/lma-export-demo/), git-ignored) does the above with the trained checkpoints and uploads to a Hugging Face Space, using the Kaggle secrets `HF_TOKEN` and `HF_SPACE`.
+* **Run locally**: `pip install gradio==5.50.0`, then `python app.py` inside the built folder.
+
+---
+
 ## 📑 Technical Reports
 * **Course Bonus Technical Report (Positional Embedding Ablation):** **[`report/bonus_report.md`](report/bonus_report.md)** — Complete 500M-token ablation removing positional embeddings ($E_{pos}=0$) in Hindi 16K Transformer (~24.78M params). Documents validation loss $4.08$–$4.12$ nats against $4.125$ for Baseline V1 (no measurable effect), held-out loss $4.1129$ nats (PPL $61.13$, 511-token windows), generation metrics within small margins of V1, and the explanation: the causal mask lets a decoder infer token order without explicit positional input. Public dataset: [`shubhadeepmandal/lma-bonus-artifacts`](https://www.kaggle.com/datasets/shubhadeepmandal/lma-bonus-artifacts).
 * **Final Consolidated Report (100 Marks):** **[`report/final_report.md`](report/final_report.md)** ([PDF: `report/final_report.pdf`](report/final_report.pdf)): synthesis of the three phases and the four comparative questions.

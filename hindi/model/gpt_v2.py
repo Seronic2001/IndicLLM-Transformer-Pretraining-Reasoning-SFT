@@ -113,7 +113,7 @@ class ModernCausalSelfAttention(nn.Module):
         self.register_buffer("rope_cos", cos, persistent=False)
         self.register_buffer("rope_sin", sin, persistent=False)
 
-    def forward(self, x: torch.Tensor, return_attn: bool = False):
+    def forward(self, x: torch.Tensor, return_attn: bool = False, cache: Optional[Dict] = None):
         B, T, C = x.shape
         q, k, v = self.c_attn(x).split(self.d_model, dim=2)
 
@@ -122,18 +122,27 @@ class ModernCausalSelfAttention(nn.Module):
         k = k.view(B, T, self.n_head, self.d_k).transpose(1, 2)
         v = v.view(B, T, self.n_head, self.d_k).transpose(1, 2)
 
-        if T > self.rope_cos.size(0):
-            cos, sin = precompute_rope_frequencies(self.d_k, T * 2, theta=self.rope_theta)
+        # KV cache (generation): x holds only the tokens after the `past` cached ones,
+        # so they are rotated by their absolute positions past .. past + T - 1.
+        past = cache["k"].size(2) if cache is not None and "k" in cache else 0
+        if past + T > self.rope_cos.size(0):
+            cos, sin = precompute_rope_frequencies(self.d_k, (past + T) * 2, theta=self.rope_theta)
             self.rope_cos = cos.to(x.device)
             self.rope_sin = sin.to(x.device)
 
-        cos = self.rope_cos[:T].to(dtype=q.dtype, device=q.device)
-        sin = self.rope_sin[:T].to(dtype=q.dtype, device=q.device)
+        cos = self.rope_cos[past:past + T].to(dtype=q.dtype, device=q.device)
+        sin = self.rope_sin[past:past + T].to(dtype=q.dtype, device=q.device)
         q, k = apply_rotary_pos_emb(q, k, cos, sin)
+        if cache is not None:
+            if past:
+                k = torch.cat((cache["k"], k), dim=2)
+                v = torch.cat((cache["v"], v), dim=2)
+            cache["k"], cache["v"] = k, v
+        S = past + T  # number of keys
 
         if return_attn:
             att = (q @ k.transpose(-2, -1)) * (1.0 / math.sqrt(self.d_k))
-            causal_mask = torch.triu(torch.ones(T, T, device=x.device, dtype=torch.bool), diagonal=1)
+            causal_mask = torch.triu(torch.ones(T, S, device=x.device, dtype=torch.bool), diagonal=past + 1)
             att = att.masked_fill(causal_mask[None, None, :, :], float("-inf"))
             att = torch.softmax(att, dim=-1)
             if self.dropout_p > 0.0 and self.training:
@@ -144,11 +153,15 @@ class ModernCausalSelfAttention(nn.Module):
             return y, att
 
         dropout_p = self.dropout_p if self.training else 0.0
+        # SDPA's is_causal aligns the mask to the top-left, which is wrong once queries
+        # start after cached keys; then pass the mask explicitly (True = may attend).
+        attn_mask = (None if past == 0 else
+                     torch.ones(T, S, device=x.device, dtype=torch.bool).tril(diagonal=past))
         y = F.scaled_dot_product_attention(
             q, k, v,
-            attn_mask=None,
+            attn_mask=attn_mask,
             dropout_p=dropout_p,
-            is_causal=True
+            is_causal=past == 0
         )
         y = y.transpose(1, 2).contiguous().view(B, T, C)
         y = self.resid_dropout(self.c_proj(y))
@@ -182,13 +195,13 @@ class ModernTransformerBlock(nn.Module):
         self.norm_2 = RMSNorm(config.d_model, eps=config.norm_eps)
         self.mlp = SwiGLU(config)
 
-    def forward(self, x: torch.Tensor, return_attn: bool = False):
+    def forward(self, x: torch.Tensor, return_attn: bool = False, cache: Optional[Dict] = None):
         if return_attn:
-            y, att = self.attn(self.norm_1(x), return_attn=True)
+            y, att = self.attn(self.norm_1(x), return_attn=True, cache=cache)
             x = x + y
             x = x + self.mlp(self.norm_2(x))
             return x, att
-        x = x + self.attn(self.norm_1(x))
+        x = x + self.attn(self.norm_1(x), cache=cache)
         x = x + self.mlp(self.norm_2(x))
         return x
 
@@ -224,17 +237,21 @@ class GPTLanguageModelV2(nn.Module):
         idx: torch.Tensor,
         targets: Optional[torch.Tensor] = None,
         return_attn: bool = False,
+        kv_cache: Optional[List[Dict]] = None,
     ) -> Dict[str, Optional[torch.Tensor]]:
+        """kv_cache: one dict per layer (start with empty dicts) holding the keys and
+        values of earlier positions; idx then holds only the tokens after them."""
         B, T = idx.shape
         x = self.drop(self.token_embedding(idx))
 
         attn_weights: List[torch.Tensor] = []
-        for block in self.blocks:
+        for i, block in enumerate(self.blocks):
+            cache = kv_cache[i] if kv_cache is not None else None
             if return_attn:
-                x, att = block(x, return_attn=True)
+                x, att = block(x, return_attn=True, cache=cache)
                 attn_weights.append(att)
             else:
-                x = block(x)
+                x = block(x, cache=cache)
         x = self.norm_f(x)
         logits = self.lm_head(x)
 
@@ -268,18 +285,28 @@ class GPTLanguageModelV2(nn.Module):
         repetition_penalty: float = 1.0,
         repetition_window: int = 64,
         eos_id: Optional[int] = None,
+        use_cache: bool = False,
     ) -> torch.Tensor:
         """Autoregressively extend idx (B, T) with top-k, top-p, and repetition penalty.
 
         With eos_id set, generation stops once every sequence has emitted it.
+        use_cache keeps each layer's keys and values, so every step runs only the new
+        token (much faster on CPU). It applies when prompt + new tokens fit in block_size;
+        logits can differ from the uncached path by float rounding, so evaluation keeps
+        the default (False) for reproducible scores.
         """
         self.eval()
         finished = torch.zeros(idx.size(0), dtype=torch.bool, device=idx.device)
-        for _ in range(max_new_tokens):
-            # Crop to the trained context length: RoPE runs on longer inputs, but the
-            # model never saw relative offsets beyond block_size during training.
-            idx_cond = idx if idx.size(1) <= self.config.block_size else idx[:, -self.config.block_size :]
-            logits = self(idx_cond)["logits"][:, -1, :].clone()
+        cache = ([{} for _ in self.blocks]
+                 if use_cache and idx.size(1) + max_new_tokens <= self.config.block_size else None)
+        for step in range(max_new_tokens):
+            if cache is not None:
+                logits = self(idx if step == 0 else idx[:, -1:], kv_cache=cache)["logits"][:, -1, :].clone()
+            else:
+                # Crop to the trained context length: RoPE runs on longer inputs, but the
+                # model never saw relative offsets beyond block_size during training.
+                idx_cond = idx if idx.size(1) <= self.config.block_size else idx[:, -self.config.block_size :]
+                logits = self(idx_cond)["logits"][:, -1, :].clone()
 
             if repetition_penalty > 1.0 and idx.size(1) > 0:
                 for b in range(idx.size(0)):
