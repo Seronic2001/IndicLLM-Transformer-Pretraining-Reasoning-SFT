@@ -24,7 +24,7 @@ if str(_LANG_ROOT) not in sys.path:
 from common.checkpoint import checkpoint_paths_in_dir, save_checkpoint, load_checkpoint
 from tokenizer.tokenizer import Tokenizer
 
-# Defaults are the best recipe of the 2-seed sweep (finetuned-logs-summary-v6.txt):
+# Defaults are the best recipe of the 2-seed sweep (report/results/phase3_finetune_<lang>.json):
 # Direct + realmix (half the training names real): test relation 0.945 (V1), 0.880 (V2).
 # Direct beat CoT and dropout 0.1 stopped most cells learning. The checkpoint is selected
 # on generated answers, not on the validation loss, which rises while answers improve.

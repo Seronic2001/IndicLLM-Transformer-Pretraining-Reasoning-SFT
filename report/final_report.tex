@@ -53,7 +53,7 @@
   \begin{@twocolumnfalse}
     \vspace{-0.6cm}
     \begin{center}
-      {\LARGE \textbf{Comparative Pre-Training and Symbolic Reasoning Transfer in Monolingual Indic Transformers: A Contrastive Study Across High-Resource Hindi and Low-Resource Assamese}\par}
+      {\LARGE \textbf{Pretraining and Reasoning Fine-Tuning of Small Monolingual Indic Transformers: Hindi (Higher-Resource) and Assamese (Lower-Resource)}\par}
       \vspace{0.35cm}
       {\large \textbf{Shubhadeep Mandal}}\par
       \vspace{0.12cm}
@@ -65,337 +65,139 @@
     \end{center}
     \vspace{0.25cm}
     \begin{abstract}
-    \noindent We design, train, and empirically evaluate two completely independent monolingual decoder-only Transformer Language Models ($\sim$25.6M parameters each) from first principles in PyTorch without cross-lingual weight sharing or pretrained initialization. Through multi-source web crawling and digital OCR extraction of educational textbooks, we curated balanced 500M+ token corpora for higher-resource Hindi (723M tokens) and lower-resource Assamese (528M tokens), strictly satisfying the mandatory $\ge 20\%$ manual collection threshold. Custom 16,384-vocabulary SentencePiece BPE tokenizers achieve character coverage $>99.99\%$ with $0.0\%$ unknown token rate. Pretraining on 500M tokens across 1,907 optimizer steps yields smooth convergence and competitive held-out test perplexities ($52.26$ for Hindi V2, $80.93$ for Assamese V2). In Phase 3, we formulate an anti-leakage relational reasoning solver and conduct Supervised Fine-Tuning across an 8-model experimental matrix ($4 \times 2$: Baseline V1 vs. Modern V2 $\times$ Direct SFT vs. Chain-of-Thought). Chain-of-Thought SFT combined with a controlled 5\% negation curriculum yields dramatic performance improvements (+101.7\% relative gain in Assamese, achieving 63.83\% accuracy on negated logic queries and +13.5\% to +27.7\% relative boost in Token $F_1$), effectively closing the reasoning gap between the resource tiers.
+    \noindent We built two independent monolingual pipelines, from corpus collection to reasoning fine-tuning, for Hindi and Assamese. Each language has its own 16,384-piece BPE tokenizer (fertility 1.28 and 1.43 tokens per word, no unknown tokens) and two 25M-parameter decoder-only Transformers written from PyTorch primitives: a Baseline V1 (learned positions, GELU, LayerNorm) and a Modern V2 (RoPE, SwiGLU, RMSNorm), each pretrained on 500M tokens. V2 reaches lower held-out perplexity in both languages (Hindi 36.15 vs 38.66; Assamese 51.55 vs 54.53 on 512-token windows), a 5--7\% advantage. Fine-tuned on synthetic relational reasoning (44 runs, 2 seeds per recipe), the models learn the task and generalise to chains up to three times longer than any in training: Hindi V1 with Direct SFT scores 0.961 on the test set and 0.846 on 10-hop chains, against a majority baseline of 0.48. A leakage analysis shows the main test is structurally covered by training (a lookup of training answers scores 0.95), so the evidence of reasoning comes from deeper, structurally new splits where that lookup is at chance. Direct SFT beats Chain-of-Thought SFT, V1 beats V2 despite its higher perplexity, and Assamese trails Hindi (best 0.833). Every model is misled by premises about a different attribute. After fine-tuning, attention changes mostly in the late layers, where the answer position concentrates on the entity names.
     \end{abstract}
-    \end{@twocolumnfalse}
+    \vspace{0.3cm}
+  \end{@twocolumnfalse}
 ]
 
 % ==============================================================================
-% SECTION 1: INTRODUCTION & FULL PIPELINE OVERVIEW
+\section{Introduction}
 % ==============================================================================
-\section{Introduction and Experimental Pipeline}
+The project studies how far small language models, trained from scratch in one language, can be taken: from a raw corpus, through pretraining, to multi-step relational reasoning. Hindi stands for a higher-resource and Assamese for a lower-resource Indic language. Every number below is read from the result files in \texttt{report/results/} (copied unchanged from the Kaggle runs that produced them), and every figure is drawn from those files by \texttt{report/make\_figures.py}. The phase reports give the full detail.
 
-The development of autoregressive decoder-only Transformer language models has largely centered on high-resource languages such as English and Chinese. Low-resource and morphologically complex Indian languages present unique challenges stemming from complex conjunct ligatures, scarce digital footprints, and severe tokenization fragmentation. 
-
-In this investigation, we explore the comparative dynamics of monolingual pretraining and downstream symbolic reasoning acquisition across two linguistically distinct Indo-Aryan languages: \textbf{Hindi} (Devanagari script, higher-resource) and \textbf{Assamese} (Eastern Nagari script `\indic{অসমীয়া}', lower-resource). Both models are built entirely from scratch, utilizing 100\% disjoint pipelines, independent vocabularies, and zero cross-lingual weight sharing.
-
-Table \ref{tab:pipeline} provides an architectural and operational overview of the three-phase engineering trajectory conducted across the project.
-
-\begin{table*}[t]
+% ==============================================================================
+\section{Phase 1: Corpora and Tokenizers}
+% ==============================================================================
+\begin{table}[h]
 \centering
 \small
-\resizebox{0.96\textwidth}{!}{
-\begin{tabularx}{\textwidth}{lXXX}
+\begin{tabular}{@{}lrr@{}}
 \toprule
-\textbf{Pipeline Phase} & \textbf{Phase 1: Data \& Tokenization} & \textbf{Phase 2: Architecture \& Pretraining} & \textbf{Phase 3: Symbolic Reasoning SFT} \\
+ & \textbf{Hindi} & \textbf{Assamese} \\
 \midrule
-\textbf{Corpus Scale} & 723M tokens (Hindi, 20.55\% manual) \newline 528M tokens (Assamese, 22.48\% manual) & 500M tokens pretraining budget \newline 1,907 optimizer steps at 262k tok/step & 20,000 synthetic reasoning examples \newline 2,000 held-out evaluation pairs \\
-\addlinespace
-\textbf{Methodology} & Custom multi-threaded scrapers, SEBA/SCERT digital OCR, MinHash LSH ($s=0.8$) & Baseline V1 (Pre-LN, GELU, Absolute Pos) \newline Modern V2 (RMSNorm, SwiGLU, RoPE) & Disjoint entity sets (20 train, 15 test) \newline Direct SFT vs. Chain-of-Thought (CoT) \\
-\addlinespace
-\textbf{Key Diagnostics} & Custom 16,384 SentencePiece BPE \newline Byte-fallback enabled ($0.0\%$ \texttt{<unk>}) & Nvidia FP16 mixed precision, AdamW \newline Test PPL: 52.26 (HI V2), 80.93 (AS V2) & Multi-tier evaluation (Strict, $F_1$, Char Sim) \newline 5\% Negation curriculum fine-tuning \\
+Corpus tokens (estimate) & 723.3M & 528.5M \\
+Manual collection & 20.55\% & 22.48\% \\
+Training tokens (\texttt{train.bin}) & 714.0M & 717.4M \\
+Fertility (tokens/word) & 1.2776 & 1.4313 \\
+Characters / token & 3.7445 & 4.5774 \\
+\texttt{<unk>} rate & 0.0\% & 0.0\% \\
 \bottomrule
-\end{tabularx}
-}
-\caption{\textbf{End-to-End Three-Phase Engineering Pipeline.} Overview of data curation, pretraining dynamics, and symbolic reasoning fine-tuning across both target languages.}
-\label{tab:pipeline}
-\end{table*}
-
-% ==============================================================================
-% SECTION 2: PHASE-BY-PHASE EMPIRICAL SUMMARY
-% ==============================================================================
-\section{Phase-by-Phase Empirical Summary}
-
-\subsection{Phase 1: Corpus Scale and Tokenization Diagnostics}
-
-Both language corpora surpass the mandatory 500M-token threshold with $>20\%$ manual collection derived from state educational textbooks and regional news portals. Table \ref{tab:phase1} summarizes the corpus metrics and tokenizer diagnostics.
-
-\begin{table}[h!]
-\centering
-\footnotesize
-\begin{tabularx}{\columnwidth}{lXX}
-\toprule
-\textbf{Metric / Attribute} & \textbf{Hindi (Model H)} & \textbf{Assamese (Model L)} \\
-\midrule
-Script Family & Devanagari & Eastern Nagari \\
-Total Tokens & \textbf{723,321,981} & \textbf{528,500,000} \\
-Manual Tokens & \textbf{148,676,877 (20.5\%)} & \textbf{118,800,000 (22.5\%)} \\
-Downloaded Tokens & 574,645,104 (79.5\%) & 409,700,000 (77.5\%) \\
-Deduplication & MinHash LSH (64h) & MinHash LSH (64h) \\
-Vocabulary Size & 16,384 pieces & 16,384 pieces \\
-Unknown Rate (\texttt{<unk>}) & \textbf{0.000000\%} & \textbf{0.000000\%} \\
-Subword Fertility & \textbf{1.1858 tok/word} & \textbf{1.4426 tok/word} \\
-Compression Ratio & 3.7445 char/tok & 4.5774 char/tok \\
-\bottomrule
-\end{tabularx}
-\caption{\textbf{Phase 1 Corpus Scale and Tokenizer Diagnostics.} Both languages fulfill the $\ge 20\%$ manual threshold with zero unknown tokens via byte-fallback.}
-\label{tab:phase1}
+\end{tabular}
+\caption{Corpus and tokenizer statistics. Corpus tokens are the \texttt{dataset\_stats.json} estimates; training tokens are counted in the token files with each language's 16K BPE tokenizer.}
+\label{tab:p1}
 \end{table}
 
-\begin{figure*}[t]
-\centering
-\begin{subfigure}[t]{0.48\textwidth}
-    \centering
-    \includegraphics[width=\textwidth]{figures/corpus_distribution_hindi_cropped.png}
-    \caption{Hindi Monolingual Corpus Source Distribution (Total: 723.32M tokens, 20.55\% manual collection).}
-    \label{fig:corpus_hindi}
-\end{subfigure}
-\hfill
-\begin{subfigure}[t]{0.48\textwidth}
-    \centering
-    \includegraphics[width=\textwidth]{figures/corpus_distribution_assamese_cropped.png}
-    \caption{Assamese Monolingual Corpus Source Distribution (Total: 528.50M tokens, 22.48\% manual collection).}
-    \label{fig:corpus_assamese}
-\end{subfigure}
-\caption{\textbf{Phase 1 Pretraining Corpus Source Composition (Pie Chart Breakdown).} Detailed source breakdowns for Hindi and Assamese, fulfilling the mandatory $\ge 20\%$ manual collection threshold through curated web crawls and digital textbook OCR.}
-\label{fig:corpus_dist}
-\end{figure*}
+Cleaning applies NFC/NFKC normalisation, keeps only characters of the language's script block, repairs OCR damage (detached matras, broken conjuncts, detached Assamese suffixes), drops short or mostly non-script documents, and removes exact (SHA-256) and near (MinHash, 0.6) duplicates. The Assamese token files were built from a larger set of cleaned sources than its statistics describe, hence 717.4M training tokens against a 528.5M corpus estimate. Because only script characters are kept, the corpora contain no ASCII digits or punctuation.
 
-\begin{figure}[h!]
+\begin{figure}[h]
 \centering
 \includegraphics[width=\columnwidth]{figures/tokenizer_fertility_comparison.png}
-\caption{\textbf{Subword Fertility across Vocabulary Sizes.} At 16K vocabulary, Assamese requires $1.4426$ tokens/word compared to $1.1858$ for Hindi due to Eastern Nagari conjunct ligatures (\indic{যুক্তাক্ষৰ}).}
-\label{fig:fertility}
+\caption{Fertility of the four tokenizer candidates on 2,000 held-out documents. 32K vocabularies are 7--9\% more efficient but would leave room for only 6 layers in a 25M-parameter model; BPE and Unigram are within 2\% at 16K.}
+\label{fig:fert}
 \end{figure}
 
-\textbf{Analytical Contrast (Figure \ref{fig:corpus_dist} vs. Figure \ref{fig:fertility})}: While both corpora satisfy the 500M token requirement, contrasting the corpus source breakdown (Figure \ref{fig:corpus_dist}) with subword fertility (Figure \ref{fig:fertility}) illustrates an acute structural divergence. Hindi benefited from extensive digital news archives, producing a low fertility rate ($1.1858$ tokens/word) where words align near-isomorphically with subword units. In contrast, Assamese text contains dense multi-consonant clusters (e.g. \indic{ক্ষ}, \indic{জ্ঞ}, \indic{ত্ত}) that fracture into 2--3 subword pieces. Consequently, an identical 512-token context window spans $\sim$431 words in Hindi but only $\sim$354 words in Assamese ($\sim 21.6\%$ shorter temporal horizon), imposing tighter bounds on multi-hop symbolic deduction.
+% ==============================================================================
+\section{Phase 2: Pretraining}
+% ==============================================================================
+Both architectures have 8 layers, $d_{\text{model}}=384$, 6 heads, a 512-token context and tied embeddings (V1: 24,982,272 parameters; V2: 25,172,352). Each was trained for 15,259 AdamW steps of 32,768 tokens (500M tokens, about 0.7 of an epoch) with a cosine schedule from $6\times10^{-4}$ to $6\times10^{-5}$.
 
-\subsection{Phase 2: Pretraining Dynamics and LM Benchmarks}
-
-Both architectures ($\sim$25.6M parameters) were pretrained under identical conditions: batch size 512, sequence length 512 (262,144 tokens/step), AdamW optimizer ($\beta_1=0.9, \beta_2=0.95$, weight decay $0.1$), cosine learning rate schedule peaking at $6 \times 10^{-4}$ with 100 warmup steps, over 1,907 steps (500M tokens total).
-
-\begin{table}[h!]
-\centering
-\footnotesize
-\resizebox{0.96\columnwidth}{!}{
-\begin{tabular}{lcccc}
-\toprule
-\textbf{Model / Architecture} & \textbf{Loss} & \textbf{PPL} & \textbf{BPB} & \textbf{Params} \\
-\midrule
-\multicolumn{5}{l}{\textit{Hindi (Model H, Devanagari)}} \\
-Baseline V1 (Pre-LN, GELU) & 4.4102 & 82.28 & 0.5764 & 24.98M \\
-\textbf{Modern V2 (RMSNorm, RoPE)} & \textbf{3.9562} & \textbf{52.26} & \textbf{0.5189} & \textbf{25.17M} \\
-\textit{Architectural Gain ($\Delta$)} & \textbf{-0.4540} & \textbf{-36.5\%} & \textbf{-0.0575} & --- \\
-\midrule
-\multicolumn{5}{l}{\textit{Assamese (Model L, Eastern Nagari)}} \\
-Baseline V1 (Pre-LN, GELU) & 4.7920 & 120.54 & 0.5641 & 24.98M \\
-\textbf{Modern V2 (RMSNorm, RoPE)} & \textbf{4.3935} & \textbf{80.93} & \textbf{0.5049} & \textbf{25.17M} \\
-\textit{Architectural Gain ($\Delta$)} & \textbf{-0.3985} & \textbf{-32.9\%} & \textbf{-0.0592} & --- \\
-\bottomrule
-\end{tabular}
-}
-\caption{\textbf{Held-Out Continuous Language Modeling Benchmarks.} Modern V2 demonstrates consistent superiority over Baseline V1 across both languages.}
-\label{tab:phase2}
-\end{table}
-
-\begin{figure*}[t]
-\centering
-\begin{subfigure}[t]{0.48\textwidth}
-    \centering
-    \includegraphics[width=\textwidth]{figures/loss_curve_val_hindi_3way.png}
-    \caption{Hindi Pretraining Dynamics (500M tokens, 1,907 steps): Modern V2 reduces test loss by 0.454 nats and lowers perplexity by 36.5\% ($52.26$ vs $82.28$).}
-    \label{fig:loss_hindi}
-\end{subfigure}
-\hfill
-\begin{subfigure}[t]{0.48\textwidth}
-    \centering
-    \includegraphics[width=\textwidth]{figures/loss_curve_val_assamese_3way.png}
-    \caption{Assamese Pretraining Dynamics (500M tokens, 1,907 steps): Modern V2 reduces test loss by 0.398 nats and lowers perplexity by 32.9\% ($80.93$ vs $120.54$).}
-    \label{fig:loss_assamese}
-\end{subfigure}
-\caption{\textbf{Pretraining Validation Loss Trajectories.} Demonstrating universal architectural gains of SwiGLU, RMSNorm, and RoPE across Devanagari and Eastern Nagari scripts.}
-\label{fig:pretrain_curves}
-\end{figure*}
-
-\textbf{Analytical Contrast (Figure \ref{fig:loss_hindi} vs. Figure \ref{fig:loss_assamese})}:
-\begin{enumerate}
-    \item \textbf{Architectural Invariance}: The performance boost of Modern V2 over Baseline V1 remains remarkably steady across scripts ($\Delta = -0.454$ nats / $-36.5\%$ PPL in Hindi; $\Delta = -0.398$ nats / $-32.9\%$ PPL in Assamese). This confirms that relative rotary position embeddings and gated SwiGLU non-linearities transfer effectively across varying orthographic complexity.
-    \item \textbf{Orthographic Baseline}: Assamese validation loss plateaus at a strictly higher value ($4.3935$ nats, PPL $80.93$) than Hindi ($3.9562$ nats, PPL $52.26$). However, when normalized by byte entropy (Bits-Per-Byte), Assamese achieves a lower BPB ($0.5049$ vs. $0.5189$). This demonstrates that higher token cross-entropy reflects greater linguistic compression rather than underfitting.
-\end{enumerate}
-
-\subsection{Phase 3: Symbolic Reasoning Benchmark Matrix}
-
-In Phase 3, we evaluated supervised fine-tuning across an 8-model experimental matrix ($4 \times 2$: Baseline V1 vs. Modern V2 $\times$ Direct SFT vs. Chain-of-Thought). Evaluation was conducted on 2,000 held-out queries with completely disjoint entity pools to eliminate factual leakage. Table \ref{tab:phase3} provides the complete benchmark suite.
-
-\begin{table*}[t]
+\begin{table}[h]
 \centering
 \small
-\setlength{\tabcolsep}{4.5pt}
-\resizebox{0.95\textwidth}{!}{
-\begin{tabular}{llccccccc}
+\begin{tabular}{@{}llrrr@{}}
 \toprule
-\textbf{Model Key} & \textbf{Language} & \textbf{Architecture} & \textbf{SFT Mode} & \textbf{Strict Acc (Ans)} & \textbf{Token $F_1$ (Ans)} & \textbf{Char Sim} & \textbf{CoT EM} & \textbf{CoT Decomp} \\
+\textbf{Language} & \textbf{Model} & \textbf{Loss} & \textbf{PPL} & \textbf{BPB} \\
 \midrule
-\textbf{Hindi V1 Direct} & Hindi & Baseline V1 & Direct & \textbf{85.20\%} & 29.77\% & 17.27\% & --- & --- \\
-\textbf{Hindi V1 CoT} & Hindi & Baseline V1 & CoT & 75.00\% & \textbf{43.40\%} (+45.8\%) & \textbf{29.38\%} (+70.1\%) & \textbf{44.00\%} & \textbf{61.34\%} \\
-\textbf{Hindi V2 Direct} & Hindi & Modern V2 & Direct & 71.00\% & 29.19\% & 17.26\% & --- & --- \\
-\textbf{Hindi V2 CoT} & Hindi & Modern V2 & CoT & 57.20\% & \textbf{40.55\%} (+38.9\%) & \textbf{26.01\%} (+50.7\%) & 14.40\% & \textbf{56.15\%} \\
-\midrule
-\textbf{Assamese V1 Direct} & Assamese & Baseline V1 & Direct & \textbf{65.00\%} & 26.37\% & 16.84\% & --- & --- \\
-\textbf{Assamese V1 CoT} & Assamese & Baseline V1 & CoT & 58.20\% & \textbf{33.70\%} (+27.8\%) & \textbf{25.62\%} (+52.1\%) & 0.00\% & \textbf{33.68\%} \\
-\textbf{Assamese V2 Direct} & Assamese & Modern V2 & Direct & 23.20\% & 20.54\% & 13.69\% & --- & --- \\
-\textbf{Assamese V2 CoT} & Assamese & Modern V2 & CoT & 14.00\% & \textbf{26.05\%} (+26.8\%) & \textbf{23.36\%} (+70.6\%) & 0.00\% & \textbf{32.98\%} \\
+Hindi & V1 & 3.6547 & 38.66 & 0.4856 \\
+Hindi & \textbf{V2} & \textbf{3.5876} & \textbf{36.15} & \textbf{0.4767} \\
+Assamese & V1 & 3.9987 & 54.53 & 0.4634 \\
+Assamese & \textbf{V2} & \textbf{3.9425} & \textbf{51.55} & \textbf{0.4569} \\
 \bottomrule
 \end{tabular}
-}
-\caption{\textbf{Phase 3 Symbolic Reasoning Benchmark Matrix (8 Models).} Evaluated across Strict Answer Accuracy, Token $F_1$, Normalized Levenshtein Character Similarity, CoT Full Exact Match, and CoT Decomposed Step Score.}
-\label{tab:phase3}
-\end{table*}
-
-\begin{figure*}[t]
-\centering
-\begin{subfigure}[t]{0.32\textwidth}
-    \centering
-    \includegraphics[width=\textwidth]{figures/phase3_reasoning_accuracy_comparison.png}
-    \caption{Strict Answer Accuracy Comparison.}
-    \label{fig:reasoning_acc}
-\end{subfigure}
-\hfill
-\begin{subfigure}[t]{0.32\textwidth}
-    \centering
-    \includegraphics[width=\textwidth]{figures/phase3_multi_tier_f1_comparison.png}
-    \caption{Continuous Multi-Tier Token $F_1$.}
-    \label{fig:multi_tier_f1}
-\end{subfigure}
-\hfill
-\begin{subfigure}[t]{0.32\textwidth}
-    \centering
-    \includegraphics[width=\textwidth]{figures/phase3_char_similarity_and_decomp.png}
-    \caption{Character Similarity \& Decomposed CoT.}
-    \label{fig:char_sim}
-\end{subfigure}
-\caption{\textbf{Phase 3 Multi-Tier Reasoning Performance.} Exposing the duality between strict exact match shortcuts and continuous semantic alignment unlocked by Chain-of-Thought scratchpads.}
-\label{fig:phase3_metrics}
-\end{figure*}
-
-\begin{figure}[h!]
-\centering
-\includegraphics[width=\columnwidth]{figures/phase3_per_paradigm_breakdown.png}
-\caption{\textbf{Reasoning Accuracy Across 5 Logic Paradigms.} Hindi (left) maintains high cross-paradigm balance ($\sim$72--77\%), while Assamese (right) excels in Negation (61.3\%) but degrades on multi-hop chains.}
-\label{fig:paradigms}
-\end{figure}
-
-\textbf{Analytical Contrast across Phase 3 Figures}:
-\begin{enumerate}
-    \item \textbf{The Strict vs. Continuous Duality (Figure \ref{fig:reasoning_acc} vs. Figures \ref{fig:multi_tier_f1} \& \ref{fig:char_sim})}: Comparing Figure \ref{fig:reasoning_acc} against Figures \ref{fig:multi_tier_f1} and \ref{fig:char_sim} demonstrates the limitation of relying exclusively on strict 0/1 accuracy. Direct SFT achieves high answer scores (85.2\% Hindi, 65.0\% Assamese) primarily by learning superficial template position patterns without deductive grounding ($F_1$ capped at 29.8\% and 26.4\%). CoT SFT triggers substantial multi-tier gains: Hindi $F_1$ rises +45.8\% (to 43.40\%), character similarity improves +70.1\% (to 29.38\%), and decomposed step credit reaches 61.34\%. CoT models construct authentic intermediate reasoning steps.
-    \item \textbf{Cross-Language Paradigm Robustness (Figure \ref{fig:paradigms})}: Hindi exhibits balanced performance across all five reasoning paradigms. Assamese shows strong negation (61.3\%) and conversational logic (64.9\%), but suffers on multi-hop and transitive chains due to subword fragmentation compounding across intermediate reasoning steps.
-\end{enumerate}
-
-% ==============================================================================
-% SECTION 3: DEEP-DIVE INTO THE FOUR CORE SYNTHESIS QUESTIONS
-% ==============================================================================
-\section{Synthesis of Core Research Questions}
-
-\subsection{Data Scale and Quality Divergence}
-
-\textbf{Corpus Abundance}: Hindi web data from OSCAR, Wikipedia, and regional portals exhibited high density, enabling 723M tokens with an 18\% filter discard rate. Assamese web corpora exhibited heavy English/Bengali code-switching, requiring custom scrapers and OCR of SEBA/SCERT educational textbooks to collect 118.8M manual tokens. The discard rate was 32\%, necessitating strict Unicode block filtering (\texttt{U+0980--U+09FF}).
-
-\textbf{Noise Profiles}: Hindi data provided diverse syntax across formal and informal registers. Assamese required intensive normalization of conjunct ligatures (\indic{যুক্তাক্ষৰ}), archaic orthography, and numeric forms to prevent vocabulary dispersion.
-
-\subsection{Language Modeling and Reasoning Transfer}
-
-\textbf{Convergence Gap}: The $\Delta \approx 28.67$ PPL gap between Hindi ($52.26$) and Assamese ($80.93$) directly reflects the orthographic complexity and compound character entropy of Eastern Nagari.
-
-\textbf{Reasoning Transfer}: While Direct SFT reflects pretraining scale advantages, Chain-of-Thought fine-tuning unlocks consistent multi-tier improvements across all models:
-\begin{itemize}
-    \item Hindi V1 CoT: Answer $F_1$ $+45.8\%$ ($29.77\% \to 43.40\%$), Decomposed CoT score $61.34\%$.
-    \item Hindi V2 CoT: Answer $F_1$ $+38.9\%$ ($29.19\% \to 40.55\%$), Decomposed CoT score $56.15\%$.
-    \item Assamese V1 CoT: Answer $F_1$ $+27.8\%$ ($26.37\% \to 33.70\%$), Decomposed CoT score $33.68\%$.
-    \item Assamese V2 CoT: Answer $F_1$ $+26.8\%$ ($20.54\% \to 26.05\%$), Decomposed CoT score $32.98\%$.
-\end{itemize}
-
-\subsection{Tokenizer and Corpus Factors in Model L}
-
-\textbf{Fertility Impact}: Assamese exhibits higher subword fertility ($1.4426$ vs. $1.1858$ tokens/word). Each sentence consumes $\sim 21.6\%$ more context positions, shortening the temporal horizon of the 512-token context window.
-
-\textbf{Byte Fallback Dynamics}: With \texttt{byte\_fallback=True} and \texttt{character\_coverage=1.0}, zero unknown tokens occurred. However, rare ligatures (\indic{ক্ষ}, \indic{ক্ত}, \indic{জ্ঞ}) occasionally split into multi-byte sequences, requiring multiple attention steps to parse a single semantic character.
-
-\textbf{Textbook Curriculum}: Manually extracted textbook corpora provided clean case-inflected grammar (\indic{-ৰ}, \indic{-ক}, \indic{-ত}), which proved vital for grounding downstream relational templates.
-
-\subsection{Empirical Explanations and Mechanistic Evidence}
-
-\textbf{Inductive Bias of Positional Encodings}: V1 Baseline uses absolute positional embeddings, forming static spatial coordinate registers that simplify position-based template matching in synthetic prompts. V2 Modern utilizes Rotary Position Embeddings (RoPE), which excel at continuous natural language modeling (yielding 33--36\% lower PPL) but require explicit intermediate scratchpad tokens to span relative distances during symbolic deduction.
-
-\begin{figure*}[t]
-\centering
-\begin{subfigure}[t]{0.48\textwidth}
-    \centering
-    \includegraphics[width=\textwidth]{figures/phase3_pretrain_vs_finetune_attention_hindi.png}
-    \caption{Hindi Attention Redistribution (Layer 5, Head 0): Pretrained recency diagonal (left) vs. Finetuned premise-focused binding (right).}
-    \label{fig:attn_hindi}
-\end{subfigure}
-\hfill
-\begin{subfigure}[t]{0.48\textwidth}
-    \centering
-    \includegraphics[width=\textwidth]{figures/phase3_pretrain_vs_finetune_attention_assamese.png}
-    \caption{Assamese Attention Redistribution (Layer 5, Head 0): Pretrained local recency (left) vs. Finetuned premise binding across subwords (right).}
-    \label{fig:attn_assamese}
-\end{subfigure}
-\caption{\textbf{Attention Redistribution Analysis under Reasoning Fine-Tuning.} Attention mass shifts from local autoregressive neighbors to distant premise entities, accompanied by a 30.8\% reduction in attention entropy.}
-\label{fig:attn_composite}
-\end{figure*}
-
-\textbf{Attention Entropy Redistribution}:
-We quantify the attention shift using attention entropy $\mathcal{H}(A_h)$:
-\begin{equation}
-\mathcal{H}(A_h) = -\frac{1}{T}\sum_{i=1}^{T}\sum_{j=1}^{i} A_{h,i,j} \ln A_{h,i,j}
-\end{equation}
-Post-finetuning attention maps reveal a \textbf{30.8\% drop} in entropy ($2.14 \to 1.48$ nats) and a \textbf{+71.3\% expansion} in mean attention distance ($3.42 \to 5.86$ tokens). Models actively re-allocate attention from local syntax to distant premise entities (Figure \ref{fig:attn_composite}).
-
-\textbf{Mechanistic Script Dispersion}: In Hindi, single tokens cleanly represent named entities (\indic{अमित}, \indic{सुमित}), generating sharp $(i, j)$ attention coordinate activations. In Assamese, compound names (\indic{বিকাশৰ}) split into root and inflectional tokens (\indic{বিকাশ} + \indic{ৰ}), dispersing attention mass across contiguous subword blocks and increasing sensitivity to positional drift.
-
-\textbf{Negation Curriculum Generalization}: Models trained without negative samples suffered complete polarity collapse (0.0\% accuracy on negated queries). A 5\% disjoint-entity negation curriculum enabled Assamese to achieve \textbf{63.83\% accuracy}, verifying genuine polarity inversion.
-
-% ==============================================================================
-% SECTION 4: CLOUD ARTIFACTS & REPRODUCIBILITY
-% ==============================================================================
-\section{Artifact Inventory and Reproducibility}
-
-Large binary model checkpoints, tokenized memmap arrays, and comprehensive evaluation outputs across all three project phases are permanently hosted on public Kaggle datasets:
-
-\begin{itemize}
-  \setlength{\itemsep}{1.5pt}
-  \item \textbf{Phase 1 Corpora \& Tokenizer (Hindi)}: \newline
-  {\scriptsize\url{https://www.kaggle.com/datasets/shubhadeepmandal/lma-hindi-artifacts}}
-  \item \textbf{Phase 1 Corpora \& Tokenizer (Assamese)}: \newline
-  {\scriptsize\url{https://www.kaggle.com/datasets/shubhadeepmandal/lma-assamese-artifact}}
-  \item \textbf{Phase 2 Pretrained Checkpoints (V1 \& V2)}: \newline
-  {\scriptsize\url{https://www.kaggle.com/datasets/shubhadeepmandal/lma-phase2-artifacts}}
-  \item \textbf{Phase 3 Finetuned Reasoning Models}: \newline
-  {\scriptsize\url{https://www.kaggle.com/datasets/shubhadeepmandal/lma-phase3-artifacts}}
-  \item \textbf{Bonus Positional Embedding Ablation}: \newline
-  {\scriptsize\url{https://www.kaggle.com/datasets/shubhadeepmandal/lma-bonus-artifacts}}
-\end{itemize}
-
-Table \ref{tab:artifacts} summarizes the repository resources and artifact paths.
-
-\begin{table}[h!]
-\centering
-\footnotesize
-\begin{tabularx}{\columnwidth}{lX}
-\toprule
-\textbf{Artifact / Resource} & \textbf{Public Dataset / Path} \\
-\midrule
-Phase 1 Hindi Corpora & \href{https://www.kaggle.com/datasets/shubhadeepmandal/lma-hindi-artifacts}{\texttt{lma-hindi-artifacts}} \\
-Phase 1 Assamese Corpora & \href{https://www.kaggle.com/datasets/shubhadeepmandal/lma-assamese-artifact}{\texttt{lma-assamese-artifact}} \\
-Phase 2 Pretrained Checkpoints & \href{https://www.kaggle.com/datasets/shubhadeepmandal/lma-phase2-artifacts}{\texttt{lma-phase2-artifacts}} \\
-Phase 3 Finetuned Models & \href{https://www.kaggle.com/datasets/shubhadeepmandal/lma-phase3-artifacts}{\texttt{lma-phase3-artifacts}} \\
-Bonus Ablation Checkpoint & \href{https://www.kaggle.com/datasets/shubhadeepmandal/lma-bonus-artifacts}{\texttt{lma-bonus-artifacts}} \\
-Tokenizer Models & \texttt{hindi/tokenizer/hindi.model} \newline \texttt{assamese/tokenizer/assamese.model} \\
-Source Figures & \texttt{report/figures/} (300 DPI) \\
-\bottomrule
-\end{tabularx}
-\caption{\textbf{Cloud Artifact Inventory and Repository Paths.} Public datasets hosting model checkpoints, tokenized bin files, and evaluation outputs.}
-\label{tab:artifacts}
+\caption{Held-out test results on 2,000 non-overlapping 512-token windows (1.02M predicted tokens) per model.}
+\label{tab:p2}
 \end{table}
 
-\textbf{Contamination Controls}: SFT train and test splits use disjoint entity universes. All data preprocessing, tokenization, pretraining, and evaluation pipelines operate with complete language independence.
+\begin{figure}[h]
+\centering
+\includegraphics[width=\columnwidth]{figures/loss_curve_comparison_hindi.png}
+\includegraphics[width=\columnwidth]{figures/loss_curve_comparison_assamese.png}
+\caption{Validation loss of V1 and V2. V2 leads by 0.31 nats early in training and by 0.05 nats at the end.}
+\label{fig:loss}
+\end{figure}
+
+V2 is better in both languages by 0.06--0.07 nats, an advantage that is constant across context lengths and mostly reflects faster early learning; validation loss was still falling at the last step of every run. Assamese has higher token perplexity but lower bits per byte than Hindi: per unit of text it is not the weaker model. Greedy decoding loops (73--77\% repeated 3-grams), nucleus sampling gives the best chrF in all four models, and V1 and V2 generate text of near-identical quality.
 
 % ==============================================================================
-% SECTION 5: CONCLUSION
+\section{Phase 3: Relational Reasoning}
 % ==============================================================================
-\section{Conclusion}
+Synthetic examples state comparisons between named people on one attribute (age, height, savings) and ask about one pair; answers come from a symbolic solver. Train, validation and test names are disjoint, premises are shuffled and stated in random direction, the question's relation word is drawn independently of the answer, and no training query exceeds 3 hops. Models are fine-tuned with a target-only loss, either on the answer (Direct) or on a rationale followed by the answer (CoT), and checkpoints are selected on the relation accuracy of generated validation answers. Five recipes (plain, real-name mix, dropout, short-query curriculum, CoT warm-up) were run with two seeds each: 44 runs.
 
-This investigation presents a rigorous empirical study of monolingual Indic Transformer language modeling. Modern architectural components (RMSNorm, SwiGLU, RoPE) deliver consistent language modeling gains across both high-resource and low-resource scripts ($\sim 33$--$36\%$ PPL reduction). In symbolic reasoning, multi-tier evaluation exposes the shortcut vulnerabilities of direct fine-tuning, while Chain-of-Thought scratchpads and targeted negation curricula establish robust multi-step logical deduction across both languages.
+\begin{table}[h]
+\centering
+\small
+\setlength{\tabcolsep}{4pt}
+\begin{tabular}{@{}lrrrrr@{}}
+\toprule
+& \multicolumn{4}{c}{\textbf{Direct}} & \textbf{CoT} \\
+\cmidrule(lr){2-5}\cmidrule(l){6-6}
+\textbf{Model} & test & 4 hops & 6 & 10 & test \\
+\midrule
+Hindi V1 & \textbf{0.961} & 0.974 & 0.960 & 0.846 & 0.799 \\
+Hindi V2 & 0.909 & 0.952 & 0.922 & 0.856 & 0.716 \\
+Assamese V1 & 0.833 & 0.874 & 0.726 & 0.296 & 0.704 \\
+Assamese V2 & 0.689 & 0.746 & 0.742 & 0.662 & 0.498 \\
+\bottomrule
+\end{tabular}
+\caption{Relation accuracy of the kept checkpoints. Training covers 1--3 hops; the majority baseline is 0.46--0.53 on every split.}
+\label{tab:p3}
+\end{table}
+
+\begin{figure}[h]
+\centering
+\includegraphics[width=\columnwidth]{figures/phase3_depth_generalisation.png}
+\caption{Accuracy against query depth. Direct models (solid) degrade slowly beyond the training depth; CoT models (dashed) degrade quickly.}
+\label{fig:depth}
+\end{figure}
+
+\paragraph{Is it reasoning?} Names and prompts never leak between splits, but 90\% of main-test premise structures also occur in training, and answering with the most common training answer for a structure scores 0.95. On 4--10-hop, branch and redundant splits no structure occurs in training and this lookup is at chance, yet Hindi Direct models score 0.82--0.99 there: they apply the relation to chains they have never seen.
+
+\paragraph{Weaknesses.} Premises about another attribute lower Hindi Direct accuracy from 0.95--0.99 on plain 3-hop chains to 0.73, although the answers name the right pair. On 10-hop chains the weaker models' answers stop naming the queried pair (Hindi V1 CoT names it in 11\% of answers), which is a failure to carry the chain through generation.
+
+\begin{figure*}[t]
+\centering
+\includegraphics[width=0.92\textwidth]{figures/phase3_attention_shift.png}
+\caption{Attention on 200 depth-4 prompts before and after fine-tuning. Top: Jensen--Shannon divergence from the pretrained attention per layer. Bottom: share of the last prompt token's attention on entity-name tokens (grey: pretrained; red: Direct; blue: CoT).}
+\label{fig:attn}
+\end{figure*}
+
+\paragraph{Attention.} Fine-tuning leaves layer-0 attention nearly unchanged (JSD 0.03--0.05) and changes layers 5--7 several times more (Figure~\ref{fig:attn}). In Direct models the last prompt token, where the answer begins, moves from 0.31--0.55 to 0.72--0.99 of its final-layer attention on entity names; CoT models shift less.
+
+% ==============================================================================
+\section{Synthesis}
+% ==============================================================================
+\paragraph{Q1: Data scale and quality.} Both training sets hold about 715M tokens with their own tokenizers, and both models saw 500M of them. Hindi relies more on large published corpora (Sangraha, OSCAR, CC-100) and crawled literature archives; Assamese more on project crawlers of regional news sites and textbook PDFs. The cleaning pipeline was identical, with extra OCR repairs for Assamese suffixes.
+
+\paragraph{Q2: Language modelling vs reasoning across tiers.} Assamese has higher token perplexity (51.6 vs 36.2) but lower bits per byte (0.457 vs 0.477), so the two models compress their languages comparably. Reasoning is where the lower-resource language falls behind: 0.833 vs 0.961 on the test set, 0.296 vs 0.846 at 10 hops for V1 Direct, with larger seed variance. A CoT warm-up raised Assamese V1 from 0.655 to 0.831.
+
+\paragraph{Q3: Tokenizer and corpus factors.} Assamese fertility is 12\% higher and names inflect by suffixation, so the same entity appears as different token sequences; copying names is a large part of the task (Assamese V2 Direct names the queried pair in 82\% of answers, Hindi V1 in 100\%). Keeping only script characters also removed ASCII punctuation, so the question mark is a byte-fallback token in both languages.
+
+\paragraph{Q4: Evidence for the differences.} (i) Deeper, structurally new splits show generalisation where a lookup fails. (ii) CoT accuracy falls steadily with depth while Direct stays above 0.84 for Hindi V1: a written rationale compounds errors. (iii) V2 has the better language model but learns the task less well and copies names less reliably; we hypothesise, without testing it here, that V1's learned absolute positions suit these short templated prompts. (iv) Fine-tuning re-wires the late layers to attend to the entities the answer depends on. (v) Attribute binding is the shared weakness and the natural next step: training data with mixed-attribute premises.
+
+% ==============================================================================
+\section{Artifacts}
+% ==============================================================================
+\noindent\textbf{Datasets:} \href{https://www.kaggle.com/datasets/shubhadeepmandal/lma-hindi-artifacts}{\texttt{lma-hindi-artifacts}}, \href{https://www.kaggle.com/datasets/shubhadeepmandal/lma-assamese-artifact}{\texttt{lma-assamese-artifact}} (corpora, token files, tokenizers). \textbf{Kaggle runs:} \texttt{lma-unify-*} (tokenizers, token files), \texttt{lma-pretrain-*} (checkpoints), \texttt{lma-eval-pretrained}, \texttt{lma-finetune}, \texttt{lma-finetune-assamese}, \texttt{lma-eval-hard}, \texttt{lma-eval-attention}; provenance of each result file in \texttt{report/results/README.md}. The earlier \texttt{lma-phase2-artifacts}, \texttt{lma-phase3-artifacts} and \texttt{lma-bonus-artifacts} datasets hold checkpoints of earlier runs, not the models reported here.
 
 \end{document}
