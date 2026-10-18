@@ -1,9 +1,10 @@
 {
-  "loss": 3.9562,
-  "perplexity": 52.26,
-  "bits_per_byte": 0.5189,
-  "tokens_evaluated": 19000,
-  "utf8_bytes": 209720,
-  "windows": 200,
-  "n_params": 25172352
+  "loss": 3.739573201060295,
+  "perplexity": 42.0800266211142,
+  "bits_per_byte": 0.4901245200991863,
+  "tokens_evaluated": 47500,
+  "utf8_bytes": 522858,
+  "windows": 500,
+  "prefix_len": 32,
+  "gen_len": 64
 }

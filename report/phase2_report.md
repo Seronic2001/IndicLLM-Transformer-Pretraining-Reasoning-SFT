@@ -1,384 +1,246 @@
 # Phase 2 Technical Report — 16K Transformer LM Pretraining & Evaluation (40 marks)
 
 **Course:** Language Models and Agents (Monsoon 2026)  
-**Author:** Shubhadeep Mandal · **Branch:** `phase-2` · **Date:** September 2026  
+**Author:** Shubhadeep Mandal  
 **Target Languages:** Model H = Hindi (Devanagari script) · Model L = Assamese (Eastern Nagari script `অসমীয়া`)  
-**Evaluation Scope:** 16K Vocabulary Transformer Checkpoints (**~25M Trainable Parameters**, strictly compliant with the 22.5M–27.5M rubric window)
+**Models:** two ~25M-parameter architectures per language, each pretrained on 500M tokens (15,259 steps × 32,768 tokens)
+
+Every number in this report is read from the result files in [`report/results/`](results/) (copied unchanged from the Kaggle runs listed in [`report/results/README.md`](results/README.md)), and every figure is drawn from them by [`report/make_figures.py`](make_figures.py).
 
 ---
 
-**Pretrained Checkpoints & Artifacts (Kaggle):** [https://www.kaggle.com/datasets/shubhadeepmandal/lma-phase2-artifacts](https://www.kaggle.com/datasets/shubhadeepmandal/lma-phase2-artifacts)  
-*(Contains all 16K model checkpoints, training logs `train_log.json`, and evaluation outputs.)*
+## Executive Summary
 
-## Executive Summary & Core Results
+Two 8-layer decoder-only Transformers were implemented from PyTorch primitives and pretrained from scratch in each language with the Phase 1 16K BPE tokenizers:
 
-In Phase 1 of this project, the **16,384 (16K) SentencePiece BPE tokenizer** was selected for both Hindi and Assamese. As established in the Phase 1 tokenizer analysis:
-- The 16K vocabulary achieved an optimal compression ratio ($3.74$ chars/token in Hindi, $4.58$ chars/token in Assamese) and subword fertility ($1.1858$ tokens/word in Hindi, $1.4426$ in Assamese) with **$0.000\%$ `<unk>` rate** via byte fallback.
-- To maintain the strict assignment constraint of **approximately $\sim 25\text{M}$ trainable parameters** with a 16K vocabulary, the model architecture was designed with **8 transformer layers** ($n_{\text{layer}} = 8$, $d_{\text{model}} = 384$, $n_{\text{head}} = 6$), allocating the parameter budget toward hierarchical network depth rather than an oversized embedding table.
+| Language | Architecture | Params | Best val loss (PPL) | Test loss, 512-token windows (PPL) | Test BPB |
+|---|---|---|---|---|---|
+| Hindi | Baseline V1 | 24,982,272 | 3.6260 (37.56) | 3.6547 (38.66) | 0.4856 |
+| Hindi | **Modern V2** | 25,172,352 | **3.5775 (35.79)** | **3.5876 (36.15)** | **0.4767** |
+| Assamese | Baseline V1 | 24,982,272 | 3.9966 (54.41) | 3.9987 (54.53) | 0.4634 |
+| Assamese | **Modern V2** | 25,172,352 | **3.9496 (51.91)** | **3.9425 (51.55)** | **0.4569** |
 
-### Evaluated 16K Architectures
-In Phase 2, two complete 8-layer 16K architectures were implemented, trained over $500\text{M}$ tokens each, and thoroughly benchmarked on held-out test splits:
-
-1. **Baseline V1-16K (Hand-written First-Principles Transformer):**
-   * Pre-LN Transformer with learned absolute positional embeddings, hand-written multi-head causal self-attention, GELU activation ($d_{\text{ff}} = 2240$), and weight-tied embeddings.
-   * **Parameter Count:** **24,982,272 parameters** (within $0.07\%$ of the 25.0M target).
-   * **Strict Compliance:** Implemented entirely from primitive PyTorch operations; 100% compliant with first-principles guidelines.
-
-2. **Modern V2-16K (Enhanced Transformer Architecture):**
-   * Modern decoder-only transformer featuring Rotary Position Embeddings (RoPE), SwiGLU feed-forward networks ($d_{\text{ff}} = 1536$), RMSNorm pre-normalization, and FlashAttention-2 / SDPA kernel.
-   * **Parameter Count:** **25,172,352 parameters** (within $0.69\%$ of the 25.0M target).
-
-### Empirical Winner: Modern V2-16K
-Rigorous evaluation confirms that **Modern V2-16K is the superior architecture across all quantitative metrics in both languages**:
-
-| Language | Metric | Baseline V1-16K | Modern V2-16K | Advantage of Modern V2-16K |
-|---|---|---|---|---|
-| **Hindi (Model H)** | **Best Val Loss** | 4.1250 | **3.7624** | **$-0.363$ nats** |
-| | **Best Val PPL** | 61.87 | **43.05** | **$-18.82$ PPL (+30.4% perplexity gain)** |
-| | **Held-Out Test Loss** | 4.4102 | **3.9562** | **$-0.454$ nats** |
-| | **Held-Out Test PPL** | 82.28 | **52.26** | **$-30.02$ PPL (+36.5% perplexity gain)** |
-| | **Bits Per Byte (BPB)**| 0.5764 | **0.5189** | **$-0.0575$ BPB (superior byte compression)** |
-| | **chrF++ (@ Temp 1.0)**| 18.95 | **19.86** | **$+0.91$ chrF++** |
-| **Assamese (Model L)**| **Best Val Loss** | 4.5171 | **4.1578** | **$-0.359$ nats** |
-| | **Best Val PPL** | 91.57 | **63.93** | **$-27.64$ PPL (+30.2% perplexity gain)** |
-| | **Held-Out Test Loss** | 4.7920 | **4.3935** | **$-0.398$ nats** |
-| | **Held-Out Test PPL** | 120.54 | **80.93** | **$-39.61$ PPL (+32.9% perplexity gain)** |
-| | **Bits Per Byte (BPB)**| 0.5641 | **0.5049** | **$-0.0592$ BPB (superior byte compression)** |
-| | **chrF++ (@ Temp 1.0)**| 21.40 | **24.02** | **$+2.62$ chrF++** |
-
-### Phase 3 Conclusion
-Because **Modern V2-16K** delivers superior perplexity, stronger n-gram preservation, and incorporates Rotary Position Embeddings (RoPE) that support length generalization beyond the 512-token training window, **Modern V2-16K is designated as the primary model to proceed to Phase 3 (Reasoning Finetuning & Attention Analysis)**.
+* **Modern V2 is better in both languages, by a small margin**: 0.067 nats (6.5% lower perplexity) in Hindi and 0.056 nats (5.5%) in Assamese on the full-context test windows, with matched data, budget and schedule. Both architectures train smoothly with no instability.
+* **Assamese has higher token perplexity but slightly lower bits per byte** than Hindi (0.457 vs 0.477 for V2), so per byte of text the Assamese model is not worse; the token-level gap reflects Assamese's longer tokens (4.58 vs 3.74 characters per token).
+* **Generation**: greedy decoding loops (3-gram repetition 0.73–0.77); sampling at T = 1.0 or nucleus sampling removes the loops. V1 and V2 generate text of near-identical quality on every metric.
+* Neither architecture dominates downstream: in Phase 3, V1 learned the reasoning task better than V2 in both languages.
 
 ---
 
-## 1. 16K Transformer Architecture & Implementation (Deliverable 1)
+## 1. Architectures (Deliverable 1)
 
-Both models are implemented independently in [`hindi/model/`](../hindi/model/) and [`assamese/model/`](../assamese/model/) without cross-language imports or shared parameters.
+Both models are implemented independently in [`hindi/model/`](../hindi/model/) and [`assamese/model/`](../assamese/model/) (`gpt.py` = V1, `gpt_v2.py` = V2), with no cross-language imports or shared weights. Common settings: 8 layers, $d_{\text{model}} = 384$, 6 heads ($d_k = 64$), 512-token context, 16,384-token vocabulary, tied input/output embeddings, dropout 0.
 
 ```
                          Input Token IDs (B, T)
                                    │
                     ┌──────────────┴──────────────┐
                     ▼                             ▼
-        [Baseline V1-16K Flow]          [Modern V2-16K Flow]
-      Token Emb + Learned Pos (512)     Token Emb (No Pos Addition)
-                    │                             │
-             Dropout (0.1)                        │
+          [Baseline V1 flow]             [Modern V2 flow]
+      Token emb + learned pos (512)      Token emb (no additive position)
                     │                             │
         ┌───────────┴───────────┐     ┌───────────┴───────────┐
-        │  Block × 8 (Pre-LN)   │     │ Block × 8 (RMSNorm)   │
-        │  - Manual Causal MHA  │     │ - RoPE Rotary Pos     │
-        │  - GELU FFN (d=2240)  │     │ - SwiGLU FFN (d=1536) │
-        │  - Residuals + Pre-LN │     │ - FlashAttn-2 / SDPA  │
+        │  Block × 8 (Pre-LN)   │     │ Block × 8 (Pre-RMSNorm)│
+        │  - Manual causal MHA  │     │ - RoPE on Q, K         │
+        │  - GELU FFN (d=2240)  │     │ - SwiGLU FFN (d=1536)  │
+        │  - LayerNorm          │     │ - SDPA attention       │
         └───────────┬───────────┘     └───────────┬───────────┘
-                    │                             │
              Final LayerNorm                Final RMSNorm
                     │                             │
-          Tied Output Head (16K)        Tied Output Head (16K)
-                    │                             │
-                 Logits                        Logits
+          Tied output head (16K)        Tied output head (16K)
 ```
 
-### 1.1 Baseline V1-16K Architecture
-- **Input Layer:** Token embeddings $E_{\text{tok}} \in \mathbb{R}^{B \times T \times 384}$ from a $16,384 \times 384$ table + learned absolute positional embeddings $E_{\text{pos}} \in \mathbb{R}^{T \times 384}$ for positions $0 \dots T-1$.
-- **Attention Sublayer:** 6 heads, $d_k = 64$. Explicit upper-triangular causal mask $M$ ($M_{i,j} = -\infty$ for $j > i$). Scaled dot-product computed manually as $\text{softmax}(QK^T / \sqrt{64} + M)V$.
-- **FFN Sublayer:** Linear $384 \to 2240$, GELU activation, Linear $2240 \to 384$.
-- **Normalization & Heads:** Pre-LN LayerNorm before each sublayer. Final LayerNorm before linear head tied to input embeddings ($W_{\text{head}} = W_{\text{emb}}^T$).
-- **Parameter Math:**
-  * Embedding Table: $16,384 \times 384 = 6,291,456$
-  * Positional Table: $512 \times 384 = 196,608$
-  * Block Parameters: $4 \times (384 \times 384) + 2 \times (384 \times 2240) + 768 = 2,310,912$ per block
-  * 8 Blocks: $8 \times 2,310,912 = 18,487,296$
-  * Final LayerNorm: $768$
-  * **Total Parameters:** $6,291,456 + 196,608 + 18,487,296 + 768 = \mathbf{24,982,272} \approx \mathbf{24.98\text{M}}$ (strictly within the $22.5\text{M} - 27.5\text{M}$ rubric window).
+### 1.1 Baseline V1
+- **Input:** token embeddings ($16{,}384 \times 384$) plus learned absolute position embeddings ($512 \times 384$).
+- **Attention:** explicit upper-triangular causal mask, $\text{softmax}(QK^\top / \sqrt{64} + M)V$ computed by hand.
+- **FFN:** $384 \to 2240 \to 384$ with GELU; Pre-LN LayerNorm before each sublayer.
+- **Parameters:** embeddings 6,291,456 + positions 196,608 + 8 blocks × 2,310,912 + final LayerNorm 768 = **24,982,272**.
 
-### 1.2 Modern V2-16K Architecture
-- **Input Layer:** Token embeddings $E_{\text{tok}} \in \mathbb{R}^{B \times T \times 384}$ without additive absolute positions.
-- **Rotary Position Embeddings (RoPE):** Rotary sinusoidal matrices applied directly to query and key states ($Q, K$) at each layer, enabling relative distance encoding and length extrapolation beyond 512 tokens.
-- **Attention Sublayer:** PyTorch FlashAttention-2 / SDPA kernel with built-in causal masking, executing with $O(T)$ memory footprint and hardware acceleration.
-- **SwiGLU FFN:** Gated non-linear feedforward layer: $\text{SwiGLU}(x) = (x W_{\text{gate}} \cdot \text{silu}(x W_{\text{up}})) W_{\text{down}}$, with inner dimension $d_{\text{ff}} = 1536$.
-- **RMSNorm:** Root Mean Square LayerNorm replacing standard LayerNorm: $\text{RMSNorm}(x) = \frac{x}{\sqrt{\frac{1}{d}\sum x_i^2 + \epsilon}} \odot \gamma$, saving parameter memory and improving training speed.
-- **Parameter Math:**
-  * Embedding Table: $16,384 \times 384 = 6,291,456$
-  * Block Parameters: $(4 \times 384 \times 384) + (3 \times 384 \times 1536) + (2 \times 384) = 2,359,680$ per block
-  * 8 Blocks: $8 \times 2,359,680 = 18,877,440$
-  * Final RMSNorm: $384$
-  * **Total Parameters:** $6,291,456 + 18,877,440 + 384 = \mathbf{25,172,352} \approx \mathbf{25.17\text{M}}$ (strictly within the $22.5\text{M} - 27.5\text{M}$ rubric window).
+### 1.2 Modern V2
+- **Input:** token embeddings only; Rotary Position Embeddings ($\theta = 10{,}000$) rotate queries and keys in every layer.
+- **Attention:** PyTorch `scaled_dot_product_attention` with its causal mask.
+- **FFN:** SwiGLU, $\text{SwiGLU}(x) = (\text{silu}(xW_{\text{gate}}) \odot xW_{\text{up}})W_{\text{down}}$, inner dimension 1536; RMSNorm instead of LayerNorm.
+- **Parameters:** embeddings 6,291,456 + 8 blocks × 2,359,680 + final RMSNorm 384 = **25,172,352**.
 
-### 1.3 Causality Verification
-In accordance with assignment requirements, both 16K models were verified using perturbation testing: modifying token $t+1$ results in bit-identical logits at positions $\le t$.
-- Baseline V1-16K: $\max |\Delta\text{logits}| = 0.00\times 10^0$
-- Modern V2-16K: $\max |\Delta\text{logits}| = 0.00\times 10^0$
+Both counts are within the 22.5M–27.5M window and were confirmed by instantiating the shipped configs.
+
+### 1.3 Causality Check
+Changing tokens $64 \ldots 127$ of a 128-token input leaves the logits at positions $0 \ldots 63$ bit-identical ($\max |\Delta\text{logits}| = 0.0$) for both architectures, while later positions change (max difference 2.2 for V1, 3.1 for V2): no future token reaches an earlier position.
 
 ---
 
 ## 2. Pretraining Protocol & Convergence (Deliverables 3–4)
 
-Models were pretrained on Kaggle Cloud GPUs (P100 / T4) over $500\text{M}$ tokens per language with the following configuration:
-- **Optimizer:** AdamW ($\beta_1 = 0.9, \beta_2 = 0.95, \text{weight\_decay} = 0.1$).
-- **Schedule:** Cosine decay from $6.0 \times 10^{-4}$ to $6.0 \times 10^{-5}$ with a 40-step warmup.
-- **Batching:** Micro-batch size $32$, gradient accumulation $16 \implies 512$ sequences ($262,144$ tokens/step).
-- **Duration:** $1,907$ steps $\implies \mathbf{499,908,608\text{ tokens}}$ per model.
-- **Precision:** Mixed-precision fp16 (`torch.cuda.amp`).
+Configuration ([`hindi/configs/train_H.yaml`](../hindi/configs/train_H.yaml); the Assamese file is identical):
 
-### Convergence Metrics Comparison (16K Models)
-| Checkpoint Run | Best Val Loss | Val PPL | Best Step | Final Loss (@1907) | Training Tokens |
-|---|---|---|---|---|---|
-| **Hindi Modern V2-16K** | **3.7624** | **43.05** | 1900 | **3.7889** | 500M |
-| **Hindi Baseline V1-16K** | 4.1250 | 61.87 | 1907 | 4.1250 | 500M |
-| **Assamese Modern V2-16K** | **4.1578** | **63.93** | 1900 | **4.1777** | 500M |
-| **Assamese Baseline V1-16K** | 4.5171 | 91.57 | 1800 | 4.5188 | 500M |
+| Setting | Value |
+|---|---|
+| Optimizer | AdamW, $\beta = (0.9, 0.95)$, weight decay 0.1, gradient clipping at norm 1.0 |
+| Learning rate | $6 \times 10^{-4}$, 300 warmup steps, cosine decay to $6 \times 10^{-5}$ |
+| Batch | 64 sequences × 512 tokens = 32,768 tokens per step |
+| Duration | 15,259 steps = **500.0M tokens** (0.70 of an epoch over each `train.bin`) |
+| Precision | fp16 mixed precision (`torch.cuda.amp`) |
+| Validation | every 250 steps; `best.pt` keeps the lowest validation loss |
 
-### 2.1 Pretraining Loss Trajectories (Modern V2-16K)
+Runs: `seronic2001/lma-pretrain-{hindi,assamese}-v1` and `shubhadeepmandal/lma-pretrain-{hindi,assamese}-v2` on Kaggle (training logs: [`report/results/phase2_train_log_*.json`](results/)).
 
-The pretraining curves below illustrate training loss (dashed line) and validation loss (solid line) across all 1,907 optimizer steps. Both models exhibit smooth, steady convergence with no divergence or gradient instability under fp16 mixed-precision pretraining:
-
-<p align="center">
-  <img src="figures/loss_curve_hindi.png" alt="Figure 1: Hindi 16K Transformer Pretraining Loss (Modern V2-16K)" width="680"/>
-  <br/>
-  <em>Figure 1: Hindi 16K Transformer Pretraining Loss — Modern V2-16K (Model H). Cross-entropy loss across 500M tokens (1,907 optimizer steps). The optimal checkpoint is achieved at step 1900 with a validation loss of 3.7624 nats (Val PPL: 43.05).</em>
-</p>
-
-<p align="center">
-  <img src="figures/loss_curve_assamese.png" alt="Figure 2: Assamese 16K Transformer Pretraining Loss (Modern V2-16K)" width="680"/>
-  <br/>
-  <em>Figure 2: Assamese 16K Transformer Pretraining Loss — Modern V2-16K (Model L). Cross-entropy loss across 500M tokens (1,907 optimizer steps). The optimal checkpoint is achieved at step 1900 with a validation loss of 4.1578 nats (Val PPL: 63.93).</em>
-</p>
-
-### 2.2 Empirical Architecture Comparison: Modern V2-16K vs. Baseline V1-16K
-
-To rigorously assess the impact of architectural innovations (RoPE rotary position embeddings, SwiGLU gated activations, and RMSNorm) versus classical first-principles designs (learned absolute positional embeddings, GELU activations, and standard LayerNorm), both models were trained under identical 500M-token regimes with matched 16K vocabularies:
-
-<p align="center">
-  <img src="figures/loss_curve_val_hindi_3way.png" alt="Figure 3: Hindi 16K Architecture Comparison (Modern V2-16K vs Baseline V1-16K)" width="680"/>
-  <br/>
-  <em>Figure 3: Hindi 16K Architecture Comparison — Modern V2-16K vs Baseline V1-16K validation loss trajectory. Modern V2-16K achieves a 0.363 nat lower validation loss and a 30.4% perplexity reduction over the baseline.</em>
-</p>
-
-<p align="center">
-  <img src="figures/loss_curve_val_assamese_3way.png" alt="Figure 4: Assamese 16K Architecture Comparison (Modern V2-16K vs Baseline V1-16K)" width="680"/>
-  <br/>
-  <em>Figure 4: Assamese 16K Architecture Comparison — Modern V2-16K vs Baseline V1-16K validation loss trajectory. Modern V2-16K achieves a 0.359 nat lower validation loss and a 30.2% perplexity reduction over the baseline.</em>
-</p>
-
----
-
-## 3. Intrinsic Language Modeling Evaluation: PPL & BPB (Deliverable 5a)
-
-Held-out evaluation was conducted on strictly unseen test partitions ($1\%$ test split, 200 non-overlapping windows, 19,000 tokens per model). Results are stored in [`hindi/eval/ppl_bpb_table.json`](../hindi/eval/ppl_bpb_table.json) and [`assamese/eval/ppl_bpb_table.json`](../assamese/eval/ppl_bpb_table.json).
-
-### Intrinsic Evaluation Table (16K Models)
-| Language | Model Architecture | Test Loss (nats) | Test PPL | Bits Per Byte (BPB) | Evaluated Tokens | Evaluated UTF-8 Bytes |
-|---|---|---|---|---|---|---|
-| **Hindi (Model H)** | **Modern V2-16K (Best)** | **3.9562** | **52.26** | **0.5189** | 19,000 | 209,720 |
-| | Baseline V1-16K | 4.4102 | 82.28 | 0.5764 | 19,000 | 209,720 |
-| **Assamese (Model L)**| **Modern V2-16K (Best)** | **4.3935** | **80.93** | **0.5049** | 19,000 | 232,624 |
-| | Baseline V1-16K | 4.7920 | 120.54 | 0.5641 | 19,000 | 232,624 |
-
-$$\text{BPB} = \frac{\mathcal{L}_{\text{CE}}}{\ln(2)} \times \frac{\text{Total Evaluated Tokens}}{\text{Total UTF-8 Bytes}}$$
-
-### Insights: The Hindi vs. Assamese Resource Gap
-1. **Perplexity Gap:** In both architectures, Assamese exhibits higher token perplexity than Hindi ($80.93$ vs $52.26$ for V2; $120.54$ vs $82.28$ for V1). This is primarily driven by vocabulary fertility: Assamese text produces $1.4426$ tokens/word compared to $1.1858$ for Hindi due to distinct conjunct morphology.
-2. **Bits-Per-Byte Parity:** When normalized for UTF-8 byte density, **Assamese actually compresses more efficiently than Hindi ($0.5049$ BPB vs $0.5189$ BPB in V2)**. Because Eastern Nagari characters encode into 3-byte sequences and carry dense semantic information per character, the byte-level information density is remarkably balanced across both resource tiers.
-3. **Architecture Impact:** Moving from Baseline V1 to Modern V2 reduces test loss by $\sim 0.40 - 0.45$ nats across both languages, proving the generalization benefit of RoPE and SwiGLU.
-
----
-
----
-
-## 4. Text Generation Quality, Diversity Diagnostics & Generation Samples (Deliverables 5b–6)
-
-Text generation was evaluated across $N = 100$ held-out prompt windows randomly extracted from the unseen test split ($1\%$ test partition, prompt length $= 32$ tokens, generated continuation length $= 64$ tokens). Models were evaluated under greedy decoding ($T = 0.0$) and ancestral sampling across three temperature regimes $T \in \{0.5, 1.0, 1.5\}$. 
-
-Quantitative logs are preserved in [`hindi/eval/generation_metrics.json`](../hindi/eval/generation_metrics.json) and [`assamese/eval/generation_metrics.json`](../assamese/eval/generation_metrics.json), and generated continuations are archived in [`hindi/eval/generated_samples.jsonl`](../hindi/eval/generated_samples.jsonl) and [`assamese/eval/generated_samples.jsonl`](../assamese/eval/generated_samples.jsonl).
-
-### 4.1 Quantitative Generation Performance Across Temperatures
-
-The table below summarizes corpus-level reference-based similarity metrics alongside fluency and lexical diversity diagnostics across both languages and model architectures:
-
-| Model & Language | Decoding Regime | BLEU-4 | chrF++ | ROUGE-L | Rep-3 $\downarrow$ | Distinct-1 $\uparrow$ | Distinct-2 $\uparrow$ | OOR Rate |
-|---|---|---|---|---|---|---|---|---|
-| **Hindi Modern V2-16K (Best)** | $T = 0.0$ (Greedy) | 0.38 | 13.15 | 0.0864 | 0.7716 | 0.0788 | 0.1765 | **0.0000%** |
-| | $T = 0.5$ (Low Entropy) | **0.56** | 17.62 | **0.1115** | 0.3232 | 0.1598 | 0.4754 | **0.0000%** |
-| | **$T = 1.0$ (Optimal)** | 0.38 | **19.86** | 0.0988 | **0.0165** | **0.4056** | **0.8828** | **0.0000%** |
-| | $T = 1.5$ (High Entropy) | 0.07 | 18.10 | 0.0467 | 0.0000 | 0.7391 | 0.9967 | 0.0061% |
-| *Hindi Baseline V1-16K* | $T = 0.0$ (Greedy) | 0.35 | 12.40 | 0.0780 | 0.7924 | 0.0712 | 0.1620 | **0.0000%** |
-| | $T = 1.0$ (Baseline) | 0.32 | 18.95 | 0.0892 | 0.0241 | 0.3842 | 0.8410 | **0.0000%** |
-| **Assamese Modern V2-16K (Best)**| $T = 0.0$ (Greedy) | 3.30 | 16.20 | 0.0647 | 0.7498 | 0.1258 | 0.2107 | **0.0000%** |
-| | $T = 0.5$ (Low Entropy) | **3.44** | 21.15 | **0.0804** | 0.2940 | 0.2586 | 0.5634 | **0.0000%** |
-| | **$T = 1.0$ (Optimal)** | 3.17 | **24.02** | 0.0662 | **0.0098** | **0.6073** | **0.9659** | **0.0000%** |
-| | $T = 1.5$ (High Entropy) | 0.82 | 21.30 | 0.0245 | 0.0005 | 0.7810 | 0.9978 | 0.0056% |
-| *Assamese Baseline V1-16K* | $T = 0.0$ (Greedy) | 2.95 | 14.80 | 0.0585 | 0.7810 | 0.1140 | 0.1980 | **0.0000%** |
-| | $T = 1.0$ (Baseline) | 2.85 | 21.40 | 0.0578 | 0.0185 | 0.5612 | 0.9245 | **0.0000%** |
-
----
-
-### 4.2 Critical Metric Analysis: Why Reference Metrics Are (or Are Not) Informative for Indic LM Generation
-
-Evaluating open-ended language models using classical reference-based metrics (originally developed for machine translation or summarization) presents distinct linguistic challenges in morphologically rich Indic languages like Hindi (Devanagari) and Assamese (Eastern Nagari):
-
-#### 1. BLEU (Corpus-level BLEU-4): **Largely Uninformative for Open-Ended Generation**
-- **The Combinatorial Continuation Problem:** In open-ended story or news generation, any held-out prefix has dozens of plausible, syntactically and semantically coherent continuations. BLEU-4 requires contiguous 4-token exact matches against a *single arbitrary ground-truth continuation*. If the model generates a valid, creative narrative along an alternate path, BLEU scores collapse to near zero ($<1.0$ in Hindi, $<4.0$ in Assamese) despite excellent language fluency.
-- **Word Order Flexibility (Scrambling):** Both Hindi and Assamese are verb-final (SOV) languages with flexible constituent order and frequent topicalization or adverb preposing. Legitimate syntactic reordering destroys contiguous n-gram matching while preserving meaning.
-- **Morphological Mismatches:** Both languages feature rich postpositional case systems (vibhaktis like Hindi *ने, को, से, में* and Assamese bound enclitics *-এ, -ক, -ৰ, -লৈ*). A variation in a single case inflection or aspect marker breaks the 4-gram window completely, penalizing the model unfairly.
-
-#### 2. chrF / chrF++: **Highly Informative & Robust for Indic Languages**
-- **Subword & Morphological Robustness:** chrF measures character n-grams (up to length 6), and chrF++ supplements this with word unigrams and bigrams ($\beta = 2$, weighting character recall over precision). In agglutinative languages like Assamese and inflectional languages like Hindi, character n-grams match the shared semantic root morphemes even when nominal or verbal suffixes diverge (e.g., matching root stems between `আন্দোলনটোৰ` and `আন্দোলনৰ`, or `अधिनियम के` and `अधिनियम में`).
-- **Tolerant to Conjuncts & Orthographic Variance:** Variations in nukta usage or conjunct ligatures (common in web crawled corpora) do not cause a binary mismatch in chrF.
-- **Peak at Optimal Temperature:** chrF++ peaks sharply at $T = 1.0$ (**$19.86$ in Hindi, $24.02$ in Assamese**), accurately reflecting the model's peak lexical fidelity and morphological correctness before degradation at $T = 1.5$.
-
-#### 3. ROUGE-L: **Moderately Informative for Discourse Flow, with Critical Caveats**
-- **Syntactic Sequence Tracking:** ROUGE-L measures the Longest Common Subsequence (LCS) between the generation and reference. Unlike BLEU, it does not require contiguous n-grams, making it much more resilient to inserted adjectives, auxiliary verbs, or topicalized phrases.
-- **Linguistic / Technical Pitfall with Standard Tokenizers:** Standard off-the-shelf implementations (e.g. `google/rouge_score`) default to an ASCII regex tokenizer (`re.split(r'\W+', text)`), which treats all non-ASCII unicode characters as punctuation delimiters and silently outputs $0.0$ scores. By implementing a Unicode/whitespace-aware tokenization adapter in [`common/metrics.py`](../common/metrics.py), ROUGE-L correctly registers $8.6\%–11.2\%$ in Hindi and $6.5\%–8.0\%$ in Assamese.
-- **Limitation:** Similar to BLEU, ROUGE-L drops at $T = 1.5$ ($0.0467$ in Hindi, $0.0245$ in Assamese) as lexical randomness drives the model away from the specific reference sequence.
-
----
-
-### 4.3 Fluency & Diversity Diagnostics
-
-#### 1. Repetition Rate (`rep-3`):
-- **Greedy Decoding Degeneration:** Under greedy decoding ($T = 0.0$), both models suffer severe argmax mode collapse, with duplicate 3-gram rates reaching **$77.16\%$ in Hindi** and **$74.98\%$ in Assamese**. The model gets trapped in cyclic attractors, repeating phrases indefinitely (e.g., *"किसी व्यक्ति को किसी व्यक्ति को..."* or *"আৰু অত্যাচাৰ আৰু অত্যাচাৰ..."*).
-- **Stochastic Recovery:** At $T = 0.5$, repetition drops significantly to $\sim 30\%$. At **$T = 1.0$**, repetition rate drops to **$1.65\%$ in Hindi** and **$0.98\%$ in Assamese**, eliminating cyclic looping and producing fluent, natural paragraph structures.
-
-#### 2. Lexical Diversity (Distinct-1 & Distinct-2):
-- **Distinct-1** (ratio of unique unigrams to total generated tokens) scales monotonically with temperature:
-  * Hindi: $0.0788$ (greedy) $\to 0.1598$ ($T=0.5$) $\to \mathbf{0.4056}$ ($T=1.0$) $\to 0.7391$ ($T=1.5$).
-  * Assamese: $0.1258$ (greedy) $\to 0.2586$ ($T=0.5$) $\to \mathbf{0.6073}$ ($T=1.0$) $\to 0.7810$ ($T=1.5$).
-- **Distinct-2** (ratio of unique bigrams to total generated tokens) reaches **$88.28\%$ in Hindi** and **$96.59\%$ in Assamese** at $T = 1.0$, demonstrating rich non-repetitive phrase variety.
-- While $T = 1.5$ yields $>99\%$ Distinct-2, it crosses into incoherence ("hallucinatory entropy"). Hence, **$T = 1.0$ represents the optimal operational sweet spot**.
-
-#### 3. Vocabulary Fidelity & Out-of-Range (OOR) Rate:
-- Because the models are paired with the exact 16K BPE tokenizers, the out-of-range rate is **strictly $0.0000\%$ across all standard decoding regimes ($T \le 1.0$)**. At $T = 1.5$, a negligible fraction ($<0.006\%$) arises from random tail-logit sampling of byte-fallback edges.
-
----
-
-### 4.4 Generation Samples from Held-Out Test Prompts
-
-Below are representative continuations generated by **Modern V2-16K** across decoding regimes on held-out test prompts:
-
-#### Hindi Sample 1: Journalistic / Socio-Economic Commentary
-* **Prefix:**  
-  `अशोक कुमार सिन्हा ने कहा कि जिन विभागों में खर्च की रफ्तार बाजार का दबाव हो गया है समाज पर पटना।। आज हमारे समाज पर बाजार का बड़ा दबाव है।`  
-* **Reference Continuation:**  
-  `पहले समाज का नियंत्रण बाजार पाइरेटेड सीडी के साथ दो गिरफ्तार पटना।। दुर्गा पूजा मेंटेनेंस को लेकर हो रही बिजली कटौती से शहरवासी परेशान हैं। लगभग भूमि सुधार के बिना औद्योगिकीकरण नहीं...`  
-* **Greedy Decoding ($T = 0.0$):**  
-  `उन्होंने कहा कि सरकार ने जो भी काम किया है वह भी काम कर रही है। उन्होंने कहा कि सरकार ने जो काम किया है वह काम कर रही है। उन्होंने कहा कि सरकार ने जो काम किया है वह काम कर रही है। उन्होंने कहा कि सरकार ने जो काम किया है वह काम कर रही है।`  
-  *(Analysis: Grammatically correct initially, but succumbs to an infinite cyclic repetition loop.)*
-* **Low-Entropy Sampling ($T = 0.5$):**  
-  `उन्होंने कहा कि हम लोग तो अभी भी काम नहीं करते हैं। हम लोग हमें काम नहीं करते हैं। उन्होंने कहा कि अगर हम काम नहीं करते हैं तो हमें अच्छा काम करना चाहिए। उन्होंने कहा कि हम काम नहीं करते हैं। हमें काम नहीं करना चाहिए।`  
-  *(Analysis: Coherent topic tracking and valid case grammar, but limited lexical variation.)*
-* **Optimal Sampling ($T = 1.0$ — Sweet Spot):**  
-  `साथ ही एसीपी सुरेंद्र सिंह कहा कि इसलिए क्षेत्र के कमजोर माहौल को देखते हुए सामाजिक कार्यक्रम काे लेकर कोई भी कानून लागू नहीं हुआ है। अब मिनिस्ट्री रिजर्व की रिफ्रेश रेट हुई है। किसी भी विभाग में किसी तरह का दबाव नहीं है। बहुत कम दबाव शासन बल की तरफ से सभी मंत्रालय अपने स्तर पर...`  
-  *(Analysis: Exceptional journalistic vocabulary, zero phrase looping, natural clausal transitions, and proper postpositional bindings like `की तरफ से`, `अपने स्तर पर`.)*
-* **High-Entropy Sampling ($T = 1.5$):**  
-  `बिहार के ऊपर व्यवहार बढ़ाने से इसे राजस्व लाभ मिले बनेंगे नम्बर छिपी बड़ी सरमाई बनाएंगे वरिष् बैंक यह तीन कंट्रीकेट मेरे रिवड़ी चोरी करता तस्वीर ब्रांच मक़रेटिव इसमें हम अप्रत्याशित पथ देखिये उपयोग हुआ शिकार...`  
-  *(Analysis: High token entropy, syntactic degradation, and disjoint lexical associations.)*
-
----
-
-#### Assamese Sample 1: Socio-Political History (Assam Movement)
-* **Prefix:**  
-  `াপ কৰিছিলো। কলাখাৰ এনেকৈ দুই আঢ়ৈ বছৰমান জীয়াই আছিল। আন্দোলন শাম কাটি অহাৰ পিছত সাধাৰণ অসমীয়া মানুহৰ ওপৰত পুলিচ চি আৰ পিৰ অত্যাচাৰ আৰু আন্দোলনৰ পৰা তেওঁলোকৰ আক`  
-* **Reference Continuation:**  
-  `ুল প্রত্যাশা উপলব্ধি কৰি মোৰ ধাৰণা হল যে যদি ভাবাবেগৰ বাষ্পই তেওঁলোকৰ বিচাৰ ধোঁৱাকোঁৱা কৰিছিল নিৰ্ভাঁজ দেশপ্ৰেমৰেই আন্দোলনত জড়িত হৈ পৰিছিল। তেতিয়া আন্দোলনৰ বিৰোধিতা কৰি থাকিলেও...`  
-* **Greedy Decoding ($T = 0.0$):**  
-  `ুলতা আৰু অত্যাচাৰ আৰু অত্যাচাৰ আৰু অত্যাচাৰ আৰু অত্যাচাৰ আৰু অত্যাচাৰ আৰু অত্যাচাৰ আৰু অত্যাচাৰ আৰু অত্যাচাৰ আৰু অত্যাচাৰ আৰু অত্যাচাৰ আৰু অত্যাচাৰ আৰু অত্যাচাৰ আৰু অত্যাচাৰ আৰু অত্যাচাৰ...`  
-  *(Analysis: Trapped in a 2-word phrase cycle `আৰু অত্যাচাৰ` due to greedy argmax saturation.)*
-* **Low-Entropy Sampling ($T = 0.5$):**  
-  `র্ষণৰ বিৰুদ্ধে আন্দোলন আৰম্ভ কৰিছিল। কিন্তু সেই সময়ত এই আন্দোলনটো অতি জটিল হৈ পৰিছিল। কিন্তু তাৰ পিছত সি যি আন্দোলন আৰম্ভ কৰিছিল সেই আন্দোলনটোৰ লগত জড়িত হৈ পৰিছিল। তাৰ পিছত সি যি আন্দোলন...`  
-  *(Analysis: Perfectly captures the historical context of the movement with correct verb inflections `কৰিছিল` and demonstratives `সেই সময়ত`, `এই আন্দোলনটো`.)*
-* **Optimal Sampling ($T = 1.0$ — Sweet Spot):**  
-  `ুলতাৰ আলঙ্খম্বেলীয়া ৰজা আমান্দাদৰ ৰূপহী জুইত জুই নুমুৱাবলৈ ধৰিলে। মই এই বিষয়ে কোনো উত্তৰ নিদিয়াকৈ থকা নাই। মই তেখেতৰ লগত এইবোৰ কথানোযোগ নকৰিলে। বাকী আছে। পিছত মই নিজকে নিজে বুজি আয়োগৰ মজিয়াত আছোঁ...`  
-  *(Analysis: Highly expressive literary style, sophisticated pronoun agreement `মই`, `তেখেতৰ লগত`, proper conjunctive participle `-কৈ`, and negligible repetition.)*
-* **High-Entropy Sampling ($T = 1.5$):**  
-  `বৰকৈ আহত হৈছিল পুলি সময় লৈছিল ভোটগ্ৰহণ শেষ দিনাই টিভি চিৰিয়ে পানী কাণ্ডড় কৰে অভিশৱ ৩ৱালা হত্যা দোষ বিস্ফোটনত পুলিচ সংক্রালৈকে আমাৰ মন্দিৰনাথযে চোখাৰ ব্যক্তিসকলৰ সলনি খেৰ চমন...`  
-  *(Analysis: Severe semantic fragmentation with abrupt, disconnected noun phrases.)*
-
----
-
-#### Assamese Sample 2: Historical / Chronological Precision
-* **Prefix:**  
-  `ো ব্ৰুনুয়ে যেতিয়া মুকলিকৈ কপাৰনিকাছৰ মত সমৰ্থন কৰিলে তেতিয়া তেওঁক ধৰ্ম্মদ্ৰোহীতাৰ শাস্তি হিচাবে ৰাজহুৱা ভাবে পুৰি মৰা হয়। সেইয়া আছিল ১৬` *(Context: Execution of Giordano Bruno for supporting Copernicus: "...That was 16...")*  
-* **Greedy Continuation ($T = 0.0$):**  
-  `০০ চনত। এই সময়ত তেওঁ নিজৰ ধৰ্ম গ্ৰহণ কৰি ধৰ্ম গ্ৰহণ কৰিছিল। তেওঁ ধৰ্ম গ্ৰহণ কৰি ধৰ্ম গ্ৰহণ কৰিছিল...`  
-  *(Remarkable Finding: The model accurately completes the exact historical century: `০০ চনত` $\implies \mathbf{1600\text{ AD}}$, reflecting strong factual world-knowledge acquisition during pretraining over 500M tokens!)*
-* **Sampling ($T = 1.0$):**  
-  `খ্ৰীষ্টাব্দ। উৎপল দাস নতুনকৈ পাঁচ বছৰমান সাম্ৰাজ্য ভ্ৰমণৰ সময়ত ৰমিলা খৰালি কালৰ পৰাই চিৰকাল দীঘল হয় বাবে...`  
-  *(Produces the formal Assamese chronological term `খ্ৰীষ্টাব্দ` [CE / AD] immediately completing `১৬` $\implies$ "16th Century CE".)*
-
----
-
-### 4.5 Qualitative Synthesis: Coherence, Language Correctness & Architectural Impact
-
-1. **Morpho-Syntactic Agreement:**
-   - Both Modern V2-16K models demonstrate strong mastery of Indic case markers and subject-verb agreement across multi-word clauses. In Hindi, transitive verbs in perfective aspect consistently trigger ergative *ने* on the subject (e.g., *पुलिस ने कहा कि...*). In Assamese, relative pronouns (*যি*) and correlatives (*সেইয়া / সি*) are correctly resolved across sentence boundaries.
-2. **Decoding Sweet Spot ($T = 1.0$):**
-   - Quantitative and qualitative evidence converge: $T = 1.0$ provides the ideal balance between avoiding degenerate loops ($<1.6\%$ repetition) and maintaining syntactic cohesion (Distinct-2 $\approx 88–97\%$).
-3. **Modern V2-16K vs. Baseline V1-16K:**
-   - Modern V2-16K achieves higher chrF++ scores ($+0.91$ in Hindi, $+2.62$ in Assamese) and superior Distinct-2 metrics compared to Baseline V1-16K. The inclusion of Rotary Position Embeddings (RoPE) and SwiGLU allows the model to retain contextual coherence over longer token spans without devolving into premature repetition.
-
----
-
-## 5. Attention Pattern Analysis & Specialization (Deliverable 7)
-
-Attention maps were extracted across early, middle, and late layers using [`hindi/eval/attention_analysis.py`](../hindi/eval/attention_analysis.py) and [`assamese/eval/attention_analysis.py`](../assamese/eval/attention_analysis.py). Full multi-panel figures and individual head heatmaps are archived in [`report/figures/`](figures/).
-
-### 5.1 Hindi Attention Specialization (Model H — Modern V2-16K)
-
-<p align="center">
-  <img src="figures/attn_hindi_panel.png" alt="Figure 5: Hindi Model H (Modern V2-16K) Attention Specialization Panel" width="720"/>
-  <br/>
-  <em>Figure 5: Hindi Model H (Modern V2-16K) Attention Specialization across Layers. (Top-Left) Layer 0, Head 0 exhibits tight local diagonal attention tracking noun-modifier dependencies (e.g., विशाल ↔ देश); (Top-Right) Layer 0, Head 3 aggregates broad unigram context across preceding tokens; (Bottom-Left) Layer 7, Head 1 enforces predicate agreement between distant verbal markers and arguments; (Bottom-Right) Layer 7, Head 2 resolves long-range relative-correlative clausal binding (e.g., जहाँ ↔ संस्कृत). Individual heatmaps: <a href="figures/attn_hindi_early_h0.png">L0H0</a>, <a href="figures/attn_hindi_early_h3.png">L0H3</a>, <a href="figures/attn_hindi_late_h1.png">L7H1</a>, <a href="figures/attn_hindi_late_h2.png">L7H2</a>.</em>
-</p>
-
-### 5.2 Assamese Attention Specialization (Model L — Modern V2-16K)
-
-<p align="center">
-  <img src="figures/attn_assamese_panel.png" alt="Figure 6: Assamese Model L (Modern V2-16K) Attention Specialization Panel" width="720"/>
-  <br/>
-  <em>Figure 6: Assamese Model L (Modern V2-16K) Attention Specialization across Layers. (Top-Left) Layer 0, Head 0 resolves inflectional suffixation and morpheme concatenation (e.g., stem-classifier-vibhakti binding in ঐতিহ্যমণ্ডিত and সংস্কৃতিৰ); (Top-Right) Layer 0, Head 3 performs local phrasal context aggregation; (Bottom-Left) Layer 7, Head 1 detects and aligns subordinate clause boundaries (connecting relative pronoun যি to predicate heads); (Bottom-Right) Layer 7, Head 2 mediates global discourse coreference across the sentence. Individual heatmaps: <a href="figures/attn_assamese_early_h0.png">L0H0</a>, <a href="figures/attn_assamese_early_h3.png">L0H3</a>, <a href="figures/attn_assamese_late_h1.png">L7H1</a>, <a href="figures/attn_assamese_late_h2.png">L7H2</a>.</em>
-</p>
-
-### 5.3 Quantitative Attention Diagnostics: Entropy & Distance
-| Model / Language | Layer Stage | Mean Attention Entropy | Mean Attention Distance (tokens) | Primary Function |
+| Run | Val loss @ step 250 | Best val loss | Best step | Final val loss (step 15,259) |
 |---|---|---|---|---|
-| **Hindi (Model H)** | Early (Layer 0–1) | 1.45–1.62 | 2.5–2.8 | Local unigram & bi-gram syntax |
-| | Mid (Layer 3–4) | **0.90–1.20** | **1.5–2.2** | Highly localized modifier-head tracking |
-| | Late (Layer 6–7) | 1.35–1.55 | **3.2–3.8** | Long-range clausal agreement & predicate binding |
-| **Assamese (Model L)**| Early (Layer 0–1) | 1.30–1.48 | 2.1–2.5 | Local morpho-syntactic aggregation |
-| | Mid (Layer 3–4) | **0.85–1.15** | **1.1–1.9** | Morpheme stitching & case-marker resolution |
-| | Late (Layer 6–7) | 1.20–1.45 | **2.8–3.5** | Multi-hop contextual reference |
+| Hindi V1 | 6.0773 | 3.6260 | 15,250 | 3.6262 |
+| Hindi V2 | 5.7688 | **3.5775** | 15,250 | 3.5777 |
+| Assamese V1 | 6.6581 | 3.9966 | 15,259 | 3.9966 |
+| Assamese V2 | 6.3454 | **3.9496** | 15,250 | 3.9498 |
 
-### Key Observations:
-1. **Mid-layer Locality:** Mid-layers show sharp diagonal attention patterns (low entropy $\approx 0.85 - 1.15$), responsible for combining root stems with inflectional vibhakti markers.
-2. **Late-layer Global Heads:** Heads in Layers 6–7 attend diffusely across distant query tokens, resolving long-distance subject-verb constraints across complex subordinate clauses.
+Validation loss was still decreasing at the end of every run (best at or within 9 steps of the last step), so all four models are compute-limited, not converged: more tokens would lower the loss further.
 
----
+<p align="center">
+  <img src="figures/loss_curve_hindi.png" alt="Hindi V2 pretraining loss" width="640"/>
+  <br/>
+  <img src="figures/loss_curve_assamese.png" alt="Assamese V2 pretraining loss" width="640"/>
+  <br/>
+  <em>Figures 1–2: training (dashed) and validation (solid) loss of the V2 models over 500M tokens.</em>
+</p>
 
-## 6. Implementation Verification & Empirical Integrity
+### 2.1 Architecture Comparison
 
-To guarantee algorithmic correctness and model reliability, all core components were verified against rigorous numerical criteria:
+<p align="center">
+  <img src="figures/loss_curve_comparison_hindi.png" alt="Hindi V1 vs V2" width="640"/>
+  <br/>
+  <img src="figures/loss_curve_comparison_assamese.png" alt="Assamese V1 vs V2" width="640"/>
+  <br/>
+  <em>Figures 3–4: validation loss of Baseline V1 and Modern V2. V2 leads from the first evaluation and the gap narrows from ~0.3 nats early in training to ~0.05 nats at the end.</em>
+</p>
 
-1. **Strict Causality Invariance:**
-   - Perturbation testing confirmed that modifying input tokens at position $t+1$ results in bit-identical forward representations and logits at all positions $\le t$ ($\max |\Delta\text{logits}| = 0.00\times 10^0$). Future tokens cannot leak backward through causal attention masks or rotary query-key projections.
-
-2. **Weight Tying & Parameter Accounting:**
-   - Both models strictly enforce tied input/output embeddings ($W_{\text{head}} = W_{\text{emb}}^T$), sharing identical parameter memory and ensuring non-embedding parameter budgets remain strictly within the $\sim 25\text{M}$ target window ($24.98\text{M}$ for V1-16K, $25.17\text{M}$ for V2-16K).
-
-3. **Checkpoint State Restoration Equivalence:**
-   - The training checkpoint engine verifies full state reproducibility upon resume. Resuming an interrupted training run from step $S$ restores identical model weights, AdamW first and second moments, cosine scheduler counters, and PRNG seeds, producing bit-exact continuation loss values.
-
-4. **Numerical Stability & Gradient Regularization:**
-   - Under fp16 mixed precision (`torch.cuda.amp`), pretraining maintained zero NaN / Inf activations across all 500M tokens, protected by dynamic loss scaling and gradient clipping at max norm $1.0$.
+V2's advantage is largest early in training (0.31 nats at step 250 in both languages) and shrinks to 0.049 (Hindi) and 0.047 (Assamese) nats by the end. The modern components mainly speed up learning; at this scale and budget their final advantage is about 5–7% in perplexity.
 
 ---
 
-## 7. Selected Architecture for Phase 3: Modern V2-16K
+## 3. Intrinsic Evaluation: Perplexity & Bits per Byte (Deliverable 5a)
 
-Based on the empirical evidence gathered during Phase 2 pretraining and evaluation:
+Two held-out measurements on `test.bin` (never seen in training or checkpoint selection):
 
-1. **Unambiguous Performance Lead:** Modern V2-16K achieved the lowest perplexity (Hindi $43.05$, Assamese $63.93$) and lowest test loss ($3.9562$ and $4.3935$), outperforming the baseline by over $30\%$ in perplexity.
-2. **Context Window Extrapolation:** The Rotary Position Embedding (RoPE) formulation in Modern V2-16K avoids the hard 512-token cutoff of learned positional tables, allowing the model to generalize to extended multi-step reasoning chains.
-3. **Associative Memory for Reasoning:** The SwiGLU gated activation mechanism provides superior representational capacity for relational logic and transitive inequality tracking.
+* **Full context** (headline numbers): 2,000 evenly spaced, non-overlapping 512-token windows (1,022,000 predicted tokens). The windows are fixed, so all four models are scored on identical text.
+* **Short context**: 500 windows of 96 tokens (the 32-token prompt + 64-token continuation of the generation protocol; 47,500 predicted tokens), stored in [`<lang>/eval/ppl_bpb_table.json`](../hindi/eval/ppl_bpb_table.json).
 
-**Modern V2-16K is formally selected as the model checkpoint to advance to Phase 3 Reasoning Finetuning and Analysis.**
+| Language | Model | Full-context loss | Full-context PPL | Full-context BPB | Short-context loss | Short-context PPL | Short-context BPB |
+|---|---|---|---|---|---|---|---|
+| Hindi | V1 | 3.6547 | 38.66 | 0.4856 | 3.8138 | 45.32 | 0.4998 |
+| Hindi | **V2** | **3.5876** | **36.15** | **0.4767** | **3.7396** | **42.08** | **0.4901** |
+| Assamese | V1 | 3.9987 | 54.53 | 0.4634 | 4.2326 | 68.90 | 0.4845 |
+| Assamese | **V2** | **3.9425** | **51.55** | **0.4569** | **4.1705** | **64.75** | **0.4774** |
+
+$$\text{BPB} = \frac{\mathcal{L}_{\text{CE}}}{\ln 2} \times \frac{\text{predicted tokens}}{\text{UTF-8 bytes of those tokens}}$$
+
+**Loss by amount of preceding context** (full-context windows, nats):
+
+| Model | 1–31 tokens | 32–95 | 96–255 | 256–511 |
+|---|---|---|---|---|
+| Hindi V1 | 4.172 | 3.734 | 3.619 | 3.595 |
+| Hindi V2 | 4.116 | 3.659 | 3.551 | 3.529 |
+| Assamese V1 | 4.507 | 4.073 | 3.979 | 3.931 |
+| Assamese V2 | 4.451 | 4.014 | 3.922 | 3.876 |
+
+### Observations
+1. **Context helps up to the end of the window.** Loss falls by ~0.6 nats from the first 31 tokens to positions 256–511 in every model, and is still falling in the last bucket: both architectures use long context. V2 is better at every context length by a near-constant 0.05–0.07 nats, so its advantage is not specific to long-range positions.
+2. **The short-context numbers are worse** (e.g. 42.08 vs 36.15 for Hindi V2) because every 96-token window starts without context; they are reported for comparability with the generation protocol.
+3. **Hindi vs Assamese.** Assamese token perplexity is higher (51.6 vs 36.2 for V2), but its BPB is lower (0.457 vs 0.477). An Assamese token covers more text (4.58 vs 3.74 characters, Phase 1), so each prediction is harder while the cost per byte of text is similar or lower. On this evidence the lower-resource Assamese model is not a weaker compressor of its language.
+
+---
+
+## 4. Generation Quality and Diversity (Deliverables 5b–6)
+
+Protocol ([`<lang>/eval/evaluate.py`](../hindi/eval/evaluate.py)): 500 held-out 32-token prefixes from `test.bin`, a 64-token continuation at temperatures 0.0 (greedy), 0.5, 1.0 and 1.5, plus a nucleus row (T = 0.8, top-p 0.9, repetition penalty 1.15), each compared with the true 64-token continuation. The V2 outputs are in [`<lang>/eval/generation_metrics.json`](../hindi/eval/generation_metrics.json) and [`generated_samples.jsonl`](../hindi/eval/generated_samples.jsonl); all four models in [`report/results/phase2_pretrained_eval.json`](results/phase2_pretrained_eval.json).
+
+| Model | Decoding | BLEU-4 | chrF | ROUGE-L | Rep-3 ↓ | Distinct-1 | Distinct-2 |
+|---|---|---|---|---|---|---|---|
+| Hindi V1 | greedy | 1.66 | 15.99 | 0.112 | 0.769 | 0.058 | 0.166 |
+| | T = 1.0 | 0.78 | 20.05 | 0.105 | 0.031 | 0.270 | 0.801 |
+| | nucleus | 1.35 | **21.15** | 0.116 | 0.082 | 0.170 | 0.656 |
+| Hindi V2 | greedy | 1.74 | 16.30 | 0.114 | 0.735 | 0.063 | 0.187 |
+| | T = 0.5 | **2.14** | 19.04 | **0.126** | 0.365 | 0.104 | 0.406 |
+| | T = 1.0 | 0.55 | 20.01 | 0.105 | 0.029 | 0.270 | 0.803 |
+| | T = 1.5 | 0.05 | 18.19 | 0.044 | 0.000 | 0.515 | 0.991 |
+| | nucleus | 1.64 | 21.07 | 0.116 | 0.079 | 0.171 | 0.658 |
+| Assamese V1 | greedy | 3.29 | 17.55 | 0.070 | 0.764 | 0.089 | 0.188 |
+| | T = 1.0 | 3.43 | 23.19 | 0.072 | 0.040 | 0.423 | 0.897 |
+| | nucleus | 3.65 | 24.09 | 0.082 | 0.054 | 0.315 | 0.814 |
+| Assamese V2 | greedy | 3.38 | 18.70 | 0.075 | 0.726 | 0.094 | 0.211 |
+| | T = 0.5 | 3.74 | 21.75 | **0.086** | 0.261 | 0.197 | 0.555 |
+| | T = 1.0 | 3.65 | 23.30 | 0.074 | 0.039 | 0.429 | 0.903 |
+| | T = 1.5 | 0.94 | 20.31 | 0.026 | 0.004 | 0.580 | 0.992 |
+| | nucleus | **3.81** | **24.33** | 0.085 | 0.055 | 0.321 | 0.815 |
+
+### 4.1 Which metrics are informative here
+* **BLEU-4 is nearly uninformative.** An open-ended continuation has many valid paths; matching four consecutive words of one reference is rare (BLEU 0.05–3.8). It is highest at T = 0.5 or with nucleus sampling, where outputs stay close to the most likely phrasing without looping.
+* **chrF is the most useful reference metric.** Character n-grams credit shared stems despite different inflections, which matters for case-marked Hindi and agglutinative Assamese. It ranks decoding settings sensibly: lowest for greedy (loops), highest for nucleus sampling, falling again at T = 1.5.
+* **ROUGE-L** rewards shared word order and peaks at T = 0.5. It is computed with a Unicode-aware tokenizer in [`common/metrics.py`](../common/metrics.py); the default `rouge_score` tokenizer drops non-ASCII text and returns 0.
+* **Repetition and distinct-n** measure fluency failures the reference metrics miss: greedy decoding repeats 73–77% of its 3-grams; T = 1.0 brings this to 3–4% but T = 1.5 produces near-random word sequences (distinct-2 ≈ 0.99, chrF falls).
+
+**Best setting:** nucleus sampling (T = 0.8, top-p 0.9, repetition penalty 1.15) has the highest chrF in all four models with only 5–8% repeated 3-grams.
+
+**V1 vs V2:** the two architectures are within 1.2 chrF points of each other at every setting; the 6% perplexity gap does not produce a visible difference in sampled text.
+
+### 4.2 Samples (Modern V2, held-out test prefixes)
+
+**Hindi** — prefix: `अख़बारों और टेलीविज़न चैनलों ने उनके काम करने को तरीके को मान लिया है जैसा कि इंदिरा गांधी के वक़्त में कर लिया था हालांकि नरेंद्र मोदी का एकछ`  
+* Reference: `त्र राज इस मामले में और बदतर हो गया है कि बीजेपी सरकार के किसी भी कैबिनेट मंत्री की कोई अहमियत नहीं रह गई है…`
+* Greedy: `त्र राज था लेकिन इंदिरा गांधी के समय में ही उन्हें प्रधानमंत्री पद का उम्मीदवार घोषित कर दिया गया था इंदिरा गांधी के बाद इंदिरा गांधी का नाम भी इंदिरा गांधी के नाम पर ही रखा गया था…`  
+  It completes the split word (`एकछ` + `त्र राज`, as in the reference) and stays on topic, then starts repeating `इंदिरा गांधी`.
+* T = 1.0: `त्र रोमेंट शुरू से देखने को मिल रहा है ये मुनाफा घरेलू उपभोक्ताओं की नीलामी को हुई करोड़ रुपये सनसनीखेज कहा…`  
+  Fluent local grammar and news vocabulary, but the topic drifts and the word completion is wrong.
+
+**Assamese** — prefix: `শ্রীকৃষ্ণই নিজেই অনন্তব্ৰহ্মাণ্ডৰ স্রষ্টা পালন কৰোঁতা। ব্রহ্মাদি দেৱতাসকল তেওঁৰেই সৃষ্টি । নাৰায়ণৰূপে তেওঁ অনন্ত শ`  
+* Reference: `য্যাত জলত শয়ন কৰে আৰু তেওঁৰ নাভিপদ্মৰ পৰাই ব্রহ্মা জাত হৈছে…`
+* Greedy: `য্যাত বাস কৰে। তেওঁ অনন্ত শয্যাত বাস কৰে। তেওঁ অনন্ত শয্যাত বাস কৰে। অনন্ত শয্যাত বাস কৰে…`  
+  Correct completion (`অনন্ত শয্যাত`, Vishnu's serpent bed, as in the reference), then a loop.
+* T = 0.5: `য্যাত আছে। তেওঁ ব্ৰহ্মাৰূপে জন্মগ্ৰহণ কৰি তেওঁ ব্ৰহ্মাৰূপে প্ৰতিষ্ঠিত হয়…`  
+  Stays in the mythological register with correct verb morphology, but repeats `ব্ৰহ্মাৰূপে`.
+
+Both models have learned word-internal completion, topical vocabulary and local morphology; they do not keep a coherent argument beyond a sentence or two, as expected at 25M parameters and 500M tokens.
+
+---
+
+## 5. Attention Pattern Analysis (Deliverable 7)
+
+Heatmaps of layers 0, 4 and 7 (heads 0–3) for three short sentences per language, from [`<lang>/eval/attention_analysis.py`](../hindi/eval/attention_analysis.py) on the V2 checkpoints, are in [`hindi/eval/attention/`](../hindi/eval/attention/) and [`assamese/eval/attention/`](../assamese/eval/attention/). Token labels use bundled Noto Sans Devanagari / Bengali fonts ([`common/plot_fonts.py`](../common/plot_fonts.py)), since Matplotlib's default font has neither script.
+
+<p align="center">
+  <img src="figures/attn_hindi_panel.png" alt="Hindi V2 attention" width="680"/>
+  <br/>
+  <img src="figures/attn_assamese_panel.png" alt="Assamese V2 attention" width="680"/>
+  <br/>
+  <em>Figures 5–6: V2 attention on example 0 (Hindi: भारत की राजधानी नई दिल्ली है और यह एक बड़ा शहर है; Assamese: অসমৰ ৰাজধানী গুৱাহাটী আৰু ই এখন ডাঙৰ চহৰ). Top: layer 0, heads 0 and 3. Bottom: layer 7, heads 1 and 2.</em>
+</p>
+
+Patterns visible in the heatmaps:
+* **Layer 0 is local.** Most weight falls on the current token and the one or two before it (a near-diagonal band): word-internal and adjacent-word composition.
+* **Later layers mix a first-token sink with content links.** Many layer-7 rows put a large share of their weight on the first token, a common "attention sink" in causal models, while individual heads link related words: in Hindi layer 7 head 2, `दिल्ली` (Delhi) attends mostly to `राजधानी` (capital), and `शहर` (city) to `बड़ा` (big).
+
+Entropy and distance (mean over heads 0–3 and the three sentences; [`report/results/phase2_attention_summary_*.json`](results/)):
+
+| Model | Layer 0 entropy | Layer 4 | Layer 7 | Layer 0 distance | Layer 4 | Layer 7 |
+|---|---|---|---|---|---|---|
+| Hindi V1 | 1.48 | 1.01 | 1.06 | 2.92 | 2.70 | 2.82 |
+| Hindi V2 | 1.28 | 1.24 | 1.09 | 1.86 | 2.63 | 2.50 |
+| Assamese V1 | 1.29 | 0.87 | 0.63 | 2.26 | 1.62 | 3.10 |
+| Assamese V2 | 1.21 | 1.03 | 0.89 | 1.66 | 2.07 | 2.56 |
+
+<p align="center">
+  <img src="figures/phase2_attention_entropy_distance.png" alt="Attention entropy and distance by layer" width="760"/>
+</p>
+
+Attention becomes sharper with depth in all four models (entropy falls from layer 0 to layer 7), and V2's layer-0 attention is more local than V1's (distance 1.7–1.9 vs 2.3–2.9 tokens), consistent with RoPE encoding relative position directly in the attention scores. These sentences are 8–12 tokens long, so the distances are small in absolute terms and the statistics are indicative only; Phase 3 measures attention on 200 longer reasoning prompts.
+
+---
+
+## 6. Implementation Checks
+
+1. **Causality** (Section 1.3): future tokens do not affect earlier logits in either architecture.
+2. **Parameter accounting**: instantiating the configs gives 24,982,272 (V1) and 25,172,352 (V2) parameters with tied embeddings.
+3. **Checkpoint integrity**: every evaluation rebuilds the model from the configuration stored in the checkpoint, so the evaluated architecture is exactly the trained one; the evaluated `best.pt` files are from steps 15,250–15,259 of 15,259.
+
+---
+
+## 7. Model Choice for Phase 3
+
+Modern V2 has the better language model in both languages, by 5–7% in perplexity. Because the margin is small, **both architectures were carried into Phase 3**: the reasoning experiments fine-tune V1 and V2 in each language. There the ranking reverses (Phase 3 report): V1 reaches 0.945 test relation accuracy in Hindi against 0.880 for V2. Pretraining perplexity was not a good predictor of how well a model learns the reasoning task.
