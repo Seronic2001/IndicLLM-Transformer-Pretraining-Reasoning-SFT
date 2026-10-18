@@ -3,7 +3,8 @@
 Standardized Generation Protocol (project specifications Section 3 Evaluator):
   * Extract N=500 held-out prompt prefixes of T_prefix=32 tokens from test.bin.
   * Generate a T_gen=64-token continuation per prefix at temperatures
-    {0.0 (greedy), 0.5, 1.0, 1.5}.
+    {0.0 (greedy), 0.5, 1.0, 1.5}, plus one "nucleus" row (T=0.8, top-p 0.9,
+    repetition penalty 1.15).
   * Compare against the actual 64-token ground-truth continuation.
 
 Outputs (in --out-dir):
@@ -57,6 +58,10 @@ N_PROMPTS = 500
 T_PREFIX = 32
 T_GEN = 64
 TEMPERATURES = (0.0, 0.5, 1.0, 1.5)
+# Extra decoding row reported next to the plain temperature sweep: nucleus
+# sampling with a repetition penalty, which avoids the loops greedy decoding falls into.
+NUCLEUS_LABEL = "nucleus"
+NUCLEUS_KWARGS = {"temperature": 0.8, "top_p": 0.9, "repetition_penalty": 1.15}
 FULL_CONTEXT_WINDOWS = 2000
 # Target-position ranges (0-based, end-exclusive) labelled by preceding-token count.
 CONTEXT_BUCKETS = {"1-31": (0, 31), "32-95": (31, 95), "96-255": (95, 255), "256-511": (255, 511)}
@@ -103,24 +108,27 @@ def generate_continuations(
     spec: EvalSpec,
     pairs: list[tuple[list[int], list[int]]],
 ) -> dict[str, list[str]]:
-    """Run the 4-temperature protocol. Returns {temp_label: [decoded_text, ...]}."""
+    """Run the 4-temperature protocol plus the nucleus row.
+
+    Returns {label: [decoded_text, ...]}."""
     model.eval()
-    out: dict[str, list[str]] = {str(t): [] for t in spec.temperatures}
+    torch.manual_seed(spec.seed)
+    settings = {str(t): {"temperature": t} for t in spec.temperatures}
+    settings[NUCLEUS_LABEL] = NUCLEUS_KWARGS
+    out: dict[str, list[str]] = {label: [] for label in settings}
     for prefix_ids, _target in pairs:
         idx = torch.tensor([prefix_ids], dtype=torch.long, device=spec.device)
-        for temp in spec.temperatures:
-            gen = model.generate(
-                idx, max_new_tokens=spec.gen_len, temperature=temp, top_k=None
-            )
+        for label, kwargs in settings.items():
+            gen = model.generate(idx, max_new_tokens=spec.gen_len, **kwargs)
             new_ids = gen[0, -spec.gen_len:].tolist()
-            out[str(temp)].append(spec.tokenizer.decode(new_ids))
+            out[label].append(spec.tokenizer.decode(new_ids))
     return out
 
 
 def compute_generation_metrics(
     references: list[str], generations: dict[str, list[str]]
 ) -> dict:
-    """Corpus-level metrics per temperature (never filters degenerate outputs)."""
+    """Corpus-level metrics per decoding setting (never filters degenerate outputs)."""
     result: dict[str, dict] = {}
     for label, hyps in generations.items():
         result[label] = {
@@ -140,6 +148,7 @@ def compute_ppl_bpb(model: GPTLanguageModel, spec: EvalSpec) -> dict:
     """Mean loss / perplexity / bits-per-byte over the test windows."""
     import numpy as np
 
+    model.eval()
     data = np.memmap(spec.test_path, dtype=np.uint16, mode="r")
     span = spec.prefix_len + spec.gen_len
     max_start = len(data) - span
@@ -314,17 +323,23 @@ _KEY_RENAMES = (
 )
 
 
-def load_model_for_eval(checkpoint: str, model_config: str, device: str):
+def load_model_for_eval(
+    checkpoint: str, model_config: str, device: str, arch: Optional[str] = None
+):
     """Build the model named by the config (V1, V1 no_pos, or V2) and load weights.
 
-    Parameter names are remapped and the non-learned causal-mask buffers are
-    left to the model; any other missing or unexpected key raises.
+    The architecture is read from the config unless ``arch`` ("v1" / "v2")
+    overrides it. Parameter names are remapped and the non-learned causal-mask
+    buffers are left to the model; any other missing or unexpected key raises.
+    The model is returned in eval mode.
     """
     import yaml
 
     with open(model_config, "r", encoding="utf-8") as f:
         raw_cfg = yaml.safe_load(f) or {}
-    if raw_cfg.get("arch_version") == "v2" or "rope_theta" in raw_cfg:
+    if arch is None:
+        arch = "v2" if raw_cfg.get("arch_version") == "v2" or "rope_theta" in raw_cfg else "v1"
+    if arch == "v2":
         from model.gpt_v2 import GPTConfigV2, GPTLanguageModelV2
 
         model = GPTLanguageModelV2(GPTConfigV2.from_yaml(model_config))
@@ -346,7 +361,7 @@ def load_model_for_eval(checkpoint: str, model_config: str, device: str):
             f"Checkpoint {checkpoint} is incompatible with {model_config}: "
             f"missing={missing}, unexpected={load_result.unexpected_keys}."
         )
-    return model.to(device)
+    return model.to(device).eval()
 
 
 def main(argv: Optional[list[str]] = None) -> int:
@@ -362,13 +377,17 @@ def main(argv: Optional[list[str]] = None) -> int:
         help="fixed block_size-token test windows for full_context_ppl.json (0 disables)",
     )
     parser.add_argument("--ppl-only", action="store_true", help="skip the generation protocol")
+    parser.add_argument(
+        "--arch", choices=["v1", "v2"], default=None,
+        help="model architecture (default: read from --model-config)",
+    )
     parser.add_argument("--device", default=None)
     args = parser.parse_args(argv)
 
     from tokenizer.tokenizer import Tokenizer
 
     device = args.device or ("cuda" if torch.cuda.is_available() else "cpu")
-    model = load_model_for_eval(args.checkpoint, args.model_config, device)
+    model = load_model_for_eval(args.checkpoint, args.model_config, device, arch=args.arch)
 
     spec = EvalSpec(
         test_path=args.test_bin,

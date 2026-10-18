@@ -6,6 +6,6 @@ n_layer: 8          # 8 layers for hierarchical representation depth
 n_head: 6           # d_k = 64 (optimal GPU Tensor Core warp alignment)
 d_ff: 2240          # widened FFN associative memory -> exactly 24,982,272 params (~24.98M)
 block_size: 512
-dropout: 0.1
+dropout: 0.0        # single pass over the corpus: the model underfits, so no dropout
 tie_weights: true
 bias: false

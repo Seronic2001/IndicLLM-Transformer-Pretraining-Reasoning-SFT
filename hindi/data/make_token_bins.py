@@ -18,13 +18,28 @@ from typing import Optional, Union, Sequence
 import numpy as np
 
 
+def _encode_batch(tokenizer, batch: list[str], append_eos: bool) -> list[int]:
+    """Token ids of all documents in the batch, concatenated in order."""
+    if hasattr(tokenizer, "sp"):
+        encoded_batch = tokenizer.sp.encode(batch, out_type=int)
+    else:
+        encoded_batch = [tokenizer.encode(doc) for doc in batch]
+    eos = [tokenizer.eos_id] if append_eos else []
+    return [tid for doc_ids in encoded_batch for tid in list(doc_ids) + eos]
+
+
 def tokenize_to_bin(
     src: Union[Path, str, Sequence[str]],
     tokenizer,
     out_path: str,
     batch_size: int = 10000,
+    append_eos: bool = True,
 ) -> int:
-    """Stream documents from JSONL/TXT file or list of texts directly into binary token file."""
+    """Stream documents from JSONL/TXT file or list of texts directly into binary token file.
+
+    Every document is followed by the tokenizer's EOS id (unless append_eos is
+    off), so the model sees document boundaries and learns to end a text.
+    """
     import time
     t0 = time.time()
     total_docs = 0
@@ -62,11 +77,7 @@ def tokenize_to_bin(
         for text in _iter_texts():
             batch.append(text)
             if len(batch) >= batch_size:
-                if hasattr(tokenizer, "sp"):
-                    encoded_batch = tokenizer.sp.encode(batch, out_type=int)
-                    batch_ids = [tid for doc_ids in encoded_batch for tid in doc_ids]
-                else:
-                    batch_ids = [tid for doc in batch for tid in tokenizer.encode(doc)]
+                batch_ids = _encode_batch(tokenizer, batch, append_eos)
                 if batch_ids:
                     arr = np.array(batch_ids, dtype=np.uint16)
                     f_out.write(arr.tobytes())
@@ -81,11 +92,7 @@ def tokenize_to_bin(
                     )
 
         if batch:
-            if hasattr(tokenizer, "sp"):
-                encoded_batch = tokenizer.sp.encode(batch, out_type=int)
-                batch_ids = [tid for doc_ids in encoded_batch for tid in doc_ids]
-            else:
-                batch_ids = [tid for doc in batch for tid in tokenizer.encode(doc)]
+            batch_ids = _encode_batch(tokenizer, batch, append_eos)
             if batch_ids:
                 arr = np.array(batch_ids, dtype=np.uint16)
                 f_out.write(arr.tobytes())
@@ -113,6 +120,7 @@ def tokenize_clean_dir_to_bins(
     val_ratio: float = 0.01,
     batch_size: int = 10000,
     seed: int = 1337,
+    append_eos: bool = True,
 ) -> dict[str, int]:
     """Single-pass streaming directly from clean/*.jsonl into train.bin, val.bin, test.bin.
 
@@ -140,11 +148,7 @@ def tokenize_clean_dir_to_bins(
         b = batches[split]
         if not b:
             return
-        if hasattr(tokenizer, "sp"):
-            encoded_batch = tokenizer.sp.encode(b, out_type=int)
-            batch_ids = [tid for doc_ids in encoded_batch for tid in doc_ids]
-        else:
-            batch_ids = [tid for doc in b for tid in tokenizer.encode(doc)]
+        batch_ids = _encode_batch(tokenizer, b, append_eos)
         if batch_ids:
             arr = np.array(batch_ids, dtype=np.uint16)
             handles[split].write(arr.tobytes())
@@ -226,6 +230,10 @@ def main(argv: Optional[list[str]] = None) -> int:
     parser.add_argument("--clean-dir", help="data/clean/ (direct single-pass streaming without intermediate splits)")
     parser.add_argument("--out-dir", required=True, help="data/")
     parser.add_argument("--force", action="store_true")
+    parser.add_argument(
+        "--no-append-eos", dest="append_eos", action="store_false",
+        help="do not write the EOS id after every document",
+    )
     args = parser.parse_args(argv)
 
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -240,7 +248,7 @@ def main(argv: Optional[list[str]] = None) -> int:
 
     if args.clean_dir:
         clean_dir = Path(args.clean_dir)
-        tokenize_clean_dir_to_bins(clean_dir, tok, out_dir)
+        tokenize_clean_dir_to_bins(clean_dir, tok, out_dir, append_eos=args.append_eos)
         return 0
 
     if not args.splits_dir:
@@ -260,7 +268,7 @@ def main(argv: Optional[list[str]] = None) -> int:
         if dest.exists() and not args.force:
             print(f"[skip] {split}: {dest} already exists (use --force to rebuild)")
             continue
-        n = tokenize_file_to_bin(src, tok, str(dest))
+        n = tokenize_file_to_bin(src, tok, str(dest), append_eos=args.append_eos)
         totals[split] = n
         print(f"[ok] {split}: {n:,} tokens -> {dest}")
 

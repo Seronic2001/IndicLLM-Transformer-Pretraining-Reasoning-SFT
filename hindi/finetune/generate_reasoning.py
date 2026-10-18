@@ -5,9 +5,18 @@ are computed by a *symbolic solver* over a relation graph (>, <, =) — never by
 template author and never by an LLM.
 
 Anti-leakage (mandatory, test-enforced):
-  * Entity pools are split into disjoint train-pool vs eval-pool *before* any
-    example is generated; the split is an explicit, checked-in list below.
-  * multi_hop and negation paradigms are reserved for val/test only.
+  * Entity pools are split three ways — train vs val vs test — *before* any
+    example is generated; the splits are explicit, checked-in lists below.
+  * The multi_hop paradigm is reserved for val/test only; negation makes up 5%
+    of train and an equal share of val/test.
+  * Premises are stated in a random direction and shuffled, and the query pair
+    and its order are random, so the answer cannot be read off any one premise.
+  * The question asks about a random relation (more / less / equal), drawn
+    independently of the answer, so echoing the question's relation word scores
+    below the majority baseline.
+  * Half of the training queries are at least two hops apart, and the train pool
+    adds 3,000 syllable-built names (disjoint from val/test) so models learn to
+    copy names they have never seen.
 
 Reliability fallbacks:
   * Contradictory/cyclic premise sets (shouldn't happen by construction) make
@@ -27,19 +36,121 @@ from pathlib import Path
 from typing import Optional
 
 # ---------------------------------------------------------------- entity pools
-# Disjoint by design: train entities never appear in val/test (and vice versa).
+# Three disjoint pools: a name seen in training never appears in val or test, and
+# val and test share no names either, so picking a checkpoint on val cannot leak test.
 TRAIN_ENTITY_POOL: list[str] = [
-    "राम", "सीता", "गीता", "मोहन", "सुनीता", "राजेश", "कविता", "अमित", "प्रिया",
-    "विकास", "नीता", "सुरेश", "मीना", "रवि", "अनिता", "दीपक", "रेखा", "संजय",
-    "पूजा", "मनोज",
+    "राम", "सीता", "गीता", "मोहन", "सुनीता", "राजेश", "कविता", "अमित", "प्रिया", "विकास",
+    "नीता", "सुरेश", "मीना", "रवि", "अनिता", "दीपक", "रेखा", "संजय", "पूजा", "मनोज", "विजय",
+    "रोहन", "सोहन", "अजय", "नेहा", "किरण", "सीमा", "राहुल", "पायल", "गौरव", "वरुण", "दिव्या",
+    "श्वेता", "साक्षी", "आँचल", "अनुप", "मयंक", "आलोक", "विवेक", "मनीषा", "भारती", "वर्षा",
+    "संगीता", "भावना", "संदीप", "पंकज", "हेमंत", "लोकेश", "तरुण", "कार्तिक", "तन्मय", "नीतेश",
+    "मोनिका", "प्रीति", "पल्लवी", "स्वाती", "गरिमा", "चेतना", "नूतन", "वंदना", "कल्पना", "रीना",
+    "शालिनी", "आरती", "कुणाल", "अतुल", "चेतन", "प्रणव", "भास्कर", "मानस", "दीपांकर", "हिरण्य",
+    "प्रांजल", "ध्रुव", "अनुराग", "सौरभ", "नवजीत", "ऋतुपर्ण", "मृदुल", "विपुल", "उत्पल",
+    "निरंजन", "जगदीश", "देवजीत", "रूपक", "अंकुर", "प्रशांत", "कौशिक", "रूबुल", "मुकुल", "अरूप",
+    "भास्वती", "रूमी", "मृदुला", "निवेदिता", "मोनालिसा", "रीमा", "दीपाली", "मलया", "काकली",
+    "जूमणी", "रुणझुम", "मुनमी", "पापड़ी", "सोनाली", "बर्णाली", "रश्मि", "स्मिता", "मधुस्मिता",
+    "प्रणामी", "गीतांजलि", "पूरबी", "मीनाक्षी", "नवनीता", "डिंपल", "पल्लव", "पार्थ", "अभिजीत",
+    "देवव्रत", "चिन्मय", "सिद्धार्थ", "सत्येन", "रमेन", "हरेन", "भूपेन", "खगेन", "प्रमथ",
+    "रत्न", "लक्ष्मी", "ज्ञानेन", "धीरेन", "गुणेन", "बीरेन", "महेन", "गोविंद", "माधव", "केशव",
+    "दामोदर", "हरिहर", "नारायण", "अनंत", "मोहिधर", "घनश्याम", "कमलेश", "जगन्नाथ", "गोपाल",
+    "त्रैलोक्य", "भवेन", "लीलाधर", "हेमचंद्र", "शरद", "महिम", "पद्म", "आनंद", "हेमकांत",
+    "धर्मेंद्र", "उपेन", "गिरीन", "कमलजीत", "सुरेन", "जोगेन", "भोगेन", "दिनेश", "महेश", "रमेश",
+    "उमेश", "हिमांशु", "प्रभात", "भास्वर", "अचिंत्य", "प्रदीप", "संजीव", "राजीव", "कुलदीप",
+    "हरिप्रसाद", "देवाशीष", "परिमल", "सुबोध", "अरविंद", "अपूर्व", "शांतनु", "प्रफुल्ल", "योगेश",
+    "त्रिदीप", "रूपम", "प्रीतम",
 ]
-EVAL_ENTITY_POOL: list[str] = [
-    "अर्जुन", "लता", "किशोर", "माला", "हरीश", "ज्योति", "नरेश", "सरिता",
-    "प्रमोद", "विनीता", "कमल", "सुधा", "यश", "इंदु", "तारा",
+VAL_ENTITY_POOL: list[str] = [
+    "अर्जुन", "लता", "किशोर", "माला", "हरीश", "ज्योति", "नरेश", "अभिलाष", "निलय", "सुब्रत",
+    "समीर", "सुशील", "हीरक", "द्विपेन", "खगेंद्र", "युगल", "उज्ज्वल", "ब्रजेन", "रत्नेश्वर",
+    "गोलेश्वर", "भोगेश्वर", "योगेश्वर", "गुणेश्वर", "लीलेश्वर", "महेश्वर", "रमाकांत", "सूर्य",
 ]
+TEST_ENTITY_POOL: list[str] = [
+    "सरिता", "प्रमोद", "विनीता", "कमल", "सुधा", "यश", "इंदु", "तारा", "चंद्र", "इंद्र",
+    "उपेंद्र", "जितेन", "नरेन", "हितेश", "पराग", "रूपाली", "प्रतिभा", "उर्मिला", "अंजना",
+    "दीपांविता", "पूर्णिमा", "कल्पिता", "प्रियंका", "त्रिवेणी", "अनुराधा", "मिताली",
+    "रूपज्योति", "रूपश्री", "सुचित्रा", "सुजाता", "मालविका", "अनसूया", "अपराजिता", "मैत्रेयी",
+    "शर्मिष्ठा", "अरुंधती", "गार्गी", "देवयानी",
+]
+# The curated train pool has ~190 names, and the val/test names are never seen in
+# training, so models misspelled unseen names when copying them into the answer.
+# Training therefore also uses N_SYNTHETIC_TRAIN_NAMES names built from syllables;
+# they are filtered against the val/test pools, so all three pools stay disjoint.
+N_SYNTHETIC_TRAIN_NAMES = 3000
+_SYN_ONSETS = ["अ", "आ", "इ", "उ", "क", "कि", "कु", "का", "ग", "गो", "ज", "जि", "त", "ता",
+               "दे", "दी", "न", "नि", "प", "प्र", "बि", "भा", "म", "मी", "मो", "र", "रा", "रू",
+               "ल", "ली", "व", "वि", "श", "शी", "स", "सु", "सो", "ह", "हे", "चा", "धी", "यो"]
+_SYN_MIDDLES = ["", "न", "र", "म", "ल", "व", "श", "त", "ध", "ज", "क", "द", "प", "ब", "ग", "ह",
+                "नी", "रा", "मि", "ले"]
+_SYN_ENDINGS = ["ना", "ता", "ती", "नी", "का", "री", "या", "रा", "ल", "न", "श", "त", "र", "म", "व",
+                "क", "द", "प", "ज", "ली", "मा", "शा", "वी", "धा", "नू"]
+# Template words a syllable combination could spell; never used as names.
+_TEMPLATE_WORDS = {"कम", "अधिक", "बराबर", "नहीं", "और", "कहा", "पूछा", "गाँव", "एक", "इसलिए", "कारण"}
+
+
+def synthetic_names(n: int, exclude: set[str], seed: int = 0) -> list[str]:
+    """n distinct onset + middle + ending syllable names, none of them in exclude."""
+    rng = random.Random(seed)
+    combos = sorted({o + m + e for o in _SYN_ONSETS for m in _SYN_MIDDLES for e in _SYN_ENDINGS}
+                    - exclude - _TEMPLATE_WORDS)
+    if len(combos) < n:
+        raise ValueError(f"only {len(combos)} synthetic names for n={n}")
+    return rng.sample(combos, n)
+
+
+# Fresh names: built on demand from a syllable grammar, so a training example's names
+# are (almost surely) never seen again and the only way to answer is to copy them from
+# the prompt. Unlike the fixed synthetic pool above, the grammar covers conjuncts,
+# anusvara and long compounds, which the held-out names need. It does not use any
+# val/test name; those strings are rejected through ``exclude``.
+_FRESH_INITIAL_VOWELS = ["अ", "आ", "इ", "ई", "उ", "ए", "ओ"]
+_FRESH_CONSONANTS = list("कखगघचजटडतथदधनपफबभमयरलवशसह")
+_FRESH_CLUSTERS = ["क्र", "ग्र", "त्र", "प्र", "श्र", "स्त", "न्द", "ज्य", "स्व", "क्ष", "द्व",
+                   "र्म", "ल्प", "न्त", "म्ब", "ष्ण", "त्य", "ध्र", "स्न", "ज्ञ"]
+_FRESH_MATRAS = ["", "", "ा", "ि", "ी", "ु", "ू", "े", "ो", "ां", "ं"]
+_FRESH_ENDINGS = ["", "", "", "न", "र", "ल", "त", "श", "म", "व"]
+
+
+def fresh_name(rng: random.Random, exclude: Optional[set] = None) -> str:
+    """One name from the syllable grammar: 2-4 syllables, conjuncts and anusvara allowed."""
+    while True:
+        parts: list = []
+        for i in range(rng.choice([2, 2, 3, 3, 4])):
+            if i == 0 and rng.random() < 0.2:
+                parts.append(rng.choice(_FRESH_INITIAL_VOWELS))
+                continue
+            onset = rng.choice(_FRESH_CLUSTERS) if rng.random() < 0.3 else rng.choice(_FRESH_CONSONANTS)
+            parts.append(onset + rng.choice(_FRESH_MATRAS))
+        name = "".join(parts) + rng.choice(_FRESH_ENDINGS)
+        if 3 <= len(name) <= 14 and name not in _TEMPLATE_WORDS and not (exclude and name in exclude):
+            return name
+
+
+def fresh_names(k: int, rng: random.Random, exclude: Optional[set] = None) -> list:
+    """k distinct fresh names."""
+    out: list = []
+    while len(out) < k:
+        n = fresh_name(rng, exclude)
+        if n not in out:
+            out.append(n)
+    return out
+
+
+# The hand-picked train names alone: fresh-name training can mix them back in, so the
+# model also sees real-looking names like the held-out val/test ones.
+CURATED_TRAIN_POOL: list[str] = list(TRAIN_ENTITY_POOL)
+
+TRAIN_ENTITY_POOL = TRAIN_ENTITY_POOL + synthetic_names(
+    N_SYNTHETIC_TRAIN_NAMES, set(TRAIN_ENTITY_POOL) | set(VAL_ENTITY_POOL) | set(TEST_ENTITY_POOL))
+
 ATTRIBUTES: list[str] = ["उम्र", "लंबाई", "बचत"]
-RESERVED_PARADIGMS = {"multi_hop", "negation"}  # eval splits only
+RESERVED_PARADIGMS = {"multi_hop"}  # eval splits only
 TRAIN_PARADIGMS = ("transitive", "word_problem", "conversational")
+EVAL_PARADIGMS = TRAIN_PARADIGMS + ("multi_hop", "negation")
+TRAIN_NEGATION_FRACTION = 0.05  # negation curriculum share of the train split
+TRAIN_LONG_QUERY_FRACTION = 0.5  # train queries forced >= 2 hops apart (otherwise >= 1)
+QUESTION_RELATIONS = (">", "<", "=")  # relation the question asks about...
+QUESTION_WEIGHTS = (0.4, 0.4, 0.2)    # ...drawn independently of the true answer
 
 
 @dataclass
@@ -169,7 +280,14 @@ NEG = {
     "<": "{A} की {attr} {B} की {attr} से कम नहीं है",
     "=": "{A} की {attr} {B} की {attr} के बराबर नहीं है",
 }
-QUESTION = "क्या {A} की {attr} {B} की {attr} से अधिक है?"
+# The question asks about a random relation (not always "more"), so copying the
+# question's relation word into the answer is right only by chance.
+QUESTIONS = {
+    ">": "क्या {A} की {attr} {B} की {attr} से अधिक है?",
+    "<": "क्या {A} की {attr} {B} की {attr} से कम है?",
+    "=": "क्या {A} की {attr} {B} की {attr} के बराबर है?",
+}
+QUESTION = QUESTIONS[">"]
 OPPOSITE = {">": "<", "<": ">", "=": "="}
 
 
@@ -186,19 +304,38 @@ def render_answer(a: str, b: str, rel: str, attr: str, negate: bool = False) -> 
 
 
 def render_cot(premises: list[tuple[str, str, str]], query: tuple[str, str], attr: str, negate: bool = False) -> str:
-    """Render explicit Chain-of-Thought (CoT) step-by-step intermediate deduction hops."""
-    steps = [f"{s} {rel} {o}" for s, rel, o in premises]
-    chain_str = " और ".join(steps)
-    return f"[कारण: {chain_str}]"
+    """Render the Chain-of-Thought rationale: the premises linking the two query
+    entities, each oriented along the path from the first to the second, followed
+    by the relation they imply."""
+    qa, qb = query
+    neighbours: dict[str, list[str]] = {}
+    for s, _rel, o in premises:
+        neighbours.setdefault(s, []).append(o)
+        neighbours.setdefault(o, []).append(s)
+    # The premises form a chain, so the path between two entities is unique.
+    prev: dict[str, Optional[str]] = {qa: None}
+    stack = [qa]
+    while stack:
+        cur = stack.pop()
+        for nxt in neighbours.get(cur, ()):
+            if nxt not in prev:
+                prev[nxt] = cur
+                stack.append(nxt)
+    path = [qb]
+    while path[-1] != qa:
+        path.append(prev[path[-1]])
+    path.reverse()
+    steps = [solve_relation(premises, (u, v)) for u, v in zip(path, path[1:])]
+    return f"[कारण: {' और '.join(steps)} इसलिए {solve_relation(premises, query)}]"
 
 
 def render_text(paradigm: str, premises: list[tuple[str, str, str]], query: tuple[str, str],
-                 attr: str, entity_pool_names: list[str]) -> str:
+                 attr: str, entity_pool_names: list[str], question_rel: str = ">") -> str:
     """Wrap the premises + question in the paradigm's framing."""
     a, b = query
     negate = paradigm == "negation"
     body = " ".join(render_premise(s, o, rel, attr, negate=negate) for s, rel, o in premises)
-    q = QUESTION.format(A=a, B=b, attr=attr)  # QUESTION already ends with "?"
+    q = QUESTIONS[question_rel].format(A=a, B=b, attr=attr)  # already ends with "?"
     if paradigm == "transitive":
         return body + " " + q
     if paradigm == "multi_hop":
@@ -211,7 +348,7 @@ def render_text(paradigm: str, premises: list[tuple[str, str, str]], query: tupl
         for i, (s, rel, o) in enumerate(premises):
             speaker = s if i % 2 == 0 else o
             lines.append(f"{speaker} ने कहा कि {render_premise(s, o, rel, attr, negate=negate)}")
-        lines.append(f"{a} ने पूछा कि {QUESTION.format(A=a, B=b, attr=attr)}")
+        lines.append(f"{a} ने पूछा कि {q}")
         return " ".join(lines)
     if paradigm == "word_problem":
         names = " और ".join(entity_pool_names)
@@ -273,43 +410,68 @@ def _pick_entities(pool: list[str], k: int, rng: random.Random) -> list[str]:
 
 
 def _make_chain(entities: list[str], attr: str, rng: random.Random, allow_equals: bool,
-                min_hops: int = 1) -> tuple[list[tuple[str, str, str]], tuple[str, str]]:
-    """Assign distinct-ish values, emit comparison premises, return (premises, query).
+                min_hops: int = 1, exact_hops: Optional[int] = None,
+                force_equal_run: bool = False) -> tuple[list[tuple[str, str, str]], tuple[str, str]]:
+    """Assign values, emit one truthful premise per consecutive pair, return (premises, query).
 
-    Premises compare consecutive entities by value; the query is two entities at
-    distance >= min_hops in the chain (transitive reasoning needed).
+    Each premise is stated in a random direction ("A < B" or "B > A"), the premises
+    are shuffled, and the query is a random pair at least min_hops apart in a
+    random order — so neither the wording of a premise nor the position of an
+    entity in the text gives the answer away.
+
+    exact_hops queries a pair exactly that many hops apart (depth-controlled eval).
+    force_equal_run gives 3+ consecutive entities one value and queries two of them, so
+    the answer is "=" and is only reachable by chaining equalities.
     """
-    while True:
-        if allow_equals:
-            values = {e: rng.randint(1, 50) for e in entities}
-            if rng.random() < 0.3:
-                # Force one equality pair by duplicating a value.
-                a, b = rng.sample(entities, 2)
-                values[b] = values[a]
+    if allow_equals:
+        values = {e: rng.randint(1, 50) for e in entities}
+        if rng.random() < 0.3:
+            # Force one equality pair by duplicating a value.
+            a, b = rng.sample(entities, 2)
+            values[b] = values[a]
+    else:
+        distinct = rng.sample(range(1, 100), len(entities))
+        values = dict(zip(entities, distinct))
+    run: list[str] = []
+    if force_equal_run and allow_equals and len(entities) >= 3:
+        run = rng.sample(entities, 3 if len(entities) == 3 or rng.random() < 0.5 else 4)
+        for e in run[1:]:
+            values[e] = values[run[0]]
+    order = sorted(entities, key=lambda e: (values[e], e))
+    premises: list[tuple[str, str, str]] = []
+    for lo, hi in zip(order, order[1:]):
+        if values[lo] == values[hi]:
+            premises.append(rng.choice([(lo, "=", hi), (hi, "=", lo)]))
         else:
-            distinct = rng.sample(range(1, 100), len(entities))
-            values = {e: v for e, v in zip(entities, distinct)}
-        order = sorted(entities, key=lambda e: (values[e], e))
-        premises = []
-        for i in range(len(order) - 1):
-            hi, lo = order[i], order[i + 1]
-            if values[hi] == values[lo]:
-                premises.append((hi, "=", lo))
-            elif rng.random() < 0.5:
-                premises.append((hi, ">", lo))
-            else:
-                premises.append((hi, "<", lo))
-        # Query must require >= min_hops transitive steps: pick endpoints far apart.
-        if len(order) - 1 >= min_hops:
-            q = (order[0], order[-1])
-        else:
-            q = tuple(rng.sample(entities, 2))
-        # Must be resolvable (no ties on the query endpoints).
-        try:
-            solve_relation(premises, (q[0], q[1]))
-        except ContradictionError:
-            continue
-        return premises, (q[0], q[1])
+            premises.append(rng.choice([(lo, "<", hi), (hi, ">", lo)]))
+    rng.shuffle(premises)
+    if run:
+        idx = sorted(order.index(e) for e in run)
+        i, j = rng.choice([(a, b) for a in idx for b in idx if abs(a - b) >= 2])
+        return premises, (order[i], order[j])
+    if exact_hops is not None:
+        i, j = rng.choice([
+            (i, j) for i in range(len(order)) for j in range(len(order)) if abs(i - j) == exact_hops
+        ])
+        return premises, (order[i], order[j])
+    min_hops = max(1, min(min_hops, len(order) - 1))
+    i, j = rng.choice([
+        (i, j) for i in range(len(order)) for j in range(len(order)) if abs(i - j) >= min_hops
+    ])
+    return premises, (order[i], order[j])
+
+
+def _mix_real_names(entities: list[str], real_names: list[str], fraction: float,
+                    rng: random.Random) -> list[str]:
+    """Replace each name with a real one with probability fraction; names stay distinct."""
+    out: list[str] = []
+    for name in entities:
+        if rng.random() < fraction:
+            real = rng.choice(real_names)
+            if real not in out and real not in entities:
+                name = real
+        out.append(name)
+    return out
 
 
 def generate_examples(
@@ -320,33 +482,76 @@ def generate_examples(
     seed: int,
     allow_equals: bool = True,
     min_hops: int = 1,
+    paradigm_weights: Optional[tuple[float, ...]] = None,
+    long_query_fraction: float = 0.0,
+    fresh: bool = False,
+    name_exclude: Optional[set] = None,
+    real_names: Optional[list[str]] = None,
+    real_name_fraction: float = 0.0,
+    balance_answers: bool = False,
+    n_entities: Optional[int] = None,
+    exact_hops: Optional[int] = None,
 ) -> list[ReasoningExample]:
-    """Generate n reasoning examples (deduped ids; skips solver failures)."""
+    """Generate n distinct reasoning examples (paradigms drawn uniformly unless weighted).
+
+    long_query_fraction of the non-multi_hop examples query a pair at least two hops
+    apart, so the answer has to be composed from premises instead of read off one.
+
+    The extra options are off by default, so the default output is unchanged:
+      fresh            names are drawn from the syllable grammar per example (entity_pool
+                       is ignored), never from name_exclude
+      real_name_fraction  with fresh, each name is swapped for one from real_names
+                       with this probability
+      balance_answers  the answers are held to equal shares of >, < and = (negation
+                       examples cannot be "=", so they take the other two)
+      n_entities       fixed number of entities per example
+      exact_hops       the query pair is exactly this many hops apart
+    """
     rng = random.Random(seed)
+    name_rng = random.Random(seed + 7919)
+    quota = -(-n // 3)
+    answer_counts = {">": 0, "<": 0, "=": 0}
     out: list[ReasoningExample] = []
+    seen_texts: set[str] = set()
     attempts = 0
     while len(out) < n and attempts < n * 50:
         attempts += 1
-        paradigm = rng.choice(list(paradigms))
+        paradigm = rng.choices(list(paradigms), weights=paradigm_weights)[0]
         attr = rng.choice(ATTRIBUTES)
         k = rng.choice([3, 4] if paradigm != "multi_hop" else [4, 5])
-        entities = _pick_entities(entity_pool, k, rng)
+        if n_entities is not None:
+            k = n_entities
+        if fresh:
+            entities = fresh_names(k, name_rng, name_exclude)
+            if real_names and real_name_fraction > 0:
+                entities = _mix_real_names(entities, real_names, real_name_fraction, name_rng)
+        else:
+            entities = _pick_entities(entity_pool, k, rng)
+        long_hops = 2 if rng.random() < long_query_fraction else 1
+        question_rel = rng.choices(QUESTION_RELATIONS, weights=QUESTION_WEIGHTS)[0]
+        equal_run = balance_answers and paradigm != "negation" and rng.random() < 0.5
         try:
             premises, query = _make_chain(
-                # "=" is semantically ambiguous under negation phrasing, so negation
-                # examples never get ties (reliability fallback, spec Reasoning Pipeline).
+                # "=" is ambiguous under negation phrasing, so negation examples never get ties.
                 entities, attr, rng,
                 allow_equals=allow_equals and paradigm != "negation",
-                min_hops=min_hops if paradigm == "multi_hop" else 1,
+                min_hops=min_hops if paradigm == "multi_hop" else long_hops,
+                exact_hops=exact_hops,
+                force_equal_run=equal_run,
             )
             answer_rel = solve_relation(premises, query)
         except ContradictionError:
-            continue  # reliability fallback: skip, never mislabel
+            continue  # skip, never mislabel
+        if balance_answers:
+            if answer_counts[answer_rel.split()[1]] >= quota:
+                continue
 
-        # Resolve the canonical answer relation from answer_rel text ("A > B").
         qa, qb = query
         rel = answer_rel.split()[1]
-        text = render_text(paradigm, premises, query, attr, entities)
+        text = render_text(paradigm, premises, query, attr, entities, question_rel=question_rel)
+        if text in seen_texts:
+            continue
+        seen_texts.add(text)
         ans_clean = render_answer(qa, qb, rel, attr, negate=paradigm == "negation")
         cot_str = f"{render_cot(premises, query, attr, negate=paradigm == 'negation')} {ans_clean}"
         ex = ReasoningExample(
@@ -363,6 +568,7 @@ def generate_examples(
             text=text,
         )
         out.append(ex)
+        answer_counts[answer_rel.split()[1]] += 1
     if len(out) < n:
         raise RuntimeError(f"only generated {len(out)}/{n} examples (pool exhausted?)")
     return out
@@ -373,33 +579,72 @@ def generate_dataset(
     out_dir: str,
     seed: int = 1337,
     train_pool: Optional[list[str]] = None,
-    eval_pool: Optional[list[str]] = None,
+    val_pool: Optional[list[str]] = None,
+    test_pool: Optional[list[str]] = None,
+    fresh_train_names: bool = False,
+    real_name_fraction: float = 0.0,
+    extra_eval: bool = False,
+    n_extra: int = 500,
 ) -> dict:
-    """Generate train/val/test with the mandated anti-leakage split and write jsonl."""
+    """Generate train/val/test with the mandated anti-leakage split and write jsonl.
+
+    fresh_train_names draws every training example's names from the syllable grammar
+    instead of the fixed pool; real_name_fraction then swaps that share of them for
+    curated train names (fresh names look unlike the real held-out names, and v5 runs
+    scored far higher on val_train_names than on val). extra_eval also writes test_balanced.jsonl (equal shares
+    of >, < and =), test_depth{2..5}.jsonl (query exactly that many hops apart) and
+    val_train_names.jsonl (built like val, but with training-style names, so comparing
+    it with val separates failing the task from failing to carry it to unseen names).
+    test.jsonl is the legacy benchmark and is not affected by either option."""
     train_pool = train_pool or TRAIN_ENTITY_POOL
-    eval_pool = eval_pool or EVAL_ENTITY_POOL
-    assert not (set(train_pool) & set(eval_pool)), "entity pools must be disjoint"
+    val_pool = val_pool or VAL_ENTITY_POOL
+    test_pool = test_pool or TEST_ENTITY_POOL
+    assert not (set(train_pool) & set(val_pool)), "train/val entity pools must be disjoint"
+    assert not (set(train_pool) & set(test_pool)), "train/test entity pools must be disjoint"
+    assert not (set(val_pool) & set(test_pool)), "val/test entity pools must be disjoint"
 
     # Train split gets 5% negation curriculum using ONLY train_pool entities
     train_paradigms = TRAIN_PARADIGMS + ("negation",)
+    other_share = (1.0 - TRAIN_NEGATION_FRACTION) / len(TRAIN_PARADIGMS)
     train = generate_examples(
         n_train, train_pool, train_paradigms, "train", seed=seed,
         allow_equals=True, min_hops=1,
+        paradigm_weights=(other_share,) * len(TRAIN_PARADIGMS) + (TRAIN_NEGATION_FRACTION,),
+        long_query_fraction=TRAIN_LONG_QUERY_FRACTION,
+        fresh=fresh_train_names,
+        name_exclude=set(val_pool) | set(test_pool),
+        real_names=CURATED_TRAIN_POOL, real_name_fraction=real_name_fraction,
     )
-    # Eval splits get ALL paradigms incl. reserved multi_hop / negation.
-    all_paradigms = TRAIN_PARADIGMS + tuple(sorted(RESERVED_PARADIGMS))
+    # Eval splits get all paradigms, in equal shares, incl. the reserved multi_hop.
+    all_paradigms = EVAL_PARADIGMS
     val = generate_examples(
-        n_val, eval_pool, all_paradigms, "val", seed=seed + 1,
+        n_val, val_pool, all_paradigms, "val", seed=seed + 1,
         allow_equals=True, min_hops=2,
     )
     test = generate_examples(
-        n_test, eval_pool, all_paradigms, "test", seed=seed + 2,
+        n_test, test_pool, all_paradigms, "test", seed=seed + 2,
         allow_equals=True, min_hops=2,
     )
 
     out = Path(out_dir)
     out.mkdir(parents=True, exist_ok=True)
     splits = {"train": train, "val": val, "test": test}
+    if extra_eval:
+        splits["test_balanced"] = generate_examples(
+            n_extra, test_pool, all_paradigms, "test_balanced", seed=seed + 3,
+            allow_equals=True, min_hops=2, balance_answers=True,
+        )
+        for hops in (2, 3, 4, 5):
+            splits[f"test_depth{hops}"] = generate_examples(
+                n_extra, test_pool, all_paradigms, f"test_depth{hops}", seed=seed + 10 + hops,
+                allow_equals=True, n_entities=hops + 1, exact_hops=hops,
+            )
+        splits["val_train_names"] = generate_examples(
+            n_extra, train_pool, all_paradigms, "val_train_names", seed=seed + 20,
+            allow_equals=True, min_hops=2,
+            fresh=fresh_train_names, name_exclude=set(val_pool) | set(test_pool),
+            real_names=CURATED_TRAIN_POOL, real_name_fraction=real_name_fraction,
+        )
     counts = {}
     for name, examples in splits.items():
         with open(out / f"{name}.jsonl", "w", encoding="utf-8") as f:
@@ -412,9 +657,14 @@ def generate_dataset(
         "n_val": counts["val"],
         "n_test": counts["test"],
         "train_entities": train_pool,
-        "eval_entities": eval_pool,
+        "val_entities": val_pool,
+        "test_entities": test_pool,
         "reserved_paradigms": sorted(RESERVED_PARADIGMS),
-        "note": "multi_hop/negation reserved for eval; entity pools disjoint",
+        "train_negation_fraction": TRAIN_NEGATION_FRACTION,
+        "fresh_train_names": fresh_train_names,
+        "real_name_fraction": real_name_fraction,
+        "extra_eval": sorted(k for k in counts if k not in ("train", "val", "test")),
+        "note": "multi_hop reserved for eval; train/val/test entity pools disjoint",
     }
     with open(out / "manifest.json", "w", encoding="utf-8") as f:
         json.dump(manifest, f, ensure_ascii=False, indent=2)
@@ -424,13 +674,22 @@ def generate_dataset(
 def main(argv: Optional[list[str]] = None) -> int:
     parser = argparse.ArgumentParser(description="Generate reasoning data")
     parser.add_argument("--out-dir", default=str(Path(__file__).resolve().parents[1] / "finetune" / "reasoning"))
-    parser.add_argument("--n-train", type=int, default=20000)
+    parser.add_argument("--n-train", type=int, default=300000)
     parser.add_argument("--n-val", type=int, default=1000)
     parser.add_argument("--n-test", type=int, default=2000)
     parser.add_argument("--seed", type=int, default=1337)
+    parser.add_argument("--fresh-train-names", action=argparse.BooleanOptionalAction, default=True,
+                        help="draw each training example's names from the syllable grammar")
+    parser.add_argument("--real-name-fraction", type=float, default=0.5,
+                        help="with --fresh-train-names, share of names taken from the curated train pool")
+    parser.add_argument("--extra-eval", action="store_true",
+                        help="also write test_balanced.jsonl and test_depth{2..5}.jsonl")
+    parser.add_argument("--n-extra", type=int, default=500, help="examples per extra eval file")
     args = parser.parse_args(argv)
     manifest = generate_dataset(
-        args.n_train, args.n_val, args.n_test, args.out_dir, seed=args.seed
+        args.n_train, args.n_val, args.n_test, args.out_dir, seed=args.seed,
+        fresh_train_names=args.fresh_train_names, real_name_fraction=args.real_name_fraction,
+        extra_eval=args.extra_eval, n_extra=args.n_extra,
     )
     _print_utf8(json.dumps(manifest, ensure_ascii=False, indent=2))
     return 0

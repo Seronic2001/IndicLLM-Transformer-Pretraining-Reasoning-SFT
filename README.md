@@ -139,10 +139,10 @@ python -m assamese.finetune.generate_reasoning --n-train 20000 --n-val 1000 --n-
 python -m assamese.finetune.finetune \
     --pretrained-ckpt <assamese_v1_baseline_best.pt> \
     --model-config assamese/configs/model_L_16k.yaml \
-    --tokenizer-path assamese/tokenizer/assamese.model \
+    --tokenizer assamese/tokenizer/assamese.model \
     --data-dir assamese/finetune/reasoning \
     --out-dir assamese/finetune/out_cot \
-    --max-steps 400 --use-cot
+    --mode cot
 
 # Run full 8-model reasoning evaluation suite
 python -m scripts.phase3_runner --out-dir eval_out --n-test 500
@@ -352,7 +352,7 @@ python -m hindi.train.train \
     --train-data hindi/data/train.bin \
     --val-data hindi/data/val.bin \
     --checkpoint-dir hindi/train/checkpoints_v2 \
-    --resume-path hindi/train/checkpoints_v2/ckpt_1000.pt
+    --resume-path hindi/train/checkpoints_v2/ckpt_2500.pt
 ```
 
 ---
@@ -447,17 +447,22 @@ assert diff == 0.0, 'Future token leaked!'
 python -m hindi.finetune.generate_reasoning --out-dir hindi/finetune/reasoning
 python -m assamese.finetune.generate_reasoning --out-dir assamese/finetune/reasoning
 
-# 2. Run Direct SFT & CoT SFT on Hindi
-python -m hindi.finetune.finetune --mode direct --arch v1 --epochs 3
-python -m hindi.finetune.finetune --mode cot --arch v1 --epochs 3
-python -m hindi.finetune.finetune --mode direct --arch v2 --epochs 3
-python -m hindi.finetune.finetune --mode cot --arch v2 --epochs 3
+# 2. Run Direct SFT & CoT SFT on Hindi (--mode both runs the two back to back;
+#    the architecture is read from the model config)
+python -m hindi.finetune.finetune --mode both \
+    --pretrained-ckpt <hindi_v1_baseline_best.pt> --model-config hindi/configs/model_H_16k.yaml \
+    --tokenizer hindi/tokenizer/hindi.model --out-dir hindi/finetune/out_v1
+python -m hindi.finetune.finetune --mode both \
+    --pretrained-ckpt <hindi_v2_modern_16k_best.pt> --model-config hindi/configs/model_H_v2.yaml \
+    --tokenizer hindi/tokenizer/hindi.model --out-dir hindi/finetune/out_v2
 
 # 3. Run Direct SFT & CoT SFT on Assamese
-python -m assamese.finetune.finetune --mode direct --arch v1 --epochs 3
-python -m assamese.finetune.finetune --mode cot --arch v1 --epochs 3
-python -m assamese.finetune.finetune --mode direct --arch v2 --epochs 3
-python -m assamese.finetune.finetune --mode cot --arch v2 --epochs 3
+python -m assamese.finetune.finetune --mode both \
+    --pretrained-ckpt <assamese_v1_baseline_best.pt> --model-config assamese/configs/model_L_16k.yaml \
+    --tokenizer assamese/tokenizer/assamese.model --out-dir assamese/finetune/out_v1
+python -m assamese.finetune.finetune --mode both \
+    --pretrained-ckpt <assamese_v2_modern_16k_best.pt> --model-config assamese/configs/model_L_v2.yaml \
+    --tokenizer assamese/tokenizer/assamese.model --out-dir assamese/finetune/out_v2
 ```
 
 ---

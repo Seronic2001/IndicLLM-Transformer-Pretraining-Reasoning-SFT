@@ -102,6 +102,7 @@ class ModernCausalSelfAttention(nn.Module):
         self.d_k = config.d_model // config.n_head
         self.d_model = config.d_model
         self.dropout_p = config.dropout
+        self.rope_theta = config.rope_theta
 
         self.c_attn = nn.Linear(config.d_model, 3 * config.d_model, bias=config.bias)
         self.c_proj = nn.Linear(config.d_model, config.d_model, bias=config.bias)
@@ -122,7 +123,7 @@ class ModernCausalSelfAttention(nn.Module):
         v = v.view(B, T, self.n_head, self.d_k).transpose(1, 2)
 
         if T > self.rope_cos.size(0):
-            cos, sin = precompute_rope_frequencies(self.d_k, T * 2, theta=10000.0)
+            cos, sin = precompute_rope_frequencies(self.d_k, T * 2, theta=self.rope_theta)
             self.rope_cos = cos.to(x.device)
             self.rope_sin = sin.to(x.device)
 
@@ -266,11 +267,18 @@ class GPTLanguageModelV2(nn.Module):
         top_p: Optional[float] = None,
         repetition_penalty: float = 1.0,
         repetition_window: int = 64,
+        eos_id: Optional[int] = None,
     ) -> torch.Tensor:
-        """Autoregressively extend idx (B, T) with top-k, top-p, and repetition penalty."""
+        """Autoregressively extend idx (B, T) with top-k, top-p, and repetition penalty.
+
+        With eos_id set, generation stops once every sequence has emitted it.
+        """
         self.eval()
+        finished = torch.zeros(idx.size(0), dtype=torch.bool, device=idx.device)
         for _ in range(max_new_tokens):
-            idx_cond = idx if idx.size(1) <= self.config.block_size * 4 else idx[:, -self.config.block_size * 4 :]
+            # Crop to the trained context length: RoPE runs on longer inputs, but the
+            # model never saw relative offsets beyond block_size during training.
+            idx_cond = idx if idx.size(1) <= self.config.block_size else idx[:, -self.config.block_size :]
             logits = self(idx_cond)["logits"][:, -1, :].clone()
 
             if repetition_penalty > 1.0 and idx.size(1) > 0:
@@ -282,7 +290,7 @@ class GPTLanguageModelV2(nn.Module):
                         logits[b, recent_tokens] * repetition_penalty,
                     )
 
-            if temperature <= 0.0:
+            if temperature is None or temperature <= 1e-5:
                 idx_next = torch.argmax(logits, dim=-1, keepdim=True)
             else:
                 if temperature != 1.0:
@@ -305,4 +313,8 @@ class GPTLanguageModelV2(nn.Module):
                 probs = F.softmax(logits, dim=-1)
                 idx_next = torch.multinomial(probs, num_samples=1)
             idx = torch.cat((idx, idx_next), dim=1)
+            if eos_id is not None:
+                finished |= idx_next.squeeze(1) == eos_id
+                if finished.all():
+                    break
         return idx

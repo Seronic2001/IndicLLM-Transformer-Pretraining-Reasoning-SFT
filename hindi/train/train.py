@@ -10,6 +10,8 @@ Implements the locked Trainer contract of project specifications Section 3 Train
   * Gradient clipping at 1.0 (post-unscale).
   * Resume-capable by construction: on start, load the latest valid checkpoint and
     continue from its step; RNG state is saved/restored so data order reproduces.
+  * Optional wall-clock budget (--time-limit-hours): once it is spent, save
+    ckpt_<step>.pt and exit cleanly so the next session resumes from there.
   * OOM fallback: halve micro_batch_size / double grad-accum (effective batch
     invariant), halt if micro-batch 1 still OOMs.
   * NaN/Inf loss: skip the optimizer step; reload from last checkpoint if it
@@ -28,7 +30,8 @@ import logging
 import math
 import os
 import sys
-from dataclasses import dataclass, field
+import time
+from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Optional, Union
 
@@ -142,21 +145,47 @@ class WarmupCosineScheduler:
         self.t = int(state["t"])
 
 
+class WarmupStableDecayScheduler(WarmupCosineScheduler):
+    """Linear warmup, constant base_lr until stable_fraction of max_steps, then linear
+    decay to min_lr. Keeps the rate high while a run is still searching (finetuning
+    runs that sit at chance for thousands of steps), and anneals only at the end."""
+
+    def __init__(self, base_lr: float, min_lr: float, warmup_steps: int, max_steps: int,
+                 stable_fraction: float = 0.8):
+        super().__init__(base_lr, min_lr, warmup_steps, max_steps)
+        assert 0.0 <= stable_fraction <= 1.0
+        self.decay_start = max(warmup_steps, int(stable_fraction * max_steps))
+
+    def get_lr(self) -> float:
+        if self.warmup_steps > 0 and self.t < self.warmup_steps:
+            return self.base_lr * (self.t + 1) / self.warmup_steps
+        if self.t < self.decay_start:
+            return self.base_lr
+        progress = (self.t - self.decay_start) / max(1, self.max_steps - self.decay_start)
+        progress = min(1.0, progress)
+        return self.base_lr + (self.min_lr - self.base_lr) * progress
+
+
+LR_SCHEDULES = {"cosine": WarmupCosineScheduler, "wsd": WarmupStableDecayScheduler}
+
+
 # ---------------------------------------------------------------- config
 
 @dataclass
 class TrainConfig:
-    micro_batch_size: int = 32
-    gradient_accumulation_steps: int = 16
-    effective_batch_size: int = 512  # micro_batch_size * gradient_accumulation_steps
+    micro_batch_size: int = 64
+    gradient_accumulation_steps: int = 1
+    effective_batch_size: int = 64  # micro_batch_size * gradient_accumulation_steps
     learning_rate: float = 6.0e-4
     min_lr: float = 6.0e-5
-    warmup_steps: int = 40
-    max_steps: int = 1907
+    warmup_steps: int = 300
+    max_steps: int = 15259
+    lr_schedule: str = "cosine"     # "cosine" or "wsd" (warmup-stable-decay)
+    stable_fraction: float = 0.8    # wsd only: share of max_steps held at the peak rate
     max_grad_norm: float = 1.0
     weight_decay: float = 0.1
-    eval_interval: int = 100
-    save_interval: int = 500
+    eval_interval: int = 250
+    save_interval: int = 2500
     eval_batches: int = 20
     mixed_precision: bool = True
     seed: int = 1337
@@ -229,11 +258,15 @@ class Trainer:
         self.optimizer = build_optimizer(
             model, config.learning_rate, weight_decay=config.weight_decay
         )
-        self.scheduler = WarmupCosineScheduler(
+        if config.lr_schedule not in LR_SCHEDULES:
+            raise ValueError(f"lr_schedule must be one of {sorted(LR_SCHEDULES)}, got {config.lr_schedule!r}")
+        schedule_kwargs = {"stable_fraction": config.stable_fraction} if config.lr_schedule == "wsd" else {}
+        self.scheduler = LR_SCHEDULES[config.lr_schedule](
             base_lr=config.learning_rate,
             min_lr=config.min_lr,
             warmup_steps=config.warmup_steps,
             max_steps=config.max_steps,
+            **schedule_kwargs,
         )
         self.use_amp = config.mixed_precision and self.device.startswith("cuda")
         if self.use_amp:
@@ -244,10 +277,10 @@ class Trainer:
         else:
             self.scaler = None
         # Eval draws from a private RNG stream so it never perturbs the training
-        # data order (keeps resume bit-equivalence intact). Host slicing requires a CPU generator.
-        self.eval_generator = torch.Generator(device="cpu").manual_seed(
-            (config.seed or 0) + 999_983
-        )
+        # data order (keeps resume bit-equivalence intact). It is re-seeded on every
+        # evaluate() call, so all eval points score the same windows and best.pt
+        # selection is not driven by sampling noise.
+        self._eval_seed = (config.seed or 0) + 999_983
         self.step = 0
         self.best_val_loss = float("inf")
         self._consecutive_nan = 0
@@ -269,6 +302,7 @@ class Trainer:
         # The checkpoint holds the full config used to produce it — surface arch
         # mismatches loudly rather than silently training a different architecture.
         saved_cfg = torch.load(path, map_location="cpu", weights_only=False).get("config", {})
+        self.best_val_loss = float(saved_cfg.get("best_val_loss", self.best_val_loss))
         saved_model = saved_cfg.get("model", {})
         cur_model = {
             "vocab_size": self.model.config.vocab_size,
@@ -293,25 +327,23 @@ class Trainer:
 
     # ------------------------------------------------------------------ eval
 
+    def _autocast(self):
+        return torch.autocast(device_type="cuda", enabled=self.use_amp)
+
     @torch.no_grad()
     def evaluate(self, data: Optional[TokenDataset] = None) -> float:
-        """Mean loss over eval_batches random windows; model kept in train() state
-        afterwards by the caller (we save/restore train/eval mode here)."""
+        """Mean loss over eval_batches seeded-random windows (the same windows on
+        every call); train/eval mode is saved and restored here."""
         data = data or self.val_data
         if data is None:
             return float("nan")
         was_training = self.model.training
         self.model.eval()
+        generator = torch.Generator(device="cpu").manual_seed(self._eval_seed)
         total, count = 0.0, 0
         for _ in range(self.config.eval_batches):
-            x, y = data.get_batch(
-                self.config.micro_batch_size, self.device, generator=self.eval_generator
-            )
-            try:
-                autocast_ctx = torch.amp.autocast("cuda", enabled=self.use_amp)
-            except (TypeError, AttributeError):
-                autocast_ctx = torch.cuda.amp.autocast(enabled=self.use_amp)
-            with autocast_ctx:
+            x, y = data.get_batch(self.config.micro_batch_size, self.device, generator=generator)
+            with self._autocast():
                 loss = self.model(x, targets=y)["loss"]
             total += loss.item()
             count += 1
@@ -323,30 +355,31 @@ class Trainer:
 
     def _forward_backward(self, micro_batch_size: int, accum: int) -> float:
         """Run `accum` micro-batches, accumulating gradients; loss is scaled by 1/accum
-        so the accumulated gradient matches one big batch. Returns the last loss.
+        so the accumulated gradient matches one big batch. Returns the mean loss
+        over the micro-batches.
 
         Any non-finite micro-loss aborts the whole step immediately (returns NaN)
         so a NaN in an early micro-batch can't poison later gradients."""
-        last = None
-        try:
-            autocast_ctx_fn = lambda: torch.amp.autocast("cuda", enabled=self.use_amp)
-        except (TypeError, AttributeError):
-            autocast_ctx_fn = lambda: torch.cuda.amp.autocast(enabled=self.use_amp)
-
+        total = 0.0
         for _ in range(accum):
             x, y = self.train_data.get_batch(micro_batch_size, self.device)
-            with autocast_ctx_fn():
+            with self._autocast():
                 loss = self.model(x, targets=y)["loss"] / accum
-            if loss is None or not torch.isfinite(loss):
+            if not torch.isfinite(loss):
                 return float("nan")
-            last = loss.item() * accum
+            total += loss.item()
             if self.scaler is not None and self.use_amp:
                 self.scaler.scale(loss).backward()
             else:
                 loss.backward()
-        return float(last)
+        return total
 
     def _clip_and_step(self) -> None:
+        # Apply this step's LR before stepping; otherwise step 1 runs at the
+        # optimizer's initial base LR instead of the warmup LR.
+        lr = self.scheduler.get_lr()
+        for g in self.optimizer.param_groups:
+            g["lr"] = lr
         if self.use_amp:
             self.scaler.unscale_(self.optimizer)
         torch.nn.utils.clip_grad_norm_(self.model.parameters(), self.config.max_grad_norm)
@@ -356,13 +389,11 @@ class Trainer:
         else:
             self.optimizer.step()
         self.scheduler.step()
-        for g in self.optimizer.param_groups:
-            g["lr"] = self.scheduler.get_lr()
 
     def _run_one_optimizer_step(self, step_idx: int) -> float:
         """Run one full optimizer step (grad-accum micro-batches) with OOM retry.
 
-        Returns the (last micro-batch) loss. Raises if micro-batch 1 still OOMs.
+        Returns the mean micro-batch loss. Raises if micro-batch 1 still OOMs.
         """
         micro = self.config.micro_batch_size
         accum = self.config.gradient_accumulation_steps
@@ -391,12 +422,20 @@ class Trainer:
 
     # ------------------------------------------------------------------ main loop
 
-    def train(self, max_steps: Optional[int] = None, resume: bool = True) -> None:
+    def train(
+        self,
+        max_steps: Optional[int] = None,
+        resume: bool = True,
+        time_limit_hours: Optional[float] = None,
+    ) -> bool:
         """Run the training loop to max_steps (defaults to config.max_steps).
 
         Correct whether fresh or resuming: if `resume` and a valid checkpoint
         exists (or resume_path was passed to __init__), continue from its step.
+        With time_limit_hours set, the loop saves ckpt_<step>.pt and stops once
+        that much wall-clock time has passed. Returns True if max_steps was reached.
         """
+        deadline = time.monotonic() + time_limit_hours * 3600 if time_limit_hours else None
         max_steps = max_steps or self.config.max_steps
         if self.step == 0 and resume:
             latest = self._latest_checkpoint()
@@ -404,7 +443,7 @@ class Trainer:
                 self._resume_from(latest)
         if self.step >= max_steps:
             log.info("Already at step %d >= max_steps %d; nothing to do.", self.step, max_steps)
-            return
+            return True
 
         self.model.train()
         os.makedirs(self.checkpoint_dir, exist_ok=True)
@@ -453,13 +492,22 @@ class Trainer:
             self.last_train_loss = loss_val
             self.step += 1
 
-            if self.step % self.config.save_interval == 0 or self.step == max_steps:
-                self._save(self.step)
+            # Evaluate first so the periodic checkpoint records the current best_val_loss.
             if self.step % self.config.eval_interval == 0 or self.step == max_steps:
                 self._evaluate_and_log(self.step)
+            if self.step % self.config.save_interval == 0 or self.step == max_steps:
+                self._save(self.step)
+            if deadline is not None and self.step < max_steps and time.monotonic() >= deadline:
+                if self.step % self.config.save_interval != 0:
+                    self._save(self.step)
+                log.info(
+                    "Time limit of %.2f h reached at step %d/%d — rerun to resume.",
+                    time_limit_hours, self.step, max_steps,
+                )
+                return False
 
         log.info("Training complete at step %d.", self.step)
-        self._save(self.step)
+        return True
 
     # ------------------------------------------------------------------ helpers
 
@@ -491,18 +539,11 @@ class Trainer:
     def _save(self, step: int, path: Optional[str] = None) -> str:
         path = path or os.path.join(self.checkpoint_dir, f"ckpt_{step}.pt")
         config = {
-            "model": {
-                "vocab_size": self.model.config.vocab_size,
-                "d_model": self.model.config.d_model,
-                "n_layer": self.model.config.n_layer,
-                "n_head": self.model.config.n_head,
-                "d_ff": self.model.config.d_ff,
-                "block_size": self.model.config.block_size,
-                "dropout": self.model.config.dropout,
-                "tie_weights": self.model.config.tie_weights,
-                "bias": self.model.config.bias,
-            },
+            # Every model field (incl. no_pos / arch_version / rope_theta), so the
+            # checkpoint alone identifies the architecture it was trained with.
+            "model": asdict(self.model.config),
             "train": self.config.to_dict(),
+            "best_val_loss": self.best_val_loss,
         }
         save_checkpoint(path, self.model, self.optimizer, self.scheduler, step, config)
         if self.config.kaggle_auto_stage:
@@ -535,6 +576,10 @@ def train_entrypoint(argv: Optional[list[str]] = None) -> int:
     parser.add_argument("--max-steps", type=int, default=None)
     parser.add_argument("--no-resume", action="store_true")
     parser.add_argument("--device", default=None)
+    parser.add_argument(
+        "--time-limit-hours", type=float, default=None,
+        help="save a checkpoint and exit cleanly after this much wall-clock time",
+    )
     args = parser.parse_args(argv)
 
     import yaml
@@ -542,7 +587,7 @@ def train_entrypoint(argv: Optional[list[str]] = None) -> int:
     with open(args.model_config, "r", encoding="utf-8") as f:
         raw_mcfg = yaml.safe_load(f) or {}
 
-    if raw_mcfg.get("arch_version") == "v2" or "rope_theta" in raw_mcfg or raw_mcfg.get("d_ff") == 1376:
+    if raw_mcfg.get("arch_version") == "v2" or "rope_theta" in raw_mcfg:
         from model.gpt_v2 import GPTConfigV2, GPTLanguageModelV2
         model_cfg = GPTConfigV2.from_yaml(args.model_config)
         model = GPTLanguageModelV2(model_cfg)
@@ -563,11 +608,25 @@ def train_entrypoint(argv: Optional[list[str]] = None) -> int:
         device=args.device,
         resume_path=args.resume_path,
     )
-    trainer.train(max_steps=args.max_steps, resume=not args.no_resume)
+    finished = trainer.train(
+        max_steps=args.max_steps,
+        resume=not args.no_resume,
+        time_limit_hours=args.time_limit_hours,
+    )
 
+    # A resumed run continues the log of the sessions before it: keep their
+    # entries up to the step this session started from.
     stats_path = os.path.join(args.checkpoint_dir, "train_log.json")
+    logs = trainer.logs
+    if os.path.exists(stats_path) and not args.no_resume:
+        with open(stats_path, "r", encoding="utf-8") as f:
+            previous = json.load(f)
+        first_new = logs[0]["step"] if logs else trainer.step + 1
+        logs = [e for e in previous if e["step"] < first_new] + logs
     with open(stats_path, "w", encoding="utf-8") as f:
-        json.dump(trainer.logs, f, indent=2)
+        json.dump(logs, f, indent=2)
+    print(f"[*] {'Training complete' if finished else 'Stopped on time limit'} "
+          f"at step {trainer.step}/{args.max_steps or train_cfg.max_steps}")
     return 0
 
 

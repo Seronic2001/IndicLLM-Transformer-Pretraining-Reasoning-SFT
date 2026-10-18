@@ -242,9 +242,14 @@ class GPTLanguageModel(nn.Module):
         top_p: Optional[float] = None,
         repetition_penalty: float = 1.0,
         repetition_window: int = 64,
+        eos_id: Optional[int] = None,
     ) -> torch.Tensor:
-        """Autoregressively extend idx (B, T) by max_new_tokens tokens with top-k, top-p, and repetition penalty."""
+        """Autoregressively extend idx (B, T) by max_new_tokens tokens with top-k, top-p, and repetition penalty.
+
+        With eos_id set, generation stops once every sequence has emitted it.
+        """
         self.eval()
+        finished = torch.zeros(idx.size(0), dtype=torch.bool, device=idx.device)
         for _ in range(max_new_tokens):
             idx_cond = idx if idx.size(1) <= self.config.block_size else idx[:, -self.config.block_size :]
             logits = self(idx_cond)["logits"][:, -1, :].clone()
@@ -278,6 +283,10 @@ class GPTLanguageModel(nn.Module):
                 probs = F.softmax(logits, dim=-1)
                 idx_next = torch.multinomial(probs, num_samples=1)
             idx = torch.cat((idx, idx_next), dim=1)
+            if eos_id is not None:
+                finished |= idx_next.squeeze(1) == eos_id
+                if finished.all():
+                    break
         return idx
 
 
