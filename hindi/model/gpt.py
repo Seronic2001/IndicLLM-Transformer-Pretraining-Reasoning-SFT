@@ -39,6 +39,7 @@ class GPTConfig:
     dropout: float = 0.1
     tie_weights: bool = True
     bias: bool = False
+    no_pos: bool = False  # Bonus ablation: disables positional embeddings
 
     @classmethod
     def from_yaml(cls, path: Union[str, Path]) -> "GPTConfig":
@@ -146,7 +147,10 @@ class GPTLanguageModel(nn.Module):
         super().__init__()
         self.config = config
         self.token_embedding = nn.Embedding(config.vocab_size, config.d_model)
-        self.position_embedding = nn.Embedding(config.block_size, config.d_model)
+        if not getattr(config, "no_pos", False):
+            self.position_embedding = nn.Embedding(config.block_size, config.d_model)
+        else:
+            self.position_embedding = None
         self.drop = nn.Dropout(config.dropout)
         self.blocks = nn.ModuleList([Block(config) for _ in range(config.n_layer)])
         self.ln_f = nn.LayerNorm(config.d_model)
@@ -186,8 +190,11 @@ class GPTLanguageModel(nn.Module):
         )
 
         tok = self.token_embedding(idx)  # (B, T, d_model)
-        pos = self.position_embedding(torch.arange(T, device=idx.device))  # (T, d_model)
-        x = self.drop(tok + pos)
+        if self.position_embedding is not None:
+            pos = self.position_embedding(torch.arange(T, device=idx.device))  # (T, d_model)
+            x = self.drop(tok + pos)
+        else:
+            x = self.drop(tok)
 
         attn_weights: list[torch.Tensor] = []
         for block in self.blocks:
@@ -221,7 +228,8 @@ class GPTLanguageModel(nn.Module):
         n = sum(p.numel() for p in self.parameters())
         if non_embedding:
             n -= self.token_embedding.weight.numel()
-            n -= self.position_embedding.weight.numel()
+            if self.position_embedding is not None:
+                n -= self.position_embedding.weight.numel()
         return n
 
     @torch.no_grad()
@@ -235,47 +243,16 @@ class GPTLanguageModel(nn.Module):
         repetition_penalty: float = 1.0,
         repetition_window: int = 64,
         eos_id: Optional[int] = None,
-        prompt_bias: float = 0.0,
-        extra_allowed_tokens: Optional[Union[torch.Tensor, list, set, tuple]] = None,
     ) -> torch.Tensor:
-        """Autoregressively extend idx (B, T) by max_new_tokens tokens with top-k, top-p, repetition penalty, and optional prompt_bias."""
-        self.eval()
-        allowed_prompt_tokens = None
-        if prompt_bias > 0.0 and idx.size(1) > 0:
-            prompt_tokens = torch.unique(idx)
-            special_ids = torch.tensor(
-                [tid for tid in range(16384, 16390) if tid < self.config.vocab_size],
-                device=idx.device,
-                dtype=idx.dtype,
-            )
-            cat_list = [prompt_tokens, special_ids]
-            if extra_allowed_tokens is not None:
-                if isinstance(extra_allowed_tokens, (list, tuple, set)):
-                    extra_tensor = torch.tensor(list(extra_allowed_tokens), device=idx.device, dtype=idx.dtype)
-                else:
-                    extra_tensor = extra_allowed_tokens.to(device=idx.device, dtype=idx.dtype).view(-1)
-                if extra_tensor.numel() > 0:
-                    cat_list.append(extra_tensor)
-            allowed_prompt_tokens = torch.unique(torch.cat(cat_list))
+        """Autoregressively extend idx (B, T) by max_new_tokens tokens with top-k, top-p, and repetition penalty.
 
+        With eos_id set, generation stops once every sequence has emitted it.
+        """
+        self.eval()
+        finished = torch.zeros(idx.size(0), dtype=torch.bool, device=idx.device)
         for _ in range(max_new_tokens):
             idx_cond = idx if idx.size(1) <= self.config.block_size else idx[:, -self.config.block_size :]
             logits = self(idx_cond)["logits"][:, -1, :].clone()
-
-            # Boost tokens appearing in the input prompt (and special logic tokens)
-            if prompt_bias > 0.0 and allowed_prompt_tokens is not None:
-                logits[:, allowed_prompt_tokens] += prompt_bias
-
-                # Constrained Rationale Entity Decoding:
-                # If currently inside <COT_START> (16384) without <COT_END> (16385),
-                # boost prompt tokens and logic tokens by an extra +2.0 to eliminate
-                # out-of-prompt training entity intrusion / unigram prior bleed.
-                for b in range(idx.size(0)):
-                    seq = idx[b]
-                    cot_start_seen = (seq == 16384).any().item()
-                    cot_end_seen = (seq == 16385).any().item()
-                    if cot_start_seen and not cot_end_seen:
-                        logits[b, allowed_prompt_tokens] += 2.0
 
             # Apply repetition penalty to recently generated tokens
             if repetition_penalty > 1.0 and idx.size(1) > 0:
@@ -306,8 +283,10 @@ class GPTLanguageModel(nn.Module):
                 probs = F.softmax(logits, dim=-1)
                 idx_next = torch.multinomial(probs, num_samples=1)
             idx = torch.cat((idx, idx_next), dim=1)
-            if eos_id is not None and (idx_next == eos_id).all():
-                break
+            if eos_id is not None:
+                finished |= idx_next.squeeze(1) == eos_id
+                if finished.all():
+                    break
         return idx
 
 

@@ -4,11 +4,13 @@ Identical design to hindi/finetune/generate_reasoning.py but with Assamese
 (Bengali-Assamese script) templates and entity pools. No code is imported from
 ``hindi/`` (spec Section 0.2: the two languages share nothing).
 
-Anti-leakage: three-way disjoint train/val/test entity pools (val entities never
-appear in test, so early stopping on val can't leak test); multi_hop/negation/
-indeterminate evaluated on held-out entities. Answers come only from the symbolic
-``solve_relation`` solver. Premises/questions use seeded paraphrase variants that
-all round-trip through ``parse_premises``.
+Anti-leakage: disjoint train/val/test entity pools; multi_hop reserved for val/test
+(negation is 5% of train). Premises are stated in a random direction and shuffled,
+and the query pair and its order are random, so the answer cannot be read off any
+one premise. The question asks about a random relation, drawn independently of the
+answer; half of the training queries are at least two hops apart; and the train pool
+adds 3,000 syllable-built names (disjoint from val/test). Answers come only from the
+symbolic ``solve_relation`` solver.
 """
 
 from __future__ import annotations
@@ -22,59 +24,122 @@ from pathlib import Path
 from typing import Optional
 
 # ---------------------------------------------------------------- entity pools
-# Three-way disjoint by design (train / val / test never overlap); val and test
-# use separate pools so early stopping on val cannot leak test entities.
+# Three disjoint pools: a name seen in training never appears in val or test, and
+# val and test share no names either, so picking a checkpoint on val cannot leak test.
 TRAIN_ENTITY_POOL: list[str] = [
-    "ৰাম", "সীতা", "গীতা", "মোহন", "সুনীতা", "ৰাজেশ", "কবিতা", "অমিত", "প্ৰিয়া",
-    "বিকাশ", "নীতা", "সুৰেশ", "মীনা", "ৰবি", "অনিতা", "দীপক", "ৰেখা", "সঞ্জয়",
-    "পূজা", "মনোজ", "বিজয়", "ৰোহন", "সোহন", "অজয়", "নেহা", "কিৰণ", "সীমা",
-    "ৰাহুল", "পায়েল", "গৌৰৱ", "বৰুণ", "দিব্যা", "শ্বেতা", "সাক্ষী", "আঁচল",
-    "অনুপ", "ময়ংক", "অলোক", "বিবেক", "মনীষা", "ভাৰতী", "বৰ্ষা", "সংগীতা",
-    "ভাৱনা", "সন্দীপ", "পংকজ", "হেমন্ত", "লোকেশ", "তৰুণ", "কাৰ্তিক", "তন্ময়",
-    "নীতেশ", "মণিকা", "প্ৰীতি", "পল্লৱী", "স্বাতী", "গৰিমা", "চেতনা", "নূতন",
-    "বন্দনা", "কল্পনা", "ৰীনা", "শালিনী", "আৰতি", "কুণাল", "অতুল", "চেতন",
-    "প্ৰণৱ", "ভাস্কৰ", "মানস", "দীপাংকৰ", "হিৰণ্য", "প্ৰাঞ্জল", "ধ্ৰুৱ", "অনুৰাগ",
-    "সৌৰভ", "নৱজিত", "ঋতুপৰ্ণ", "মৃদুল", "বিপুল", "উৎপল", "নিৰঞ্জন", "জগদীশ",
-    "দেৱজিত", "ৰূপক", "অংকুৰ", "প্ৰশান্ত", "কৌশিক", "ৰুবুল", "মুকুল", "অৰূপ",
-    "ভাস্বতী", "ৰুমী", "মৃদুলা", "নিবেদিতা", "মনালিচা", "ৰীমা", "দিপালী", "মলয়া",
-    "কাকলি", "জুমণি", "ৰুণজুমি", "মুনমী", "পাপৰি", "জোনালী", "বৰ্ণালী", "ৰশ্মি",
-    "স্মিতা", "মধুস্মিতা", "প্ৰণামী", "গীতাঞ্জলি", "পূৰবী", "মিনাক্ষী", "নৱনীতা",
-    "ডিম্পল", "পল্লৱ", "পাৰ্থ", "অভিজিৎ", "দেৱব্ৰত", "চিন্ময়", "সিদ্ধাৰ্থ", "সত্যেন",
-    "ৰমেন", "হৰেন", "ভূপেন", "খগেন", "প্ৰমথ", "ৰত্ন", "লক্ষ্মী", "জ্ঞানেন", "ধীৰেন",
-    "গুণেন", "বীৰেন", "মহেন", "গোবিন্দ", "মাধৱ", "কেশৱ", "দামোদৰ", "হৰিহৰ",
-    "নাৰায়ণ", "অনন্ত", "মুহিধৰ", "ঘনশ্যাম", "কমলেশ", "জগন্নাথ", "গোপাল", "ত্ৰৈলোক্য",
-    "ভবেন", "লীলাধৰ", "হেমচন্দ্ৰ", "শৰৎ", "মহিম", "পদ্ম", "আনন্দ", "হেমকান্ত",
-    "ধৰ্মেন্দ্ৰ", "উপেন", "গিৰীন", "কমলজিত", "সুৰেন", "যোগেন", "ভোগেন", "দীনেশ",
-    "মহেশ", "ৰমেশ", "উমেশ", "হিমাংশু", "প্ৰভাত", "ভাস্বৰ", "অচিন্ত্য", "প্ৰদীপ",
-    "সঞ্জীৱ", "ৰাজীৱ", "কুলদীপ", "হৰিপ্ৰসাদ", "দেৱাশীষ", "পৰিমল", "সুবোধ", "অৰবিন্দ",
-    "অপূৰ্ব", "শান্তনু", "প্ৰফুল্ল", "যোগেশ", "ত্ৰিদীপ", "ৰূপম", "প্ৰীতম", "অভিলাষ",
-    "নিলয়", "সুব্ৰত", "সমীৰ", "সুশীল", "হীৰক", "দ্বিপেন", "খগেন্দ্ৰ", "যুগল",
-    "উজ্জ্বল", "ব্ৰজেন", "ৰত্নেশ্বৰ", "গোলেশ্বৰ", "ভোগেশ্বৰ", "যোগেশ্বৰ", "গুণেশ্বৰ",
-    "লীলেশ্বৰ", "মহেশ্বৰ", "ৰমাকান্ত", "সূৰ্য", "চন্দ্ৰ", "ইন্দ্ৰ", "উপেন্দ্ৰ", "জিতেন",
-    "নৰেন", "হিতেশ", "পৰাগ", "ৰূপালী", "প্ৰতিভা", "উৰ্মিলা", "অঞ্জনা", "দীপান্বিতা",
-    "পূৰ্ণিমা", "কল্পিতা", "প্ৰিয়ংকা", "ত্ৰিবেণী", "অনুৰাধা", "মিতালী", "ৰূপজ্যোতি",
-    "ৰূপশ্রী", "সুচিত্ৰা", "সুজাতা", "মালবিকা", "অনসূয়া", "অপৰাজিতা", "মৈত্ৰেয়ী",
-    "শৰ্মিষ্ঠা", "অৰুন্ধতী", "গাৰ্গী", "দেৱযানী",
-]
-SYMBOLIC_ENTITIES: list[str] = [
-    "ক", "খ", "গ", "ঘ", "ঙ", "চ", "ছ", "জ", "ঝ", "ঞ", "ট", "ঠ", "ড", "ঢ", "ণ", "ত", "থ", "দ", "ধ", "ন", "প", "ফ", "ব", "ভ", "ম",
-    "A", "B", "C", "D", "E", "X", "Y", "Z", "W",
+    "ৰাম", "সীতা", "গীতা", "মোহন", "সুনীতা", "ৰাজেশ", "কবিতা", "অমিত", "প্ৰিয়া", "বিকাশ",
+    "নীতা", "সুৰেশ", "মীনা", "ৰবি", "অনিতা", "দীপক", "ৰেখা", "সঞ্জয়", "পূজা", "মনোজ", "বিজয়",
+    "ৰোহন", "সোহন", "অজয়", "নেহা", "কিৰণ", "সীমা", "ৰাহুল", "পায়েল", "গৌৰৱ", "বৰুণ", "দিব্যা",
+    "শ্বেতা", "সাক্ষী", "আঁচল", "অনুপ", "ময়ংক", "অলোক", "বিবেক", "মনীষা", "ভাৰতী", "বৰ্ষা",
+    "সংগীতা", "ভাৱনা", "সন্দীপ", "পংকজ", "হেমন্ত", "লোকেশ", "তৰুণ", "কাৰ্তিক", "তন্ময়",
+    "নীতেশ", "মণিকা", "প্ৰীতি", "পল্লৱী", "স্বাতী", "গৰিমা", "চেতনা", "নূতন", "বন্দনা",
+    "কল্পনা", "ৰীনা", "শালিনী", "আৰতি", "কুণাল", "অতুল", "চেতন", "প্ৰণৱ", "ভাস্কৰ", "মানস",
+    "দীপাংকৰ", "হিৰণ্য", "প্ৰাঞ্জল", "ধ্ৰুৱ", "অনুৰাগ", "সৌৰভ", "নৱজিত", "ঋতুপৰ্ণ", "মৃদুল",
+    "বিপুল", "উৎপল", "নিৰঞ্জন", "জগদীশ", "দেৱজিত", "ৰূপক", "অংকুৰ", "প্ৰশান্ত", "কৌশিক",
+    "ৰুবুল", "মুকুল", "অৰূপ", "ভাস্বতী", "ৰুমী", "মৃদুলা", "নিবেদিতা", "মনালিচা", "ৰীমা",
+    "দিপালী", "মলয়া", "কাকলি", "জুমণি", "ৰুণজুমি", "মুনমী", "পাপৰি", "জোনালী", "বৰ্ণালী",
+    "ৰশ্মি", "স্মিতা", "মধুস্মিতা", "প্ৰণামী", "গীতাঞ্জলি", "পূৰবী", "মিনাক্ষী", "নৱনীতা",
+    "ডিম্পল", "পল্লৱ", "পাৰ্থ", "অভিজিৎ", "দেৱব্ৰত", "চিন্ময়", "সিদ্ধাৰ্থ", "সত্যেন", "ৰমেন",
+    "হৰেন", "ভূপেন", "খগেন", "প্ৰমথ", "ৰত্ন", "লক্ষ্মী", "জ্ঞানেন", "ধীৰেন", "গুণেন", "বীৰেন",
+    "মহেন", "গোবিন্দ", "মাধৱ", "কেশৱ", "দামোদৰ", "হৰিহৰ", "নাৰায়ণ", "অনন্ত", "মুহিধৰ",
+    "ঘনশ্যাম", "কমলেশ", "জগন্নাথ", "গোপাল", "ত্ৰৈলোক্য", "ভবেন", "লীলাধৰ", "হেমচন্দ্ৰ", "শৰৎ",
+    "মহিম", "পদ্ম", "আনন্দ", "হেমকান্ত", "ধৰ্মেন্দ্ৰ", "উপেন", "গিৰীন", "কমলজিত", "সুৰেন",
+    "যোগেন", "ভোগেন", "দীনেশ", "মহেশ", "ৰমেশ", "উমেশ", "হিমাংশু", "প্ৰভাত", "ভাস্বৰ",
+    "অচিন্ত্য", "প্ৰদীপ", "সঞ্জীৱ", "ৰাজীৱ", "কুলদীপ", "হৰিপ্ৰসাদ", "দেৱাশীষ", "পৰিমল", "সুবোধ",
+    "অৰবিন্দ", "অপূৰ্ব", "শান্তনু", "প্ৰফুল্ল", "যোগেশ", "ত্ৰিদীপ", "ৰূপম", "প্ৰীতম",
 ]
 VAL_ENTITY_POOL: list[str] = [
-    "অৰ্জুন", "লতা", "কিশোৰ", "মালা", "হৰিশ", "জ্যোতি", "নাৰেশ",
+    "অৰ্জুন", "লতা", "কিশোৰ", "মালা", "হৰিশ", "জ্যোতি", "নাৰেশ", "অভিলাষ", "নিলয়", "সুব্ৰত",
+    "সমীৰ", "সুশীল", "হীৰক", "দ্বিপেন", "খগেন্দ্ৰ", "যুগল", "উজ্জ্বল", "ব্ৰজেন", "ৰত্নেশ্বৰ",
+    "গোলেশ্বৰ", "ভোগেশ্বৰ", "যোগেশ্বৰ", "গুণেশ্বৰ", "লীলেশ্বৰ", "মহেশ্বৰ", "ৰমাকান্ত", "সূৰ্য",
 ]
 TEST_ENTITY_POOL: list[str] = [
-    "সৰিতা", "প্ৰমোদ", "বিনীতা", "কমল", "সুধা", "যশ", "ইন্দু", "তাৰা",
+    "সৰিতা", "প্ৰমোদ", "বিনীতা", "কমল", "সুধা", "যশ", "ইন্দু", "তাৰা", "চন্দ্ৰ", "ইন্দ্ৰ",
+    "উপেন্দ্ৰ", "জিতেন", "নৰেন", "হিতেশ", "পৰাগ", "ৰূপালী", "প্ৰতিভা", "উৰ্মিলা", "অঞ্জনা",
+    "দীপান্বিতা", "পূৰ্ণিমা", "কল্পিতা", "প্ৰিয়ংকা", "ত্ৰিবেণী", "অনুৰাধা", "মিতালী",
+    "ৰূপজ্যোতি", "ৰূপশ্রী", "সুচিত্ৰা", "সুজাতা", "মালবিকা", "অনসূয়া", "অপৰাজিতা", "মৈত্ৰেয়ী",
+    "শৰ্মিষ্ঠা", "অৰুন্ধতী", "গাৰ্গী", "দেৱযানী",
 ]
-# Backward-compatibility alias (prefer VAL_/TEST_ENTITY_POOL in new code).
-EVAL_ENTITY_POOL: list[str] = VAL_ENTITY_POOL + TEST_ENTITY_POOL
+# The curated train pool has ~190 names, and the val/test names are never seen in
+# training, so models misspelled unseen names when copying them into the answer.
+# Training therefore also uses N_SYNTHETIC_TRAIN_NAMES names built from syllables;
+# they are filtered against the val/test pools, so all three pools stay disjoint.
+N_SYNTHETIC_TRAIN_NAMES = 3000
+_SYN_ONSETS = ["অ", "আ", "ই", "উ", "ক", "কি", "কু", "কা", "গ", "গো", "জ", "জি", "ত", "তা",
+               "দে", "দী", "ন", "নি", "প", "প্ৰ", "বি", "ভা", "ম", "মী", "মো", "ৰ", "ৰা", "ৰূ",
+               "ল", "লী", "শ", "শী", "স", "সু", "সো", "হ", "হে", "চা", "ধী", "যো"]
+_SYN_MIDDLES = ["", "ন", "ৰ", "ম", "ল", "ব", "শ", "ত", "ধ", "জ", "ক", "দ", "প", "গ", "হ",
+                "নী", "ৰা", "মি", "লে"]
+_SYN_ENDINGS = ["না", "তা", "তী", "নী", "কা", "ৰী", "য়া", "ৰা", "ল", "ন", "শ", "ত", "ৰ", "ম", "ব",
+                "ক", "দ", "প", "জ", "লী", "মা", "শা", "ধা"]
+# Template words a syllable combination could spell; never used as names.
+_TEMPLATE_WORDS = {"কম", "বেছি", "সমান", "নহয়", "আৰু", "কলে", "সুধিলে", "যে", "কি", "এখন",
+                   "গাঁৱত", "থাকে", "সেয়ে", "কাৰণ"}
+
+
+def synthetic_names(n: int, exclude: set[str], seed: int = 0) -> list[str]:
+    """n distinct onset + middle + ending syllable names, none of them in exclude."""
+    rng = random.Random(seed)
+    combos = sorted({o + m + e for o in _SYN_ONSETS for m in _SYN_MIDDLES for e in _SYN_ENDINGS}
+                    - exclude - _TEMPLATE_WORDS)
+    if len(combos) < n:
+        raise ValueError(f"only {len(combos)} synthetic names for n={n}")
+    return rng.sample(combos, n)
+
+
+# Fresh names: built on demand from a syllable grammar, so a training example's names
+# are (almost surely) never seen again and the only way to answer is to copy them from
+# the prompt. Unlike the fixed synthetic pool above, the grammar covers conjuncts,
+# anusvara and long compounds, which the held-out names need. It does not use any
+# val/test name; those strings are rejected through ``exclude``.
+_FRESH_INITIAL_VOWELS = ["অ", "আ", "ই", "ঈ", "উ", "এ", "ও"]
+_FRESH_CONSONANTS = list("কখগঘচজটডতথদধনপফবভমযৰলৱশসহ")
+_FRESH_CLUSTERS = ["ক্ৰ", "গ্ৰ", "ত্ৰ", "প্ৰ", "শ্ৰ", "স্ত", "ন্দ", "জ্য", "স্ব", "ক্ষ", "দ্ব",
+                   "ৰ্ম", "ল্প", "ন্ত", "ম্ব", "ষ্ণ", "ত্য", "ধ্ৰ", "স্ন", "জ্ঞ"]
+_FRESH_MATRAS = ["", "", "া", "ি", "ী", "ু", "ূ", "ে", "ো", "ং", "ংগ"]
+_FRESH_ENDINGS = ["", "", "", "ন", "ৰ", "ল", "ত", "শ", "ম", "ৱ"]
+
+
+def fresh_name(rng: random.Random, exclude: Optional[set] = None) -> str:
+    """One name from the syllable grammar: 2-4 syllables, conjuncts and anusvara allowed."""
+    while True:
+        parts: list = []
+        for i in range(rng.choice([2, 2, 3, 3, 4])):
+            if i == 0 and rng.random() < 0.2:
+                parts.append(rng.choice(_FRESH_INITIAL_VOWELS))
+                continue
+            onset = rng.choice(_FRESH_CLUSTERS) if rng.random() < 0.3 else rng.choice(_FRESH_CONSONANTS)
+            parts.append(onset + rng.choice(_FRESH_MATRAS))
+        name = "".join(parts) + rng.choice(_FRESH_ENDINGS)
+        if 3 <= len(name) <= 14 and name not in _TEMPLATE_WORDS and not (exclude and name in exclude):
+            return name
+
+
+def fresh_names(k: int, rng: random.Random, exclude: Optional[set] = None) -> list:
+    """k distinct fresh names."""
+    out: list = []
+    while len(out) < k:
+        n = fresh_name(rng, exclude)
+        if n not in out:
+            out.append(n)
+    return out
+
+
+# The hand-picked train names alone: fresh-name training can mix them back in, so the
+# model also sees real-looking names like the held-out val/test ones.
+CURATED_TRAIN_POOL: list[str] = list(TRAIN_ENTITY_POOL)
+
+TRAIN_ENTITY_POOL = TRAIN_ENTITY_POOL + synthetic_names(
+    N_SYNTHETIC_TRAIN_NAMES, set(TRAIN_ENTITY_POOL) | set(VAL_ENTITY_POOL) | set(TEST_ENTITY_POOL))
+
 ATTRIBUTES: list[str] = ["বয়স", "উচ্চতা", "সঞ্চয়"]
-# Paradigms emphasized in evaluation (harder reasoning categories). They are NOT
-# held out of training — TRAIN_PARADIGMS below includes them; the name records
-# which categories the eval analysis focuses on.
-EVAL_FOCUS_PARADIGMS = {"multi_hop", "negation", "indeterminate"}
-TRAIN_PARADIGMS = ("transitive", "word_problem", "conversational", "multi_hop", "negation", "indeterminate")
-ALL_PARADIGMS = ("transitive", "word_problem", "conversational", "negation", "multi_hop", "indeterminate")
+RESERVED_PARADIGMS = {"multi_hop"}  # eval splits only
+TRAIN_PARADIGMS = ("transitive", "word_problem", "conversational")
+EVAL_PARADIGMS = TRAIN_PARADIGMS + ("multi_hop", "negation")
+TRAIN_NEGATION_FRACTION = 0.05  # negation curriculum share of the train split
+TRAIN_LONG_QUERY_FRACTION = 0.5  # train queries forced >= 2 hops apart (otherwise >= 1)
+QUESTION_RELATIONS = (">", "<", "=")  # relation the question asks about...
+QUESTION_WEIGHTS = (0.4, 0.4, 0.2)    # ...drawn independently of the true answer
 
 
 @dataclass
@@ -112,12 +177,9 @@ class ContradictionError(ValueError):
     pass
 
 
-def solve_relation(
-    premises: list[tuple[str, str, str]],
-    query: tuple[str, str],
-    allow_underdetermined: bool = False,
-) -> str:
-    """Same union-find + DAG solver as the Hindi mirror. Relations: '>' '<' '=' '?' between entity names."""
+def solve_relation(premises: list[tuple[str, str, str]], query: tuple[str, str]) -> str:
+    """Same union-find + DAG solver as the Hindi mirror (see that module for the
+    full explanation). Relations: ">" "<" "=" between entity names."""
     x, y = query
     if x == y:
         return f"{x} = {y}"
@@ -130,8 +192,6 @@ def solve_relation(
 
     parent = {n: n for n in nodes}
     if x not in parent or y not in parent:
-        if allow_underdetermined:
-            return f"{x} ? {y}"
         raise ContradictionError(f"query entity not in premise graph: {query}")
 
     def find(n: str) -> str:
@@ -182,223 +242,83 @@ def solve_relation(
         return f"{x} > {y}"
     if bwd:
         return f"{x} < {y}"
-    if allow_underdetermined:
-        return f"{x} ? {y}"
     raise ContradictionError(f"underdetermined query: {query}")
 
 
 # ---------------------------------------------------------------- templates (Assamese)
-# Paraphrase variants per relation (template v2). Index 0 is the canonical form;
-# the rest add lexical/structural diversity (synonym অধিক, adverb অলপ, swapped
-# তুলনাত order, equality একে form). render_premise samples an index with the
-# seeded RNG; every variant is parsed back by parse_premises below.
-POS_VARIANTS: dict[str, list[str]] = {
-    ">": [
-        "{A}ৰ {attr} {B}ৰ {attr}তকৈ বেছি",
-        "{A}ৰ {attr} {B}ৰ {attr}তকৈ অধিক",
-        "{A}ৰ {attr} {B}ৰ {attr}তকৈ অলপ বেছি",
-        "{B}ৰ {attr}ৰ তুলনাত {A}ৰ {attr} বেছি",
-    ],
-    "<": [
-        "{A}ৰ {attr} {B}ৰ {attr}তকৈ কম",
-        "{A}ৰ {attr} {B}ৰ {attr}তকৈ অলপ কম",
-        "{B}ৰ {attr}ৰ তুলনাত {A}ৰ {attr} কম",
-    ],
-    "=": [
-        "{A}ৰ {attr} {B}ৰ {attr}ৰ সমান",
-        "{A}ৰ {attr} আৰু {B}ৰ {attr} একে",
-    ],
+# rel=='>'  -> "Aৰ attr Bৰ attrতকৈ বেছি" (more than)
+# rel=='<'  -> "Aৰ attr Bৰ attrতকৈ কম" (less than)
+# rel=='='  -> "Aৰ attr Bৰ attrৰ সমান" (equal to)
+POS = {
+    ">": "{A}ৰ {attr} {B}ৰ {attr}তকৈ বেছি",
+    "<": "{A}ৰ {attr} {B}ৰ {attr}তকৈ কম",
+    "=": "{A}ৰ {attr} {B}ৰ {attr}ৰ সমান",
 }
-# Negated forms append " নহয়" mechanically so each POS variant has a parallel.
-NEG_VARIANTS: dict[str, list[str]] = {
-    k: [t + " নহয়" for t in v] for k, v in POS_VARIANTS.items()
+NEG = {
+    ">": "{A}ৰ {attr} {B}ৰ {attr}তকৈ বেছি নহয়",
+    "<": "{A}ৰ {attr} {B}ৰ {attr}তকৈ কম নহয়",
+    "=": "{A}ৰ {attr} {B}ৰ {attr}ৰ সমান নহয়",
 }
-# Canonical-form aliases (backward compatible; render defaults to variant 0).
-POS = {k: v[0] for k, v in POS_VARIANTS.items()}
-NEG = {k: v[0] for k, v in NEG_VARIANTS.items()}
-# Question framings: "বেছি" vs "কম" polarity. Questions are never parsed
-# (parse_premises splits them off at QUESTION_MARKER), but each keeps the
-# marker token regardless.
-QUESTION_VARIANTS: list[str] = [
-    "কি {A}ৰ {attr} {B}ৰ {attr}তকৈ বেছি?",
-    "কি {A}ৰ {attr} {B}ৰ {attr}তকৈ অধিক?",
-    "কোৱাচোন, কি {A}ৰ {attr} {B}ৰ {attr}তকৈ বেছি?",
-]
-QUESTION_LT_VARIANTS: list[str] = [
-    "কি {A}ৰ {attr} {B}ৰ {attr}তকৈ কম?",
-    "কি {B}ৰ {attr}ৰ তুলনাত {A}ৰ {attr} কম?",
-    "কোৱাচোন, কি {A}ৰ {attr} {B}ৰ {attr}তকৈ কম?",
-]
-QUESTION = QUESTION_VARIANTS[0]
-QUESTION_LT = QUESTION_LT_VARIANTS[0]
+# The question asks about a random relation (not always "more"), so copying the
+# question's relation word into the answer is right only by chance.
+QUESTIONS = {
+    ">": "কি {A}ৰ {attr} {B}ৰ {attr}তকৈ বেছি?",
+    "<": "কি {A}ৰ {attr} {B}ৰ {attr}তকৈ কম?",
+    "=": "কি {A}ৰ {attr} {B}ৰ {attr}ৰ সমান?",
+}
+QUESTION = QUESTIONS[">"]
 OPPOSITE = {">": "<", "<": ">", "=": "="}
-QUESTION_MARKER = " কি "
-# Bump when surface templates change; recorded in manifest.json.
-TEMPLATE_VERSION = "v2-paraphrase"
-
-# Balanced paradigm sampling matching evaluation distribution (prevents indeterminate over-conservatism)
-PARADIGM_TRAIN_WEIGHTS: dict[str, float] = {
-    "transitive": 0.20,
-    "multi_hop": 0.20,
-    "negation": 0.18,
-    "word_problem": 0.16,
-    "conversational": 0.16,
-    "indeterminate": 0.10,
-}
+QUESTION_MARKER = " কি "  # space-delimited question marker for parse splitting
 
 
-def render_premise(
-    a: str, b: str, rel: str, attr: str,
-    negate: bool = False,
-    rng: Optional[random.Random] = None,
-    variant: Optional[int] = None,
-) -> str:
-    """Render one premise, sampling a paraphrase variant with the seeded RNG.
-
-    ``rng=None`` renders the canonical form, so answer rendering — which never
-    passes an RNG — stays in a single surface template. Variant tables differ
-    in length by design, so an explicit index is taken modulo the table size.
-    """
-    table = NEG_VARIANTS if negate else POS_VARIANTS
-    variants = table[OPPOSITE[rel] if negate else rel]
-    if variant is None:
-        variant = rng.randrange(len(variants)) if rng is not None else 0
-    return variants[variant % len(variants)].format(A=a, B=b, attr=attr) + "।"
+def render_premise(a: str, b: str, rel: str, attr: str, negate: bool = False) -> str:
+    tpl = NEG if negate else POS
+    return tpl[OPPOSITE[rel] if negate else rel].format(A=a, B=b, attr=attr) + "।"
 
 
 def render_answer(a: str, b: str, rel: str, attr: str, negate: bool = False) -> str:
-    if rel == "?":
-        return "দিয়া তথ্যৰ পৰা এইটো নিৰ্ধাৰণ কৰিব নোৱাৰি।"
     return render_premise(a, b, rel, attr, negate=negate)
 
 
-_ALL_KNOWN_ENTITIES: set[str] = set(TRAIN_ENTITY_POOL) | set(EVAL_ENTITY_POOL) | set(SYMBOLIC_ENTITIES)
+def render_cot(premises: list[tuple[str, str, str]], query: tuple[str, str], attr: str, negate: bool = False) -> str:
+    """Render the Chain-of-Thought rationale: the premises linking the two query
+    entities, each oriented along the path from the first to the second, followed
+    by the relation they imply."""
+    qa, qb = query
+    neighbours: dict[str, list[str]] = {}
+    for s, _rel, o in premises:
+        neighbours.setdefault(s, []).append(o)
+        neighbours.setdefault(o, []).append(s)
+    # The premises form a chain, so the path between two entities is unique.
+    prev: dict[str, Optional[str]] = {qa: None}
+    stack = [qa]
+    while stack:
+        cur = stack.pop()
+        for nxt in neighbours.get(cur, ()):
+            if nxt not in prev:
+                prev[nxt] = cur
+                stack.append(nxt)
+    path = [qb]
+    while path[-1] != qa:
+        path.append(prev[path[-1]])
+    path.reverse()
+    steps = [solve_relation(premises, (u, v)) for u, v in zip(path, path[1:])]
+    return f"[কাৰণ: {' আৰু '.join(steps)} সেয়ে {solve_relation(premises, query)}]"
 
 
-def _clean_entity_lemma(ent: str) -> str:
-    """Strip inflectional case suffixes (-ৰ, -তকৈ, -ক, -লৈ) from scratchpad entities.
-
-    Ensures entities in reasoning scratchpads remain in lemma form, preventing
-    BPE token boundary fragmentation in low-resource tokenizers.
-    Crucially preserves entity names that legitimately end with 'ৰ' or 'ক'
-    (e.g., কিশোৰ, দীপক, দামোদৰ, কাৰ্তিক).
-    """
-    if ent in _ALL_KNOWN_ENTITIES:
-        return ent
-
-    for sfx in ("তকৈ", "লৈ", "ৰ", "ক"):
-        if ent.endswith(sfx) and len(ent) > len(sfx):
-            candidate = ent[: -len(sfx)]
-            if candidate in _ALL_KNOWN_ENTITIES:
-                return candidate
-
-    # Fallback for entities not in static pools (e.g. ad-hoc test strings)
-    for sfx in ("তকৈ", "লৈ"):
-        if ent.endswith(sfx) and len(ent) > len(sfx):
-            return ent[: -len(sfx)]
-
-    for sfx in ("ৰ", "ক"):
-        if ent.endswith(sfx) and len(ent) >= 3 and ent not in _ALL_KNOWN_ENTITIES:
-            return ent[: -len(sfx)]
-
-    return ent
-
-
-AS_POLARITY_WORDS: tuple[str, ...] = ("বেছি", "অধিক", "কম", "সমান", "একে")
-
-
-def extract_prompt_lemma_token_ids(prompt_text: str, tokenizer) -> list[int]:
-    """Extract uninflected base lemma token IDs for words in the prompt and relational tokens.
-
-    In agglutinative languages like Assamese, entity names are suffixed (e.g. মালাৰ, কিশোৰৰ),
-    which SentencePiece tokenizes differently than the uninflected base lemma (মালা, কিশোৰ).
-    This function discovers the base lemmas and also whitelists symmetric comparative
-    and equality tokens so neither question polarity nor base lemmas are suppressed
-    by prompt logit biasing.
-    """
-    token_ids = set()
-    for pw in AS_POLARITY_WORDS:
-        token_ids.update(tokenizer.encode(pw))
-        token_ids.update(tokenizer.encode(" " + pw))
-
-    words = prompt_text.replace("?", " ").replace("।", " ").replace(",", " ").replace(":", " ").split()
-    lemmas = set()
-    for w in words:
-        cleaned = _clean_entity_lemma(w)
-        lemmas.add(cleaned)
-        lemmas.add(w)
-
-    for lemma in lemmas:
-        if len(lemma) > 1:
-            token_ids.update(tokenizer.encode(lemma))
-            token_ids.update(tokenizer.encode(" " + lemma))
-
-    return list(token_ids)
-
-
-def render_cot(
-    deductive_premises: list[tuple[str, str, str]],
-    query: tuple[str, str],
-    attr: str,
-    negate: bool = False,
-    use_symbolic: bool = False,
-) -> str:
-    """Render explicit Chain-of-Thought (CoT) step-by-step intermediate deduction hops in Assamese.
-    
-    If use_symbolic=True, uses dedicated logic tokens (<COT_START>, <REL_GT>, etc.)
-    instead of brackets and ASCII operators for subword-safe rendering.
-    """
-    if not deductive_premises:
-        a, b = _clean_entity_lemma(query[0]), _clean_entity_lemma(query[1])
-        if use_symbolic:
-            return f"<COT_START> {a} <REL_DISJOINT> {b} <COT_END>"
-        return f"[কাৰণ: {a} আৰু {b} দুটা বেলেগ দলত আছে, কোনো পথ নাই]"
-    
-    if use_symbolic:
-        _SYM = {">": "<REL_GT>", "<": "<REL_LT>", "=": "<REL_EQ>"}
-        steps = [f"{_clean_entity_lemma(s)} {_SYM.get(rel, rel)} {_clean_entity_lemma(o)}" for s, rel, o in deductive_premises]
-        chain_str = " আৰু ".join(steps)
-        return f"<COT_START> {chain_str} <COT_END>"
-    
-    steps = [f"{_clean_entity_lemma(s)} {rel} {_clean_entity_lemma(o)}" for s, rel, o in deductive_premises]
-    chain_str = " আৰু ".join(steps)
-    return f"[কাৰণ: {chain_str}]"
-
-
-def render_text(
-    paradigm: str,
-    premises: list[tuple[str, str, str]],
-    query: tuple[str, str],
-    attr: str,
-    entity_pool_names: list[str],
-    rng: Optional[random.Random] = None,
-    **kwargs,
-) -> str:
+def render_text(paradigm: str, premises: list[tuple[str, str, str]], query: tuple[str, str],
+                attr: str, entity_pool_names: list[str], question_rel: str = ">") -> str:
     a, b = query
     negate = paradigm == "negation"
-
-    display_premises = list(premises)
-    if rng is not None and len(display_premises) > 1 and paradigm != "conversational":
-        rng.shuffle(display_premises)
-
-    body = " ".join(
-        render_premise(s, o, rel, attr, negate=negate, rng=rng)
-        for s, rel, o in display_premises
-    )
-    # Contrastive polarity: sample a question framing for this polarity.
-    q_template = kwargs.get("question_template")
-    if q_template is None:
-        qpool = QUESTION_VARIANTS if kwargs.get("question_polarity", "gt") == "gt" else QUESTION_LT_VARIANTS
-        q_template = qpool[rng.randrange(len(qpool))] if rng is not None else qpool[0]
-    q = q_template.format(A=a, B=b, attr=attr)
-
-    if paradigm in ("transitive", "multi_hop", "negation", "indeterminate"):
+    body = " ".join(render_premise(s, o, rel, attr, negate=negate) for s, rel, o in premises)
+    q = QUESTIONS[question_rel].format(A=a, B=b, attr=attr)
+    if paradigm in ("transitive", "multi_hop", "negation"):
         return body + " " + q
     if paradigm == "conversational":
         lines = []
-        for i, (s, rel, o) in enumerate(display_premises):
+        for i, (s, rel, o) in enumerate(premises):
             speaker = s if i % 2 == 0 else o
-            lines.append(f"{speaker} কলে যে {render_premise(s, o, rel, attr, negate=negate, rng=rng)}")
+            lines.append(f"{speaker} কলে যে {render_premise(s, o, rel, attr, negate=negate)}")
         lines.append(f"{a} সুধিলে যে {q}")
         return " ".join(lines)
     if paradigm == "word_problem":
@@ -411,43 +331,30 @@ def render_text(
 # ---------------------------------------------------------------- parsing (for test_label_correctness)
 _PREMISE_RE = re.compile(
     r"(?P<A>[^\s।?]+)ৰ (?P<attr>[^\s]+) (?P<B>[^\s।?]+)ৰ (?P<attr2>[^\s]+)তকৈ "
-    r"(?:(?P<adv>অলপ) )?(?P<rel>বেছি|অধিক|কম)(?P<neg> নহয়)?"
-)
-# Swapped-order variant: "{B}ৰ {attr}ৰ তুলনাত {A}ৰ {attr} বেছি".
-_TULNA_RE = re.compile(
-    r"(?P<X>[^\s।?]+)ৰ (?P<attr>[^\s]+)ৰ তুলনাত (?P<Y>[^\s।?]+)ৰ (?P<attr2>[^\s]+) "
-    r"(?P<rel>বেছি|অধিক|কম)(?P<neg> নহয়)?"
+    r"(?P<rel>বেছি|কম)(?P<neg> নহয়)?"
 )
 _EQ_RE = re.compile(
     r"(?P<A>[^\s।?]+)ৰ (?P<attr>[^\s]+) (?P<B>[^\s।?]+)ৰ (?P<attr2>[^\s]+)ৰ সমান(?P<neg> নহয়)?"
 )
-# Equality একে-form: "{A}ৰ {attr} আৰু {B}ৰ {attr} একে".
-_EQ2_RE = re.compile(
-    r"(?P<A>[^\s।?]+)ৰ (?P<attr>[^\s]+) আৰু (?P<B>[^\s।?]+)ৰ (?P<attr2>[^\s]+) একে(?P<neg> নহয়)?"
-)
 
 
 def parse_premises(text: str) -> list[tuple[str, str, str]]:
-    """Re-parse rendered Assamese text into (subj, rel, obj) premises."""
+    """Re-parse rendered Assamese text into (subj, rel, obj) premises.
+
+    Only the statement part before the space-delimited question marker is parsed,
+    so the question never masquerades as a premise. Negation ("বেছি নহয়") maps to
+    the strict opposite relation.
+    """
     statement = text.split(QUESTION_MARKER, 1)[0]
     found: list[tuple[str, str, str]] = []
     for m in _PREMISE_RE.finditer(statement):
         a, b, rel = m.group("A"), m.group("B"), m.group("rel")
         neg = bool(m.group("neg"))
-        base = ">" if rel in ("বেছি", "অধিক") else "<"
-        found.append((a, OPPOSITE[base] if neg else base, b))
-    for m in _TULNA_RE.finditer(statement):
-        # The sentence claims "Y is base-er than X" (denied when negated).
-        x, y, rel = m.group("X"), m.group("Y"), m.group("rel")
-        neg = bool(m.group("neg"))
-        base = ">" if rel in ("বেছি", "অধিক") else "<"
-        found.append((y, OPPOSITE[base] if neg else base, x))
+        if rel == "বেছি":
+            found.append((a, "<" if neg else ">", b))
+        else:  # কম
+            found.append((a, ">" if neg else "<", b))
     for m in _EQ_RE.finditer(statement):
-        a, b = m.group("A"), m.group("B")
-        if m.group("neg"):
-            raise ContradictionError("negated '=' premise unsupported by construction")
-        found.append((a, "=", b))
-    for m in _EQ2_RE.finditer(statement):
         a, b = m.group("A"), m.group("B")
         if m.group("neg"):
             raise ContradictionError("negated '=' premise unsupported by construction")
@@ -463,99 +370,69 @@ def _pick_entities(pool: list[str], k: int, rng: random.Random) -> list[str]:
     return rng.sample(pool, k)
 
 
-def _make_chain(
-    entities: list[str],
-    attr: str,
-    rng: random.Random,
-    allow_equals: bool,
-    min_hops: int = 1,
-    is_indeterminate: bool = False,
-    pool_for_distractors: Optional[list[str]] = None,
-) -> tuple[list[tuple[str, str, str]], tuple[str, str], list[tuple[str, str, str]]]:
-    """Emit comparison premises, return (all_premises, query, deductive_premises)."""
-    if is_indeterminate:
-        mid = max(2, len(entities) // 2)
-        c1, c2 = entities[:mid], entities[mid:]
-        if len(c2) < 2 and pool_for_distractors:
-            extra = [e for e in pool_for_distractors if e not in entities]
-            if extra:
-                c2 = c2 + [rng.choice(extra)]
-        p1 = []
-        for i in range(len(c1) - 1):
-            rel = "<" if rng.random() < 0.5 else ">"
-            p1.append((c1[i], rel, c1[i + 1]))
-        p2 = []
-        for i in range(len(c2) - 1):
-            rel = "<" if rng.random() < 0.5 else ">"
-            p2.append((c2[i], rel, c2[i + 1]))
-        all_premises = p1 + p2
-        if not all_premises:
-            all_premises = [(c1[0], ">", c1[-1])]
-        q = (c1[rng.randint(0, len(c1) - 1)], c2[rng.randint(0, len(c2) - 1)]) if c2 else (c1[0], c1[-1])
-        return all_premises, q, []
+def _make_chain(entities: list[str], attr: str, rng: random.Random, allow_equals: bool,
+                min_hops: int = 1, exact_hops: Optional[int] = None,
+                force_equal_run: bool = False) -> tuple[list[tuple[str, str, str]], tuple[str, str]]:
+    """Assign values, emit one truthful premise per consecutive pair, return (premises, query).
 
-    while True:
-        if allow_equals:
-            values = {e: rng.randint(1, 50) for e in entities}
-            if rng.random() < 0.2:
-                a, b = rng.sample(entities, 2)
-                values[b] = values[a]
+    Each premise is stated in a random direction ("A < B" or "B > A"), the premises
+    are shuffled, and the query is a random pair at least min_hops apart in a
+    random order — so neither the wording of a premise nor the position of an
+    entity in the text gives the answer away.
+
+    exact_hops queries a pair exactly that many hops apart (depth-controlled eval).
+    force_equal_run gives 3+ consecutive entities one value and queries two of them, so
+    the answer is "=" and is only reachable by chaining equalities.
+    """
+    if allow_equals:
+        values = {e: rng.randint(1, 50) for e in entities}
+        if rng.random() < 0.3:
+            # Force one equality pair by duplicating a value.
+            a, b = rng.sample(entities, 2)
+            values[b] = values[a]
+    else:
+        distinct = rng.sample(range(1, 100), len(entities))
+        values = dict(zip(entities, distinct))
+    run: list[str] = []
+    if force_equal_run and allow_equals and len(entities) >= 3:
+        run = rng.sample(entities, 3 if len(entities) == 3 or rng.random() < 0.5 else 4)
+        for e in run[1:]:
+            values[e] = values[run[0]]
+    order = sorted(entities, key=lambda e: (values[e], e))
+    premises: list[tuple[str, str, str]] = []
+    for lo, hi in zip(order, order[1:]):
+        if values[lo] == values[hi]:
+            premises.append(rng.choice([(lo, "=", hi), (hi, "=", lo)]))
         else:
-            distinct = rng.sample(range(1, 100), len(entities))
-            values = {e: v for e, v in zip(entities, distinct)}
-
-        order = sorted(entities, key=lambda e: (values[e], e))
-        use_descending = (rng.random() < 0.5)
-        if use_descending:
-            order = list(reversed(order))
-
-        deductive_premises = []
-        for i in range(len(order) - 1):
-            e1, e2 = order[i], order[i + 1]
-            if values[e1] == values[e2]:
-                deductive_premises.append((e1, "=", e2))
-            else:
-                rel = ">" if use_descending else "<"
-                deductive_premises.append((e1, rel, e2))
-
-        if len(order) - 1 >= min_hops:
-            q = (order[0], order[-1]) if rng.random() < 0.5 else (order[-1], order[0])
-        else:
-            q = tuple(rng.sample(entities, 2))
-
-        try:
-            ans = solve_relation(deductive_premises, q, allow_underdetermined=False)
-            if ans.split()[1] == "=" and not allow_equals:
-                continue
-        except ContradictionError:
-            continue
-
-        all_premises = list(deductive_premises)
-        if pool_for_distractors and rng.random() < 0.35:
-            available = [e for e in pool_for_distractors if e not in entities]
-            if len(available) >= 2:
-                d1, d2 = rng.sample(available, 2)
-                d_rel = ">" if rng.random() < 0.5 else "<"
-                all_premises.append((d1, d_rel, d2))
-
-        return all_premises, q, deductive_premises
+            premises.append(rng.choice([(lo, "<", hi), (hi, ">", lo)]))
+    rng.shuffle(premises)
+    if run:
+        idx = sorted(order.index(e) for e in run)
+        i, j = rng.choice([(a, b) for a in idx for b in idx if abs(a - b) >= 2])
+        return premises, (order[i], order[j])
+    if exact_hops is not None:
+        i, j = rng.choice([
+            (i, j) for i in range(len(order)) for j in range(len(order)) if abs(i - j) == exact_hops
+        ])
+        return premises, (order[i], order[j])
+    min_hops = max(1, min(min_hops, len(order) - 1))
+    i, j = rng.choice([
+        (i, j) for i in range(len(order)) for j in range(len(order)) if abs(i - j) >= min_hops
+    ])
+    return premises, (order[i], order[j])
 
 
-def _weighted_paradigm_choice(paradigms: tuple[str, ...], rng: random.Random) -> str:
-    """Choose a paradigm using PARADIGM_TRAIN_WEIGHTS for balanced sampling."""
-    available = [p for p in paradigms if p in PARADIGM_TRAIN_WEIGHTS]
-    if not available:
-        return rng.choice(list(paradigms))
-    weights = [PARADIGM_TRAIN_WEIGHTS[p] for p in available]
-    total = sum(weights)
-    weights = [w / total for w in weights]
-    r = rng.random()
-    cumulative = 0.0
-    for p, w in zip(available, weights):
-        cumulative += w
-        if r <= cumulative:
-            return p
-    return available[-1]
+def _mix_real_names(entities: list[str], real_names: list[str], fraction: float,
+                    rng: random.Random) -> list[str]:
+    """Replace each name with a real one with probability fraction; names stay distinct."""
+    out: list[str] = []
+    for name in entities:
+        if rng.random() < fraction:
+            real = rng.choice(real_names)
+            if real not in out and real not in entities:
+                name = real
+        out.append(name)
+    return out
 
 
 def generate_examples(
@@ -566,66 +443,85 @@ def generate_examples(
     seed: int,
     allow_equals: bool = True,
     min_hops: int = 1,
-    use_contrastive: bool = True,
-    use_symbolic_tokens: bool = True,
+    paradigm_weights: Optional[tuple[float, ...]] = None,
+    long_query_fraction: float = 0.0,
+    fresh: bool = False,
+    name_exclude: Optional[set] = None,
+    real_names: Optional[list[str]] = None,
+    real_name_fraction: float = 0.0,
+    balance_answers: bool = False,
+    n_entities: Optional[int] = None,
+    exact_hops: Optional[int] = None,
 ) -> list[ReasoningExample]:
-    """Generate n reasoning examples with contrastive polarity and symbolic tokens."""
-    rng = random.Random(seed)
-    out: list[ReasoningExample] = []
-    attempts = 0
-    is_train = (split == "train")
-    while len(out) < n and attempts < n * 60:
-        attempts += 1
-        if is_train:
-            paradigm = _weighted_paradigm_choice(paradigms, rng)
-        else:
-            paradigm = rng.choice(list(paradigms))
-        attr = rng.choice(ATTRIBUTES)
-        is_indet = (paradigm == "indeterminate")
-        if is_indet:
-            k = 4
-        elif paradigm == "multi_hop":
-            k = 3  # strictly 2-hop relational chaining across 3 entities (A > B, B > C => A vs C)
-        else:
-            k = rng.choice([2, 3])  # 1 to 2 hops, 2 to 3 entities per assignment specification
-        
-        # 30% Abstract / Symbolic variable curriculum during training
-        if is_train and rng.random() < 0.30:
-            current_pool = SYMBOLIC_ENTITIES
-        else:
-            current_pool = entity_pool
-            
-        entities = _pick_entities(current_pool, k, rng)
+    """Generate n distinct reasoning examples (paradigms drawn uniformly unless weighted).
 
+    long_query_fraction of the non-multi_hop examples query a pair at least two hops
+    apart, so the answer has to be composed from premises instead of read off one.
+
+    The extra options are off by default, so the default output is unchanged:
+      fresh            names are drawn from the syllable grammar per example (entity_pool
+                       is ignored), never from name_exclude
+      real_name_fraction  with fresh, each name is swapped for one from real_names
+                       with this probability
+      balance_answers  the answers are held to equal shares of >, < and = (negation
+                       examples cannot be "=", so they take the other two)
+      n_entities       fixed number of entities per example
+      exact_hops       the query pair is exactly this many hops apart
+    """
+    rng = random.Random(seed)
+    name_rng = random.Random(seed + 7919)
+    quota = -(-n // 3)
+    answer_counts = {">": 0, "<": 0, "=": 0}
+    out: list[ReasoningExample] = []
+    seen_texts: set[str] = set()
+    attempts = 0
+    while len(out) < n and attempts < n * 50:
+        attempts += 1
+        paradigm = rng.choices(list(paradigms), weights=paradigm_weights)[0]
+        attr = rng.choice(ATTRIBUTES)
+        k = rng.choice([3, 4] if paradigm != "multi_hop" else [4, 5])
+        if n_entities is not None:
+            k = n_entities
+        if fresh:
+            entities = fresh_names(k, name_rng, name_exclude)
+            if real_names and real_name_fraction > 0:
+                entities = _mix_real_names(entities, real_names, real_name_fraction, name_rng)
+        else:
+            entities = _pick_entities(entity_pool, k, rng)
+        long_hops = 2 if rng.random() < long_query_fraction else 1
+        question_rel = rng.choices(QUESTION_RELATIONS, weights=QUESTION_WEIGHTS)[0]
+        equal_run = balance_answers and paradigm != "negation" and rng.random() < 0.5
         try:
-            all_premises, query, deductive_premises = _make_chain(
+            premises, query = _make_chain(
+                # "=" is ambiguous under negation phrasing, so negation examples never get ties.
                 entities, attr, rng,
-                allow_equals=allow_equals and paradigm != "negation" and not is_indet,
-                min_hops=min_hops if paradigm == "multi_hop" else 1,
-                is_indeterminate=is_indet,
-                pool_for_distractors=current_pool,
+                allow_equals=allow_equals and paradigm != "negation",
+                min_hops=min_hops if paradigm == "multi_hop" else long_hops,
+                exact_hops=exact_hops,
+                force_equal_run=equal_run,
             )
-            answer_rel = solve_relation(all_premises, query, allow_underdetermined=True)
+            answer_rel = solve_relation(premises, query)
         except ContradictionError:
-            continue
+            continue  # skip, never mislabel
+        if balance_answers:
+            if answer_counts[answer_rel.split()[1]] >= quota:
+                continue
 
         qa, qb = query
         rel = answer_rel.split()[1]
-        use_sym = use_symbolic_tokens
-
-        # === Primary example (balanced "বেছি" / "কম" question framing) ===
-        pol = "gt" if rng.random() < 0.5 else "lt"
-        text = render_text(paradigm, all_premises, query, attr, entities, rng=rng,
-                           question_polarity=pol)
+        text = render_text(paradigm, premises, query, attr, entities, question_rel=question_rel)
+        if text in seen_texts:
+            continue
+        seen_texts.add(text)
         ans_clean = render_answer(qa, qb, rel, attr, negate=paradigm == "negation")
-        cot_str = f"{render_cot(deductive_premises, query, attr, negate=paradigm == 'negation', use_symbolic=use_sym)} {ans_clean}"
+        cot_str = f"{render_cot(premises, query, attr, negate=paradigm == 'negation')} {ans_clean}"
         ex = ReasoningExample(
             id=f"asm_{split}_{len(out):06d}",
             split=split,
             paradigm=paradigm,
             attribute=attr,
             entities=entities,
-            premises=all_premises,
+            premises=premises,
             query=query,
             answer_rel=answer_rel,
             answer_text=ans_clean,
@@ -633,64 +529,10 @@ def generate_examples(
             text=text,
         )
         out.append(ex)
-        if len(out) >= n:
-            break
-
-        # === Contrastive / Bidirectional counterpart — training only ===
-        if use_contrastive and is_train and rng.random() < 0.85:
-            # 50% inverted directional query (qb, qa), 50% same query opposite question framing
-            if rng.random() < 0.5:
-                inv_query = (qb, qa)
-                if is_indet:
-                    inv_ans_rel = f"{qb} ? {qa}"
-                    inv_rel = "?"
-                    inv_deductive = []
-                else:
-                    inv_ans_rel = solve_relation(all_premises, inv_query, allow_underdetermined=True)
-                    inv_rel = inv_ans_rel.split()[1]
-                    inv_deductive = [(o, OPPOSITE[r], s) for s, r, o in reversed(deductive_premises)]
-
-                inv_pol = "lt" if pol == "gt" else "gt"
-                text_inv = render_text(paradigm, all_premises, inv_query, attr, entities, rng=rng,
-                                       question_polarity=inv_pol)
-                ans_clean_inv = render_answer(qb, qa, inv_rel, attr, negate=paradigm == "negation")
-                cot_str_inv = f"{render_cot(inv_deductive, inv_query, attr, negate=paradigm == 'negation', use_symbolic=use_sym)} {ans_clean_inv}"
-                ex_inv = ReasoningExample(
-                    id=f"asm_{split}_{len(out):06d}",
-                    split=split,
-                    paradigm=paradigm,
-                    attribute=attr,
-                    entities=entities,
-                    premises=all_premises,
-                    query=inv_query,
-                    answer_rel=inv_ans_rel,
-                    answer_text=ans_clean_inv,
-                    cot_text=cot_str_inv,
-                    text=text_inv,
-                )
-                out.append(ex_inv)
-            elif not is_indet:
-                opp_pol = "lt" if pol == "gt" else "gt"
-                text_opp = render_text(paradigm, all_premises, query, attr, entities, rng=rng,
-                                       question_polarity=opp_pol)
-                ex_opp = ReasoningExample(
-                    id=f"asm_{split}_{len(out):06d}",
-                    split=split,
-                    paradigm=paradigm,
-                    attribute=attr,
-                    entities=entities,
-                    premises=all_premises,
-                    query=query,
-                    answer_rel=answer_rel,
-                    answer_text=ans_clean,
-                    cot_text=cot_str,
-                    text=text_opp,
-                )
-                out.append(ex_opp)
-
+        answer_counts[answer_rel.split()[1]] += 1
     if len(out) < n:
         raise RuntimeError(f"only generated {len(out)}/{n} examples (pool exhausted?)")
-    return out[:n]
+    return out
 
 
 def generate_dataset(
@@ -700,41 +542,69 @@ def generate_dataset(
     train_pool: Optional[list[str]] = None,
     val_pool: Optional[list[str]] = None,
     test_pool: Optional[list[str]] = None,
-    eval_pool: Optional[list[str]] = None,
+    fresh_train_names: bool = False,
+    real_name_fraction: float = 0.0,
+    extra_eval: bool = False,
+    n_extra: int = 500,
 ) -> dict:
-    """Generate train/val/test with the mandated three-way anti-leakage split.
+    """Generate train/val/test with the mandated anti-leakage split and write jsonl.
 
-    ``eval_pool`` is a deprecated fallback: when given without explicit
-    val/test pools it is split deterministically in half (val first).
-    """
+    fresh_train_names draws every training example's names from the syllable grammar
+    instead of the fixed pool; real_name_fraction then swaps that share of them for
+    curated train names (fresh names look unlike the real held-out names, and v5 runs
+    scored far higher on val_train_names than on val). extra_eval also writes test_balanced.jsonl (equal shares
+    of >, < and =), test_depth{2..5}.jsonl (query exactly that many hops apart) and
+    val_train_names.jsonl (built like val, but with training-style names, so comparing
+    it with val separates failing the task from failing to carry it to unseen names).
+    test.jsonl is the legacy benchmark and is not affected by either option."""
     train_pool = train_pool or TRAIN_ENTITY_POOL
-    if eval_pool is not None and val_pool is None and test_pool is None:
-        half = len(eval_pool) // 2
-        val_pool, test_pool = eval_pool[:half], eval_pool[half:]
     val_pool = val_pool or VAL_ENTITY_POOL
     test_pool = test_pool or TEST_ENTITY_POOL
     assert not (set(train_pool) & set(val_pool)), "train/val entity pools must be disjoint"
     assert not (set(train_pool) & set(test_pool)), "train/test entity pools must be disjoint"
     assert not (set(val_pool) & set(test_pool)), "val/test entity pools must be disjoint"
-    assert not (set(SYMBOLIC_ENTITIES) & (set(val_pool) | set(test_pool))), \
-        "symbolic train curriculum must not leak into eval pools"
 
+    # Train split gets 5% negation curriculum using ONLY train_pool entities
+    train_paradigms = TRAIN_PARADIGMS + ("negation",)
+    other_share = (1.0 - TRAIN_NEGATION_FRACTION) / len(TRAIN_PARADIGMS)
     train = generate_examples(
-        n_train, train_pool, TRAIN_PARADIGMS, "train", seed=seed,
+        n_train, train_pool, train_paradigms, "train", seed=seed,
         allow_equals=True, min_hops=1,
+        paradigm_weights=(other_share,) * len(TRAIN_PARADIGMS) + (TRAIN_NEGATION_FRACTION,),
+        long_query_fraction=TRAIN_LONG_QUERY_FRACTION,
+        fresh=fresh_train_names,
+        name_exclude=set(val_pool) | set(test_pool),
+        real_names=CURATED_TRAIN_POOL, real_name_fraction=real_name_fraction,
     )
+    all_paradigms = EVAL_PARADIGMS
     val = generate_examples(
-        n_val, val_pool, ALL_PARADIGMS, "val", seed=seed + 1,
+        n_val, val_pool, all_paradigms, "val", seed=seed + 1,
         allow_equals=True, min_hops=2,
     )
     test = generate_examples(
-        n_test, test_pool, ALL_PARADIGMS, "test", seed=seed + 2,
+        n_test, test_pool, all_paradigms, "test", seed=seed + 2,
         allow_equals=True, min_hops=2,
     )
 
     out = Path(out_dir)
     out.mkdir(parents=True, exist_ok=True)
     splits = {"train": train, "val": val, "test": test}
+    if extra_eval:
+        splits["test_balanced"] = generate_examples(
+            n_extra, test_pool, all_paradigms, "test_balanced", seed=seed + 3,
+            allow_equals=True, min_hops=2, balance_answers=True,
+        )
+        for hops in (2, 3, 4, 5):
+            splits[f"test_depth{hops}"] = generate_examples(
+                n_extra, test_pool, all_paradigms, f"test_depth{hops}", seed=seed + 10 + hops,
+                allow_equals=True, n_entities=hops + 1, exact_hops=hops,
+            )
+        splits["val_train_names"] = generate_examples(
+            n_extra, train_pool, all_paradigms, "val_train_names", seed=seed + 20,
+            allow_equals=True, min_hops=2,
+            fresh=fresh_train_names, name_exclude=set(val_pool) | set(test_pool),
+            real_names=CURATED_TRAIN_POOL, real_name_fraction=real_name_fraction,
+        )
     counts = {}
     for name, examples in splits.items():
         with open(out / f"{name}.jsonl", "w", encoding="utf-8") as f:
@@ -749,10 +619,12 @@ def generate_dataset(
         "train_entities": train_pool,
         "val_entities": val_pool,
         "test_entities": test_pool,
-        "eval_entities": sorted(set(val_pool) | set(test_pool)),
-        "template_version": TEMPLATE_VERSION,
-        "eval_focus_paradigms": sorted(EVAL_FOCUS_PARADIGMS),
-        "note": "multi_hop/negation/indeterminate included in eval; train/val/test entity pools 100% disjoint",
+        "reserved_paradigms": sorted(RESERVED_PARADIGMS),
+        "train_negation_fraction": TRAIN_NEGATION_FRACTION,
+        "fresh_train_names": fresh_train_names,
+        "real_name_fraction": real_name_fraction,
+        "extra_eval": sorted(k for k in counts if k not in ("train", "val", "test")),
+        "note": "multi_hop reserved for eval; train/val/test entity pools disjoint",
     }
     with open(out / "manifest.json", "w", encoding="utf-8") as f:
         json.dump(manifest, f, ensure_ascii=False, indent=2)
@@ -760,22 +632,33 @@ def generate_dataset(
 
 
 def main(argv: Optional[list[str]] = None) -> int:
-    parser = argparse.ArgumentParser(description="Generate reasoning data (Assamese)")
+    parser = argparse.ArgumentParser(description="Generate Assamese reasoning data")
     parser.add_argument("--out-dir", default=str(Path(__file__).resolve().parents[1] / "finetune" / "reasoning"))
-    parser.add_argument("--n-train", type=int, default=20000)
+    parser.add_argument("--n-train", type=int, default=480000)
     parser.add_argument("--n-val", type=int, default=1000)
     parser.add_argument("--n-test", type=int, default=2000)
     parser.add_argument("--seed", type=int, default=1337)
+    parser.add_argument("--fresh-train-names", action=argparse.BooleanOptionalAction, default=True,
+                        help="draw each training example's names from the syllable grammar")
+    parser.add_argument("--real-name-fraction", type=float, default=0.0,
+                        help="with --fresh-train-names, share of names taken from the curated train pool")
+    parser.add_argument("--extra-eval", action="store_true",
+                        help="also write test_balanced.jsonl and test_depth{2..5}.jsonl")
+    parser.add_argument("--n-extra", type=int, default=500, help="examples per extra eval file")
     args = parser.parse_args(argv)
     manifest = generate_dataset(
-        args.n_train, args.n_val, args.n_test, args.out_dir, seed=args.seed
+        args.n_train, args.n_val, args.n_test, args.out_dir, seed=args.seed,
+        fresh_train_names=args.fresh_train_names, real_name_fraction=args.real_name_fraction,
+        extra_eval=args.extra_eval, n_extra=args.n_extra,
     )
     _print_utf8(json.dumps(manifest, ensure_ascii=False, indent=2))
     return 0
 
 
 def _print_utf8(text: str) -> None:
+    """Print UTF-8 text safely even when the console codepage is e.g. cp1252."""
     import sys as _sys
+
     if hasattr(_sys.stdout, "reconfigure"):
         _sys.stdout.reconfigure(encoding="utf-8", errors="replace")
     print(text)
