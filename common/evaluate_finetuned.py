@@ -37,9 +37,21 @@ def main(argv=None) -> int:
     parser.add_argument("--max-new-tokens", type=int, default=None,
                         help="default: finetune MAX_NEW_TOKENS (Direct); CoT on long chains needs ~160")
     parser.add_argument("--device", default=None)
+    parser.add_argument("--save-predictions", action="store_true",
+                        help="also write every generation to <out stem>_predictions.jsonl")
     args = parser.parse_args(argv)
 
     ft = importlib.import_module(f"{args.lang}.finetune.finetune")
+    captured = []
+    if args.save_predictions:  # keep what evaluate_reasoning generates, instead of generating twice
+        generate = ft.generate_predictions
+
+        def capture(*a, **kw):
+            preds = generate(*a, **kw)
+            captured.append(preds)
+            return preds
+
+        ft.generate_predictions = capture
     device = args.device or ("cuda" if torch.cuda.is_available() else "cpu")
     saved = torch.load(args.ckpt, map_location="cpu", weights_only=False)
     with tempfile.TemporaryDirectory() as tmp:
@@ -53,6 +65,7 @@ def main(argv=None) -> int:
     max_new_tokens = args.max_new_tokens or ft.MAX_NEW_TOKENS
 
     results = {"checkpoint": str(args.ckpt), "max_new_tokens": max_new_tokens, "splits": {}}
+    pred_rows = []
     for name in args.files:
         path = Path(args.data_dir) / f"{name}.jsonl"
         if not path.exists():
@@ -63,6 +76,15 @@ def main(argv=None) -> int:
         r = ft.evaluate_reasoning(model, tokenizer, examples, device=device, max_new_tokens=max_new_tokens)
         r["chance_baseline"] = ft.chance_baselines(examples)
         results["splits"][name] = r
+        if args.save_predictions:
+            for ex, pred in zip(examples, captured.pop()):
+                pred_rows.append({
+                    "split": name, "text": ex["text"], "gold_answer": ex["answer_text"],
+                    "gold_cot": ex.get("cot_text"), "gold_rel": ex["answer_rel"].split()[1],
+                    "prediction": pred,
+                    "pred_rel": None if pred is None
+                    else ft.asserted_relation(ft.extract_answer_from_prediction(pred), ex),
+                })
         print(f"{name:22s} n={r['n_examples']:5d} strict={r['accuracy_answer_strict']:.4f} "
               f"relation={r['accuracy_relation']:.4f} macroF1={r['macro_f1_relation']:.4f} "
               f"majority={r['chance_baseline']['majority_accuracy']:.4f} ({time.time() - start:.0f}s)",
@@ -70,6 +92,10 @@ def main(argv=None) -> int:
 
     Path(args.out).parent.mkdir(parents=True, exist_ok=True)
     Path(args.out).write_text(json.dumps(results, ensure_ascii=False, indent=2), encoding="utf-8")
+    if args.save_predictions:
+        pred_path = Path(args.out).with_name(Path(args.out).stem + "_predictions.jsonl")
+        pred_path.write_text("".join(json.dumps(r, ensure_ascii=False) + "\n" for r in pred_rows),
+                             encoding="utf-8")
     return 0
 
 
