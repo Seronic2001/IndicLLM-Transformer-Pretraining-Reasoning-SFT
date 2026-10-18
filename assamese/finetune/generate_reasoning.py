@@ -19,7 +19,7 @@ import argparse
 import json
 import random
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Optional
 
@@ -140,6 +140,11 @@ TRAIN_NEGATION_FRACTION = 0.05  # negation curriculum share of the train split
 TRAIN_LONG_QUERY_FRACTION = 0.5  # train queries forced >= 2 hops apart (otherwise >= 1)
 QUESTION_RELATIONS = (">", "<", "=")  # relation the question asks about...
 QUESTION_WEIGHTS = (0.4, 0.4, 0.2)    # ...drawn independently of the true answer
+# Harder eval splits (--hard-eval), never used in training: chains longer than any
+# training or test_depth chain, and depth-3/4 chains with premises the answer does
+# not need, so the model has to pick out the relevant path.
+HARD_DEPTHS = (6, 8, 10)
+HARD_N_EXTRA_PREMISES = 3
 
 
 @dataclass
@@ -155,6 +160,7 @@ class ReasoningExample:
     answer_text: str
     cot_text: str
     text: str
+    distractors: list = field(default_factory=list)  # (subj, rel, obj, attr), another attribute
 
     def to_dict(self) -> dict:
         return {
@@ -169,6 +175,7 @@ class ReasoningExample:
             "answer_text": self.answer_text,
             "cot_text": self.cot_text,
             "text": self.text,
+            **({"distractors": [list(d) for d in self.distractors]} if self.distractors else {}),
         }
 
 
@@ -307,18 +314,21 @@ def render_cot(premises: list[tuple[str, str, str]], query: tuple[str, str], att
 
 
 def render_text(paradigm: str, premises: list[tuple[str, str, str]], query: tuple[str, str],
-                attr: str, entity_pool_names: list[str], question_rel: str = ">") -> str:
+                attr: str, entity_pool_names: list[str], question_rel: str = ">",
+                stated: Optional[list[tuple[str, str, str, str]]] = None) -> str:
     a, b = query
     negate = paradigm == "negation"
-    body = " ".join(render_premise(s, o, rel, attr, negate=negate) for s, rel, o in premises)
+    # stated: (subj, rel, obj, attr) in display order, when it includes distractors
+    stated = stated or [(s, rel, o, attr) for s, rel, o in premises]
+    body = " ".join(render_premise(s, o, rel, at, negate=negate) for s, rel, o, at in stated)
     q = QUESTIONS[question_rel].format(A=a, B=b, attr=attr)
     if paradigm in ("transitive", "multi_hop", "negation"):
         return body + " " + q
     if paradigm == "conversational":
         lines = []
-        for i, (s, rel, o) in enumerate(premises):
+        for i, (s, rel, o, at) in enumerate(stated):
             speaker = s if i % 2 == 0 else o
-            lines.append(f"{speaker} কলে যে {render_premise(s, o, rel, attr, negate=negate)}")
+            lines.append(f"{speaker} কলে যে {render_premise(s, o, rel, at, negate=negate)}")
         lines.append(f"{a} সুধিলে যে {q}")
         return " ".join(lines)
     if paradigm == "word_problem":
@@ -422,6 +432,45 @@ def _make_chain(entities: list[str], attr: str, rng: random.Random, allow_equals
     return premises, (order[i], order[j])
 
 
+def _branch_premises(chain: list[str], extra: list[str], rng: random.Random,
+                     allow_equals: bool) -> list[tuple[str, str, str]]:
+    """Attach each extra entity to a random entity already in the graph by one premise.
+
+    The graph stays a tree, so the path between the query entities is unchanged and
+    the extra premises are true but irrelevant to the answer."""
+    attached = list(chain)
+    rels = [">", "<"] + (["="] if allow_equals else [])
+    out = []
+    for x in extra:
+        y, rel = rng.choice(attached), rng.choice(rels)
+        out.append(rng.choice([(x, rel, y), (y, OPPOSITE[rel], x)]))
+        attached.append(x)
+    return out
+
+
+def _shortcut_premises(premises: list[tuple[str, str, str]], chain: list[str], query: tuple[str, str],
+                       n: int, rng: random.Random) -> list[tuple[str, str, str]]:
+    """Up to n true premises between chain entities that are not already linked,
+    never the query pair itself, so the answer still has to be composed."""
+    linked = {frozenset((s, o)) for s, _r, o in premises} | {frozenset(query)}
+    pairs = [(u, v) for i, u in enumerate(chain) for v in chain[i + 1:] if frozenset((u, v)) not in linked]
+    out = []
+    for u, v in rng.sample(pairs, min(n, len(pairs))):
+        rel = solve_relation(premises, (u, v)).split()[1]
+        out.append(rng.choice([(u, rel, v), (v, OPPOSITE[rel], u)]))
+    return out
+
+
+def _attribute_distractors(chain: list[str], attr: str, n: int,
+                           rng: random.Random) -> list[tuple[str, str, str, str]]:
+    """Up to n true premises about the same entities under another attribute (no ties,
+    so they are valid under negation phrasing too); they say nothing about attr."""
+    other = rng.choice([a for a in ATTRIBUTES if a != attr])
+    order = rng.sample(chain, len(chain))  # ascending in the other attribute
+    pairs = rng.sample(list(zip(order, order[1:])), min(n, len(order) - 1))
+    return [(*rng.choice([(lo, "<", hi), (hi, ">", lo)]), other) for lo, hi in pairs]
+
+
 def _mix_real_names(entities: list[str], real_names: list[str], fraction: float,
                     rng: random.Random) -> list[str]:
     """Replace each name with a real one with probability fraction; names stay distinct."""
@@ -452,6 +501,9 @@ def generate_examples(
     balance_answers: bool = False,
     n_entities: Optional[int] = None,
     exact_hops: Optional[int] = None,
+    branch_entities: int = 0,
+    shortcut_premises: int = 0,
+    attribute_distractors: int = 0,
 ) -> list[ReasoningExample]:
     """Generate n distinct reasoning examples (paradigms drawn uniformly unless weighted).
 
@@ -467,6 +519,9 @@ def generate_examples(
                        examples cannot be "=", so they take the other two)
       n_entities       fixed number of entities per example
       exact_hops       the query pair is exactly this many hops apart
+      branch_entities  extra entities hung off the chain (irrelevant premises)
+      shortcut_premises  extra true premises between non-adjacent chain entities
+      attribute_distractors  extra premises about another attribute
     """
     rng = random.Random(seed)
     name_rng = random.Random(seed + 7919)
@@ -482,24 +537,34 @@ def generate_examples(
         k = rng.choice([3, 4] if paradigm != "multi_hop" else [4, 5])
         if n_entities is not None:
             k = n_entities
+        k_all = k + branch_entities
         if fresh:
-            entities = fresh_names(k, name_rng, name_exclude)
+            entities = fresh_names(k_all, name_rng, name_exclude)
             if real_names and real_name_fraction > 0:
                 entities = _mix_real_names(entities, real_names, real_name_fraction, name_rng)
         else:
-            entities = _pick_entities(entity_pool, k, rng)
+            entities = _pick_entities(entity_pool, k_all, rng)
         long_hops = 2 if rng.random() < long_query_fraction else 1
         question_rel = rng.choices(QUESTION_RELATIONS, weights=QUESTION_WEIGHTS)[0]
         equal_run = balance_answers and paradigm != "negation" and rng.random() < 0.5
         try:
             premises, query = _make_chain(
                 # "=" is ambiguous under negation phrasing, so negation examples never get ties.
-                entities, attr, rng,
+                entities[:k], attr, rng,
                 allow_equals=allow_equals and paradigm != "negation",
                 min_hops=min_hops if paradigm == "multi_hop" else long_hops,
                 exact_hops=exact_hops,
                 force_equal_run=equal_run,
             )
+            stated = None
+            if branch_entities or shortcut_premises or attribute_distractors:
+                chain = entities[:k]
+                premises = premises + _branch_premises(chain, entities[k:], rng,
+                                                       allow_equals and paradigm != "negation")
+                premises = premises + _shortcut_premises(premises, chain, query, shortcut_premises, rng)
+                distractors = _attribute_distractors(chain, attr, attribute_distractors, rng)
+                stated = [(s, rel, o, attr) for s, rel, o in premises] + distractors
+                rng.shuffle(stated)
             answer_rel = solve_relation(premises, query)
         except ContradictionError:
             continue  # skip, never mislabel
@@ -509,7 +574,8 @@ def generate_examples(
 
         qa, qb = query
         rel = answer_rel.split()[1]
-        text = render_text(paradigm, premises, query, attr, entities, question_rel=question_rel)
+        text = render_text(paradigm, premises, query, attr, entities, question_rel=question_rel,
+                           stated=stated)
         if text in seen_texts:
             continue
         seen_texts.add(text)
@@ -527,6 +593,7 @@ def generate_examples(
             answer_text=ans_clean,
             cot_text=cot_str,
             text=text,
+            distractors=[d for d in (stated or []) if d[3] != attr],
         )
         out.append(ex)
         answer_counts[answer_rel.split()[1]] += 1
@@ -546,6 +613,7 @@ def generate_dataset(
     real_name_fraction: float = 0.0,
     extra_eval: bool = False,
     n_extra: int = 500,
+    hard_eval: bool = False,
 ) -> dict:
     """Generate train/val/test with the mandated anti-leakage split and write jsonl.
 
@@ -605,6 +673,27 @@ def generate_dataset(
             fresh=fresh_train_names, name_exclude=set(val_pool) | set(test_pool),
             real_names=CURATED_TRAIN_POOL, real_name_fraction=real_name_fraction,
         )
+    if hard_eval:
+        # Test names only; no training example has more than 4 entities or 3 hops.
+        for hops in HARD_DEPTHS:
+            splits[f"test_depth{hops}"] = generate_examples(
+                n_extra, test_pool, all_paradigms, f"test_depth{hops}", seed=seed + 30 + hops,
+                allow_equals=True, n_entities=hops + 1, exact_hops=hops,
+            )
+        # Same chains as test_depth3 / test_depth4 plus HARD_N_EXTRA_PREMISES premises the
+        # answer does not need: compare each with that depth split.
+        splits["test_branch"] = generate_examples(
+            n_extra, test_pool, all_paradigms, "test_branch", seed=seed + 50,
+            allow_equals=True, n_entities=4, exact_hops=3, branch_entities=HARD_N_EXTRA_PREMISES,
+        )
+        splits["test_distractor_attr"] = generate_examples(
+            n_extra, test_pool, all_paradigms, "test_distractor_attr", seed=seed + 51,
+            allow_equals=True, n_entities=4, exact_hops=3, attribute_distractors=HARD_N_EXTRA_PREMISES,
+        )
+        splits["test_redundant"] = generate_examples(
+            n_extra, test_pool, all_paradigms, "test_redundant", seed=seed + 52,
+            allow_equals=True, n_entities=5, exact_hops=4, shortcut_premises=HARD_N_EXTRA_PREMISES,
+        )
     counts = {}
     for name, examples in splits.items():
         with open(out / f"{name}.jsonl", "w", encoding="utf-8") as f:
@@ -645,11 +734,14 @@ def main(argv: Optional[list[str]] = None) -> int:
     parser.add_argument("--extra-eval", action="store_true",
                         help="also write test_balanced.jsonl and test_depth{2..5}.jsonl")
     parser.add_argument("--n-extra", type=int, default=500, help="examples per extra eval file")
+    parser.add_argument("--hard-eval", action="store_true",
+                        help="also write test_depth{6,8,10}, test_branch, test_distractor_attr, test_redundant")
     args = parser.parse_args(argv)
     manifest = generate_dataset(
         args.n_train, args.n_val, args.n_test, args.out_dir, seed=args.seed,
         fresh_train_names=args.fresh_train_names, real_name_fraction=args.real_name_fraction,
         extra_eval=args.extra_eval, n_extra=args.n_extra,
+        hard_eval=args.hard_eval,
     )
     _print_utf8(json.dumps(manifest, ensure_ascii=False, indent=2))
     return 0
