@@ -1,0 +1,388 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Hindi & Assamese mini-LMs</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%233a5bd9'/%3E%3Ctext x='32' y='47' text-anchor='middle' font-family='Nirmala UI,Noto Sans Devanagari,Mangal,sans-serif' font-size='44' font-weight='700' fill='%23fff'%3E%E0%A4%85%3C/text%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Noto+Sans+Bengali:wght@400;500;600&family=Noto+Sans+Devanagari:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #f5f4f0; --panel: #ffffff; --panel-2: #faf9f6; --text: #1c1b18; --muted: #6b6960; --faint: #9a978c;
+    --line: #e4e2da; --line-2: #d4d1c6; --accent: #3a5bd9; --accent-soft: #e8edfc; --accent-text: #ffffff;
+    --ok: #217a4b; --ok-soft: #e3f3ea; --bad: #b23b25; --bad-soft: #fbe9e4; --gen: #1f3fae; --mark-a: #fde9b8; --mark-b: #d6ecff;
+    --t0: #fbe3d6; --t1: #dcefd9; --t2: #dde6fb; --t3: #f6dcef; --t4: #f3efc9;
+    --shadow: 0 1px 2px rgba(30, 28, 20, .05), 0 4px 16px rgba(30, 28, 20, .05);
+    --ui: "Inter", system-ui, sans-serif;
+    --script: "Noto Sans Devanagari", "Noto Sans Bengali", "Inter", system-ui, sans-serif;
+    --mono: "JetBrains Mono", ui-monospace, monospace;
+    color-scheme: light dark; /* native scrollbars and form controls follow the theme */
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #121210; --panel: #1b1b19; --panel-2: #171715; --text: #ecebe6; --muted: #a6a398; --faint: #77756c;
+      --line: #2c2c28; --line-2: #3a3a35; --accent: #8ea6ff; --accent-soft: #232a45; --accent-text: #0f1220;
+      --ok: #6fd19b; --ok-soft: #1b2e23; --bad: #f08f78; --bad-soft: #35201b; --gen: #a9bcff; --mark-a: #5b4a1d; --mark-b: #1f3c57;
+      --t0: #4a2f22; --t1: #263f27; --t2: #273452; --t3: #452a3f; --t4: #403c1f;
+      --shadow: 0 1px 2px rgba(0, 0, 0, .3), 0 4px 16px rgba(0, 0, 0, .25);
+    }
+  }
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.55 var(--ui); }
+  main { max-width: 920px; margin: 0 auto; padding: 32px 16px 56px; }
+  button, select, textarea, input { font: inherit; color: inherit; }
+  h1 { font-size: 1.6rem; line-height: 1.2; letter-spacing: -0.02em; margin: 0 0 6px; }
+  h2 { font-size: 0.95rem; margin: 0; }
+  .muted { color: var(--muted); }
+
+  /* header */
+  .top { display: flex; flex-wrap: wrap; gap: 16px 24px; align-items: flex-end; justify-content: space-between; }
+  .top p { margin: 0; color: var(--muted); max-width: 560px; }
+  .facts { display: flex; flex-wrap: wrap; gap: 8px; list-style: none; padding: 0; margin: 18px 0 24px; }
+  .facts li { font-size: 0.8rem; color: var(--muted); background: var(--panel); border: 1px solid var(--line);
+              border-radius: 999px; padding: 3px 10px; }
+  .facts b { color: var(--text); font-weight: 600; }
+
+  .top-controls { display: flex; flex-direction: column; align-items: flex-end; gap: 10px; }
+  @media (max-width: 560px) { .top-controls { align-items: flex-start; } }
+  .switch { display: inline-flex; align-items: center; gap: 8px; font-size: 0.85rem; cursor: pointer; margin: 0; color: var(--text); }
+  .switch input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+  .switch .track { width: 34px; height: 20px; border-radius: 99px; background: var(--line-2); position: relative; flex: none; transition: background .15s; }
+  .switch .track::after { content: ""; position: absolute; top: 3px; left: 3px; width: 14px; height: 14px; border-radius: 50%; background: var(--panel); transition: transform .15s; box-shadow: 0 1px 2px rgba(0,0,0,.25); }
+  .switch input:checked + .track { background: var(--accent); }
+  .switch input:checked + .track::after { transform: translateX(14px); }
+  .switch input:focus-visible + .track { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  /* transliteration suggestions */
+  .tl-bar { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; min-height: 34px; margin-top: 6px; }
+  .tl-bar[hidden] { display: none; }
+  .tl-hint { font-size: 0.8rem; color: var(--muted); }
+  .tl-opt { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--line-2); background: var(--panel);
+            border-radius: 8px; padding: 3px 10px 3px 4px; font-family: var(--script); font-size: 1rem; cursor: pointer; }
+  .tl-opt:hover { border-color: var(--accent); }
+  .tl-opt.first { border-color: var(--accent); background: var(--accent-soft); }
+  .tl-opt kbd { font: 500 0.68rem var(--mono); color: var(--muted); background: var(--panel-2); border: 1px solid var(--line);
+                border-radius: 4px; padding: 0 4px; }
+  .tl-opt.latin { font-family: var(--ui); font-size: 0.85rem; color: var(--muted); padding-left: 10px; }
+  .tl-convert { font-size: 0.8rem; border: 0; background: none; color: var(--accent); cursor: pointer; padding: 2px 4px; text-decoration: underline; }
+
+  /* segmented controls */
+  .seg { display: inline-flex; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 3px; gap: 2px; }
+  .seg button { border: 0; background: none; border-radius: 7px; padding: 6px 12px; cursor: pointer; color: var(--muted); font-weight: 500; }
+  .seg button:hover { color: var(--text); }
+  .seg button[aria-checked="true"] { background: var(--accent); color: var(--accent-text); }
+  .seg .native { font-family: var(--script); font-weight: 600; margin-right: 4px; }
+  .seg.small button { padding: 4px 10px; min-width: 34px; }
+  .settings-body .seg { justify-self: start; }
+
+  /* tabs */
+  .tabs { display: flex; gap: 2px; border-bottom: 1px solid var(--line); margin-bottom: 16px;
+          overflow-x: auto; overflow-y: hidden; scrollbar-width: none; }
+  .tabs button { background: none; border: 0; border-bottom: 2px solid transparent; color: var(--muted);
+                 padding: 10px 14px; font-weight: 600; cursor: pointer; white-space: nowrap; margin-bottom: -1px; }
+  .tabs button:hover { color: var(--text); }
+  .tabs button[aria-selected="true"] { color: var(--text); border-bottom-color: var(--accent); }
+  [role=tabpanel][hidden] { display: none; }
+  .panel { display: grid; gap: 14px; }
+
+  /* cards */
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 18px; box-shadow: var(--shadow); min-width: 0; }
+  .card-head { display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+  .tag { font-size: 0.75rem; color: var(--muted); background: var(--panel-2); border: 1px solid var(--line); border-radius: 6px; padding: 2px 8px; }
+  .hint { color: var(--muted); font-size: 0.87rem; margin: -4px 0 14px; }
+  label, .label { display: block; font-size: 0.8rem; font-weight: 500; color: var(--muted); margin-bottom: 6px; }
+  textarea { width: 100%; resize: vertical; background: var(--panel-2); border: 1px solid var(--line-2); border-radius: 10px;
+             padding: 10px 12px; font-family: var(--script); font-size: 1.02rem; line-height: 1.7; }
+  textarea:focus, button:focus-visible, select:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+  .chip { border: 1px solid var(--line); background: var(--panel-2); border-radius: 999px; padding: 3px 10px;
+          font-family: var(--script); font-size: 0.85rem; cursor: pointer; color: var(--muted); max-width: 100%;
+          overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .chip:hover { color: var(--text); border-color: var(--line-2); }
+
+  .actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 14px; }
+  .btn { border: 1px solid var(--line-2); background: var(--panel); border-radius: 9px; padding: 8px 16px;
+         font-weight: 600; cursor: pointer; }
+  .btn:hover { background: var(--panel-2); }
+  .btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-text); }
+  .btn.primary:hover { filter: brightness(1.06); }
+  .btn:disabled { opacity: .5; cursor: not-allowed; }
+  .btn.ghost { border-color: transparent; background: none; color: var(--muted); padding: 6px 10px; font-weight: 500; }
+  .btn.ghost:hover { color: var(--text); background: var(--panel-2); }
+  .spacer { flex: 1; }
+
+  details.settings { margin-top: 14px; border: 1px solid var(--line); border-radius: 10px; background: var(--panel-2); }
+  details.settings summary { cursor: pointer; padding: 9px 12px; font-size: 0.87rem; font-weight: 600; color: var(--muted); list-style: none; }
+  details.settings summary::-webkit-details-marker { display: none; }
+  details.settings summary::before { content: "▸"; display: inline-block; width: 1em; transition: transform .15s; }
+  details.settings[open] summary::before { transform: rotate(90deg); }
+  .settings-body { padding: 4px 12px 14px; display: grid; gap: 14px; }
+  .sliders { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 14px 22px; }
+  .slider label { display: flex; justify-content: space-between; }
+  .slider output { font-family: var(--mono); color: var(--text); font-size: 0.8rem; }
+  input[type=range] { width: 100%; accent-color: var(--accent); }
+
+  /* output */
+  .output { font-family: var(--script); font-size: 1.05rem; line-height: 1.85; white-space: pre-wrap; overflow-wrap: anywhere;
+            min-height: 6.5em; padding: 12px 14px; border-radius: 10px; background: var(--panel-2); border: 1px solid var(--line); }
+  .output .p { color: var(--muted); }
+  .output .g { color: var(--gen); }
+  .output.empty::before { content: attr(data-empty); color: var(--faint); font-family: var(--ui); font-size: 0.9rem; }
+  .caret { display: inline-block; width: 0.5em; height: 1.1em; vertical-align: -0.18em; background: var(--gen); margin-left: 1px; animation: blink 1s steps(1) infinite; }
+  @keyframes blink { 50% { opacity: 0; } }
+  .stats { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+  .stat { font-family: var(--mono); font-size: 0.75rem; color: var(--muted); background: var(--panel-2); border: 1px solid var(--line); border-radius: 6px; padding: 1px 7px; }
+  .status { display: flex; align-items: center; gap: 10px; min-height: 22px; margin-top: 10px; font-size: 0.83rem; color: var(--muted); }
+  .bar { flex: 0 0 140px; height: 5px; border-radius: 99px; background: var(--line); overflow: hidden; }
+  .bar i { display: block; height: 100%; width: 0; background: var(--accent); transition: width .15s; }
+  .bar[hidden] { display: none; }
+
+  /* reasoning */
+  .hop-row { display: flex; flex-wrap: wrap; gap: 10px 18px; align-items: center; margin-bottom: 14px; }
+  .hop-note { font-size: 0.8rem; }
+  .hop-note.beyond { color: var(--bad); }
+  .premises { margin: 0; padding: 0; list-style: none; counter-reset: p; display: grid; gap: 6px;
+              font-family: var(--script); font-size: 1.02rem; line-height: 1.7; }
+  .premises li { counter-increment: p; display: grid; grid-template-columns: 28px 1fr; align-items: baseline;
+                 background: var(--panel-2); border: 1px solid var(--line); border-radius: 9px; padding: 6px 10px; min-width: 0; }
+  .premises li::before { content: counter(p); font: 500 0.75rem var(--mono); color: var(--faint); }
+  .ask { display: flex; gap: 12px; align-items: baseline; font-family: var(--script); font-size: 1.12rem; font-weight: 500;
+         line-height: 1.7; padding: 10px 14px; border: 1.5px solid var(--accent); background: var(--accent-soft); border-radius: 10px; }
+  .ask::before { content: "Q"; font: 700 0.8rem var(--ui); color: var(--accent-text); background: var(--accent);
+                 border-radius: 5px; padding: 1px 7px; flex: none; position: relative; top: -2px; }
+  .ask:empty { display: none; }
+  .legend-inline { font-weight: 400; color: var(--faint); }
+  mark { border-radius: 3px; color: inherit; }
+  mark.a { background: var(--mark-a); box-shadow: 0 0 0 2px var(--mark-a); }
+  mark.b { background: var(--mark-b); box-shadow: 0 0 0 2px var(--mark-b); }
+  .model-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 14px 28px; margin-bottom: 16px; align-items: start; }
+  @media (max-width: 720px) { .model-grid { grid-template-columns: minmax(0, 1fr); } }
+  #variant { flex-wrap: wrap; }
+  .model-note { margin: 8px 0 0; font-size: 0.85rem; color: var(--muted); line-height: 1.5; }
+  .model-note b { color: var(--text); font-weight: 600; }
+  .acc { margin: 0; background: var(--panel-2); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px 8px; }
+  .acc-bars { display: grid; gap: 5px; }
+  .acc-row { display: grid; grid-template-columns: 74px minmax(0, 1fr) 46px; gap: 8px; align-items: center; font-size: 0.8rem;
+             border-radius: 6px; padding: 1px 2px; cursor: default; }
+  .acc-row .n { color: var(--muted); white-space: nowrap; }
+  .acc-row.sel .n { color: var(--text); font-weight: 600; }
+  .acc-row .v { font-family: var(--mono); text-align: right; color: var(--muted); }
+  .acc-row.sel .v { color: var(--text); }
+  .acc-track { position: relative; height: 10px; }
+  .acc-track i { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 0 4px 4px 0; background: var(--faint); opacity: .55; }
+  .acc-row.sel .acc-track i { background: var(--accent); opacity: 1; }
+  .acc-track .chance { position: absolute; top: -3px; bottom: -3px; width: 0; border-left: 1.5px dashed var(--muted); }
+  .acc-foot { font-size: 0.72rem; color: var(--faint); margin-top: 6px; }
+  .solver-line { display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: baseline; font-size: 0.88rem; color: var(--muted); margin-bottom: 10px; }
+  .solver-line .solver { font-family: var(--script); color: var(--text); font-size: 1rem; }
+  .results { display: grid; gap: 8px; min-height: 3.6em; }
+  .results:not(.empty) { padding: 0; background: none; border: 0; }
+  .res { border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; background: var(--panel-2); min-width: 0; }
+  .res.ok { border-left: 4px solid var(--ok); } .res.bad { border-left: 4px solid var(--bad); } .res.none { border-left: 4px solid var(--line-2); }
+  .res-head { display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; font-family: var(--ui); font-size: 0.82rem; margin-bottom: 4px; }
+  .res-head .who { font-weight: 700; }
+  .res-head .ok { color: var(--ok); font-weight: 600; } .res-head .bad { color: var(--bad); font-weight: 600; }
+  .res-head .spacer { flex: 1; }
+  .res-text { font-family: var(--script); font-size: 1.02rem; line-height: 1.7; white-space: pre-wrap; overflow-wrap: anywhere; }
+  .res-pending { color: var(--faint); font-family: var(--ui); font-size: 0.85rem; }
+  .chain { display: flex; flex-wrap: wrap; gap: 4px 6px; align-items: center; margin: 2px 0 6px; font-family: var(--script); font-size: 0.9rem; }
+  .chain .step { background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 0 7px; white-space: nowrap; }
+  .chain .so { color: var(--muted); font-family: var(--ui); font-size: 0.8rem; }
+  .chain .concl { border-color: var(--accent); }
+  .chain-label { font: 500 0.72rem var(--ui); color: var(--faint); text-transform: uppercase; letter-spacing: .04em; margin-right: 2px; }
+  .verdict { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; margin-top: 12px; padding: 10px 12px; border-radius: 10px; font-size: 0.9rem; }
+  .verdict[hidden] { display: none; }
+  .verdict.ok { background: var(--ok-soft); color: var(--ok); }
+  .verdict.bad { background: var(--bad-soft); color: var(--bad); }
+  .verdict.none { background: var(--panel-2); color: var(--muted); border: 1px solid var(--line); }
+  .verdict b { font-weight: 700; }
+  .verdict .solver { font-family: var(--script); color: var(--text); }
+  .score { font-size: 0.8rem; }
+
+  /* tokenizer */
+  .tok-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 8px; margin: 14px 0; }
+  .metric { background: var(--panel-2); border: 1px solid var(--line); border-radius: 10px; padding: 8px 12px; }
+  .metric .v { font-size: 1.25rem; font-weight: 700; letter-spacing: -0.01em; }
+  .metric .k { font-size: 0.75rem; color: var(--muted); }
+  .tokens { display: flex; flex-wrap: wrap; gap: 4px 3px; align-items: flex-start; padding: 12px; border-radius: 10px;
+            background: var(--panel-2); border: 1px solid var(--line); min-height: 4em; }
+  .tk { display: inline-flex; flex-direction: column; align-items: center; border-radius: 6px; padding: 2px 5px 1px; min-width: 0; max-width: 100%; }
+  .tk .s { font-family: var(--script); font-size: 1.05rem; line-height: 1.5; white-space: pre; }
+  .tk .i { font: 0.62rem var(--mono); color: var(--muted); display: none; }
+  .tokens.ids .tk .i { display: block; }
+  .tk.w { margin-left: 7px; }
+  .tk.w .s::before { content: "▁"; color: var(--faint); font-size: 0.7em; margin-right: 1px; }
+  .tk.c0 { background: var(--t0); } .tk.c1 { background: var(--t1); } .tk.c2 { background: var(--t2); }
+  .tk.c3 { background: var(--t3); } .tk.c4 { background: var(--t4); }
+  .tk.bytes { background: none; outline: 1.5px dashed var(--bad); outline-offset: -1.5px; }
+  .tk.nl { background: none; outline: 1px dashed var(--line-2); outline-offset: -1px; }
+  .tok-opts { display: flex; flex-wrap: wrap; gap: 10px 18px; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+  .check-label { display: inline-flex; gap: 6px; align-items: center; font-size: 0.85rem; color: var(--muted); margin: 0; cursor: pointer; }
+  .legend { display: flex; flex-wrap: wrap; gap: 12px; font-size: 0.78rem; color: var(--muted); margin-top: 10px; }
+  .legend span { display: inline-flex; gap: 5px; align-items: center; }
+  .sw { width: 14px; height: 12px; border-radius: 3px; display: inline-block; }
+
+  footer { color: var(--muted); font-size: 0.82rem; margin-top: 28px; line-height: 1.7; }
+  a { color: var(--accent); }
+  @media (max-width: 560px) {
+    main { padding-top: 22px; }
+    h1 { font-size: 1.35rem; }
+    .card { padding: 14px; }
+    .bar { flex-basis: 90px; }
+  }
+</style>
+</head>
+<body>
+<main>
+  <div class="top">
+    <div>
+      <h1>Hindi &amp; Assamese mini language models</h1>
+      <p>Small Transformers trained from scratch, running entirely in your browser. Nothing you type leaves this page.</p>
+    </div>
+    <div class="top-controls">
+      <div class="seg" role="radiogroup" aria-label="Language" id="lang">
+        <button role="radio" aria-checked="true" data-lang="hindi"><span class="native">हिन्दी</span>Hindi</button>
+        <button role="radio" aria-checked="false" data-lang="assamese"><span class="native">অসমীয়া</span>Assamese</button>
+      </div>
+      <label class="switch"><input type="checkbox" id="translit" role="switch">
+        <span class="track" aria-hidden="true"></span><span>Type in English letters <span class="muted" id="translit-example">(abc → अबक)</span></span></label>
+    </div>
+  </div>
+  <ul class="facts">
+    <li><b>25M</b> parameters per model</li>
+    <li><b>500M</b> training tokens per language</li>
+    <li><b>16,384</b>-piece BPE tokenizer</li>
+    <li><b>512</b>-token context</li>
+    <li>ONNX, fp16 weights, ~64 MB per model</li>
+  </ul>
+
+  <div class="tabs" role="tablist">
+    <button role="tab" id="tab-gen" aria-selected="true" aria-controls="gen">Generate</button>
+    <button role="tab" id="tab-rsn" aria-selected="false" aria-controls="rsn">Reasoning</button>
+    <button role="tab" id="tab-tok" aria-selected="false" aria-controls="tok">Tokenizer</button>
+  </div>
+
+  <!-- ============ Generate -->
+  <section id="gen" class="panel" role="tabpanel" aria-labelledby="tab-gen">
+    <div class="card">
+      <div class="card-head"><h2>Continue a text</h2><span class="tag">Modern V2 · RoPE · SwiGLU · RMSNorm</span></div>
+      <label for="prompt">Prompt</label>
+      <textarea id="prompt" rows="3"></textarea>
+      <div class="tl-bar" id="prompt-tl" hidden></div>
+      <div class="chips" id="gen-examples" aria-label="Example prompts"></div>
+      <details class="settings">
+        <summary>Sampling</summary>
+        <div class="settings-body">
+          <div class="seg small" role="radiogroup" aria-label="Preset" id="preset">
+            <button role="radio" aria-checked="false" data-preset="greedy">Greedy</button>
+            <button role="radio" aria-checked="true" data-preset="balanced">Balanced</button>
+            <button role="radio" aria-checked="false" data-preset="creative">Creative</button>
+          </div>
+          <div class="sliders">
+            <div class="slider"><label for="tokens">New tokens <output id="tokens-v"></output></label>
+              <input id="tokens" type="range" min="8" max="160" step="8" value="64"></div>
+            <div class="slider"><label for="temp">Temperature <output id="temp-v"></output></label>
+              <input id="temp" type="range" min="0" max="1.5" step="0.05" value="0.8"></div>
+            <div class="slider"><label for="topp">Top-p <output id="topp-v"></output></label>
+              <input id="topp" type="range" min="0.1" max="1" step="0.05" value="0.9"></div>
+            <div class="slider"><label for="rep">Repetition penalty <output id="rep-v"></output></label>
+              <input id="rep" type="range" min="1" max="1.5" step="0.05" value="1.15"></div>
+          </div>
+        </div>
+      </details>
+      <div class="actions">
+        <button class="btn primary" id="gen-go">Generate</button>
+        <button class="btn" id="gen-stop" hidden>Stop</button>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-head"><h2>Output</h2>
+        <div class="stats"><div class="stats" id="gen-stats"></div><button class="btn ghost" id="gen-copy" hidden>Copy</button></div></div>
+      <div class="output empty" id="gen-out" aria-live="polite" data-empty="The prompt (grey) and the model's continuation (blue) appear here."></div>
+      <div class="status"><div class="bar" id="gen-bar" hidden><i></i></div><span id="gen-status"></span></div>
+    </div>
+  </section>
+
+  <!-- ============ Reasoning -->
+  <section id="rsn" class="panel" role="tabpanel" aria-labelledby="tab-rsn" hidden>
+    <div class="card">
+      <div class="card-head"><h2>Relational reasoning</h2><span class="tag">fine-tuned on 300k synthetic questions</span></div>
+      <p class="hint">Each premise compares two people. Chain them to answer the question. The names come from a pool the model
+        never saw in training, and training used chains of 1&ndash;3 hops, so longer chains test generalisation.</p>
+      <div class="hop-row">
+        <div><span class="label">Hops between the two queried people</span>
+          <div class="seg small" role="radiogroup" aria-label="Hops" id="hops"></div></div>
+        <span class="hop-note muted" id="hop-note"></span>
+      </div>
+      <div class="model-grid">
+        <div>
+          <span class="label">Model</span>
+          <div class="seg small" role="radiogroup" aria-label="Model" id="variant"></div>
+          <p class="model-note" id="variant-note"></p>
+        </div>
+        <figure class="acc" id="acc">
+          <figcaption class="label" id="acc-title"></figcaption>
+          <div class="acc-bars" id="acc-bars" role="list"></div>
+          <div class="acc-foot" id="acc-foot"></div>
+        </figure>
+      </div>
+      <div id="qview">
+        <span class="label">Premises <span class="legend-inline">· the two queried people are highlighted</span></span>
+        <ol class="premises" id="premises"></ol>
+        <span class="label" style="margin-top:14px">Question</span>
+        <div class="ask" id="ask"></div>
+      </div>
+      <textarea id="question" rows="5" hidden aria-label="Question"></textarea>
+      <div class="tl-bar" id="question-tl" hidden></div>
+      <div class="actions">
+        <button class="btn primary" id="rsn-go">Answer</button>
+        <button class="btn" id="rsn-new">New question</button>
+        <button class="btn ghost" id="rsn-edit">Edit question</button>
+        <span class="spacer"></span>
+        <span class="score muted" id="rsn-score"></span>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-head"><h2>Answers</h2><div class="stats" id="rsn-stats"></div></div>
+      <div class="solver-line" id="rsn-solver" hidden></div>
+      <div class="results output empty" id="rsn-results" aria-live="polite" data-empty="Press Answer to run the model."></div>
+      <div class="status"><div class="bar" id="rsn-bar" hidden><i></i></div><span id="rsn-status"></span></div>
+    </div>
+  </section>
+
+  <!-- ============ Tokenizer -->
+  <section id="tok" class="panel" role="tabpanel" aria-labelledby="tab-tok" hidden>
+    <div class="card">
+      <div class="card-head"><h2>How the model sees text</h2><span class="tag">SentencePiece BPE · byte fallback</span></div>
+      <p class="hint">Text is split into pieces from the language's 16,384-piece vocabulary. Characters the vocabulary does
+        not cover fall back to raw UTF-8 bytes.</p>
+      <label for="tok-in">Text</label>
+      <textarea id="tok-in" rows="3"></textarea>
+      <div class="tl-bar" id="tok-in-tl" hidden></div>
+      <div class="chips" id="tok-examples" aria-label="Example texts"></div>
+      <div class="tok-stats" id="tok-stats"></div>
+      <div class="tok-opts">
+        <span class="label" style="margin:0">Tokens</span>
+        <label class="check-label"><input type="checkbox" id="tok-ids"> Show token ids</label>
+      </div>
+      <div class="tokens" id="tok-out"></div>
+      <div class="legend">
+        <span><i class="sw" style="background:var(--t2)"></i>vocabulary piece</span>
+        <span><span class="muted" style="font-size:.8em">▁</span>starts a word</span>
+        <span><i class="sw" style="outline:1.5px dashed var(--bad);outline-offset:-1.5px"></i>byte fallback</span>
+      </div>
+    </div>
+  </section>
+
+  <footer>Language Models and Agents (Monsoon 2026) individual project ·
+    <a href="https://github.com/CL3-410/individual-project-Seronic2001">code and reports</a><br>
+    Runs with ONNX Runtime Web (WebAssembly). Each model downloads once, the first time you use it.</footer>
+</main>
+<script src="https://cdn.jsdelivr.net/npm/onnxruntime-web@1.20.1/dist/ort.min.js"></script>
+<script type="module" src="app.js"></script>
+</body>
+</html>

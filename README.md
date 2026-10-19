@@ -416,13 +416,22 @@ python -m assamese.finetune.finetune --mode both \
 
 ---
 
-## 🖥️ Demo (Gradio, CPU)
+## 🖥️ Demo (in the browser)
 
-[`demo/app.py`](demo/app.py) serves both languages in one Gradio app: **Generate** continues a prompt with the pretrained Modern V2 model, and **Reasoning** answers a fresh comparison question (2–10 hops) with the Direct-finetuned Baseline V1 model and checks it against the symbolic solver. Generation uses a key/value cache (`generate(..., use_cache=True)`), so answers take well under a second on 2 CPU threads.
+One page, [`demo/static/`](demo/static/), is the whole demo: it runs every model in the visitor's browser with ONNX Runtime Web, and every host serves the same files. [`demo/app.py`](demo/app.py) is only the file server (FastAPI/uvicorn, which come with Gradio, so a `gradio` Hugging Face Space runs it as is); Railway builds the same folder from its [`Dockerfile`](demo/Dockerfile).
 
-* **Build a Space folder**: `python -m demo.build_space --out <dir> --checkpoint hindi_lm=<best.pt> hindi_reasoning=<finetuned_direct.pt> assamese_lm=... assamese_reasoning=...`. Checkpoints are slimmed to fp16 weights + config (~50 MB each).
-* **Build and upload from Kaggle** (no local download of checkpoints): the `seronic2001/lma-export-demo` notebook ([`notebooks/kaggle_eval/lma-export-demo/`](notebooks/kaggle_eval/lma-export-demo/), git-ignored) does the above with the trained checkpoints and uploads to a Hugging Face Space, using the Kaggle secrets `HF_TOKEN` and `HF_SPACE`.
-* **Run locally**: `pip install gradio==5.50.0`, then `python app.py` inside the built folder.
+* **Generate**: the pretrained Modern V2 model of each language continues a prompt (Greedy, Balanced or Creative sampling, or set temperature, top-p and repetition penalty).
+* **Reasoning**: all four kept fine-tunes of each language, Baseline V1 or Modern V2, each trained to answer Direct or with CoT (which writes the chain of comparisons first), answer a fresh comparison question (2–10 hops), checked against the symbolic solver. "Compare all" runs one question through every model, and the page shows each model's measured accuracy at the chosen hop depth (from the `lma-eval-hard` kernel).
+* **Tokenizer**: the SentencePiece pieces and ids of any text, byte-fallback runs, tokens per word, and the token count under the other language's tokenizer.
+* **Typing in English letters**: with the switch on, a romanised word (`bharat`, `oxom`) becomes native-script suggestions. [`translit.js`](demo/static/translit.js) generates the possible spellings and ranks them with the language's own tokenizer vocabulary (fewest, most frequent pieces), so `rajdhani` → राजधानी, `sarkar` → सरकार, `guwahati` → গুৱাহাটী. Space takes the first suggestion, 1–5 pick another, and Esc keeps the Latin.
+
+Building it:
+
+1. **Slim the checkpoints**: `python -m demo.build_space --out <dir> --checkpoint hindi_lm=<best.pt> hindi_v1_direct=<finetuned.pt> ...` writes fp16 weights + config (~50 MB each) to `<dir>/checkpoints/`.
+2. **Build the site**: `python -m demo.static.build_static --checkpoints <dir>/checkpoints --out <site> [--scores eval_hard/summary.json]`. It exports each model as one cached generation step, stores the weights as fp16 (~64 MB; int8 garbled the reasoning models' copied names), and checks the result against PyTorch (max logit difference ≤ 6e-5, same greedy tokens). `lm.js` re-implements the BPE tokenizer and matches SentencePiece exactly; `test_static.mjs` checks this and the models in Node.
+3. **Package for a host**: `python -m demo.build_space --out <host> --site <site>` puts the server, README, Dockerfile and the site (under `site/`) in `<host>`. Run it locally with `pip install -r requirements.txt` and `python app.py` (port 7860).
+   * **Hugging Face Space**: push `<host>` to a `gradio` Space. The `seronic2001/lma-export-demo` notebook ([`notebooks/kaggle_eval/lma-export-demo/`](notebooks/kaggle_eval/lma-export-demo/), git-ignored) builds from the trained checkpoints on Kaggle and uploads, using the Kaggle secrets `HF_TOKEN` and `HF_SPACE`.
+   * **Railway**: `railway up` in `<host>`. The ONNX files are over Railway's upload limit, so `.railwayignore` leaves them out and the Docker build downloads them (`python app.py --fetch-models <url>`) from the [`demo-weights-v1`](https://github.com/Seronic2001/IndicLLM-Transformer-Pretraining-Reasoning-SFT/releases/tag/demo-weights-v1) release.
 
 ---
 

@@ -1,12 +1,17 @@
-"""Assemble the Hugging Face Space for the demo, and slim checkpoints for it.
+"""Assemble the demo's host folder (Hugging Face Space or Railway), and slim checkpoints.
 
 usage:
-  python -m demo.build_space --out <space dir> [--checkpoint NAME=PATH ...]
+  python -m demo.build_space --out <dir> --site <built static site>
+  python -m demo.build_space --out <dir> --checkpoint NAME=PATH ...
 
-The Space holds demo/app.py (as app.py), its README and requirements, the code the
-app imports from both languages (model, tokenizer, reasoning generator) and the
-checkpoints under checkpoints/<NAME>.pt. NAME is <lang>_<role>, role "lm"
-(pretrained, free generation) or "reasoning" (Direct-finetuned).
+--site: <dir> gets demo/app.py (as app.py, the server), its requirements, the Space README,
+the Dockerfile (Railway) and the site built by demo/static/build_static under site/. The
+page is the only demo UI; every host serves the same files. Hosts with an upload limit
+(Railway) skip site/models/*.onnx (.railwayignore) and the Dockerfile downloads them.
+
+--checkpoint: slims each checkpoint into <dir>/checkpoints/<NAME>.pt, the input of
+build_static. NAME is <lang>_<role>, role "lm" (pretrained, free generation) or
+<arch>_<mode> (reasoning fine-tune: v1/v2, direct/cot; "reasoning" is still read as v1_direct).
 
 slim_checkpoint keeps only the weights (fp16) and the model config: a training
 checkpoint also holds optimizer and scheduler state and is ~300 MB; the slim one ~50 MB.
@@ -19,14 +24,9 @@ from pathlib import Path
 
 import torch
 
-ROOT = Path(__file__).resolve().parents[1]
 DEMO = Path(__file__).resolve().parent
-CODE_FILES = [
-    "{lang}/model/__init__.py", "{lang}/model/gpt.py", "{lang}/model/gpt_v2.py",
-    "{lang}/tokenizer/__init__.py", "{lang}/tokenizer/tokenizer.py", "{lang}/tokenizer/{lang}.model",
-    "{lang}/finetune/__init__.py", "{lang}/finetune/generate_reasoning.py",
-]
-LANGS = ("hindi", "assamese")
+HOST_FILES = {"app.py": "app.py", "requirements.txt": "requirements.txt",
+              "SPACE_README.md": "README.md", "Dockerfile": "Dockerfile", "railwayignore": ".railwayignore"}
 
 
 def build_model(cfg: dict) -> torch.nn.Module:
@@ -59,16 +59,12 @@ def slim_checkpoint(src: Path, dst: Path, note: str = "") -> int:
     return sum(p.numel() for p in model.parameters())
 
 
-def build_space(out: Path, checkpoints: dict[str, Path]) -> None:
+def build_space(out: Path, site: Path | None, checkpoints: dict[str, Path]) -> None:
     out.mkdir(parents=True, exist_ok=True)
-    shutil.copy2(DEMO / "app.py", out / "app.py")
-    shutil.copy2(DEMO / "requirements.txt", out / "requirements.txt")
-    shutil.copy2(DEMO / "SPACE_README.md", out / "README.md")
-    for lang in LANGS:
-        for pattern in CODE_FILES:
-            rel = pattern.format(lang=lang)
-            (out / rel).parent.mkdir(parents=True, exist_ok=True)
-            shutil.copy2(ROOT / rel, out / rel)
+    if site is not None:
+        for src, dst in HOST_FILES.items():
+            shutil.copy2(DEMO / src, out / dst)
+        shutil.copytree(site, out / "site", dirs_exist_ok=True, ignore=shutil.ignore_patterns("README.md"))
     for name, path in checkpoints.items():
         n = slim_checkpoint(path, out / "checkpoints" / f"{name}.pt", note=str(path))
         print(f"  {name}: {n:,} params <- {path}", flush=True)
@@ -77,9 +73,11 @@ def build_space(out: Path, checkpoints: dict[str, Path]) -> None:
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     parser.add_argument("--out", required=True)
+    parser.add_argument("--site", help="output dir of demo.static.build_static")
     parser.add_argument("--checkpoint", nargs="*", default=[], help="NAME=PATH, e.g. hindi_lm=best.pt")
     args = parser.parse_args(argv)
-    build_space(Path(args.out), dict(c.split("=", 1) for c in args.checkpoint))
+    build_space(Path(args.out), Path(args.site) if args.site else None,
+                dict(c.split("=", 1) for c in args.checkpoint))
     return 0
 
 
