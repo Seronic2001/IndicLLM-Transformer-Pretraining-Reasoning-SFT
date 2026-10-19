@@ -209,6 +209,16 @@ The held-out multi-hop paradigm is the hardest for all four Direct models but fa
 2. **Direct models learn to read the names.** Before fine-tuning, the last prompt token (where the answer starts) puts 0.31–0.55 of its final-layer attention on entity-name tokens; after Direct fine-tuning, 0.72–0.99. CoT models shift less (0.38–0.80) because they generate a rationale before the answer and need not gather the answer's information at the prompt's last token.
 3. **Attention becomes sharper**: mean entropy falls in most layers after fine-tuning, most in the late layers (e.g. Hindi V1 layer 6: 1.96 → 1.03 nats for Direct).
 
+The change map below breaks the change down by layer for all eight fine-tuned models. JSD peaks at layer 6 or 7 for every model (0.15–0.29 in layers 5–7 against 0.03–0.05 at layer 0); entropy falls in 60 of the 64 layer–model cells, so attention becomes sharper almost everywhere; and layers 1–5 become more local (36 of 40 cells), while layer 6 attends farther in 7 of the 8 models. the second chart isolates the answer position: Direct fine-tuning raises its final-layer attention on entity names in every model (to 0.72–0.99), CoT raises it for Assamese but lowers it for both Hindi models.
+
+<p align="center">
+  <img src="figures/phase3_attention_change_map.png" alt="Per-layer change of attention after fine-tuning" width="900"/>
+  <br/>
+  <img src="figures/phase3_entity_attention_dumbbell.png" alt="Last-token attention on entity names before and after fine-tuning" width="640"/>
+  <br/>
+  <em>Per-layer change of attention for each fine-tuned model (JSD from the pretrained model, change in entropy and in mean distance; blue = sharper or more local), and the answer position's final-layer attention on entity names, pretrained (hollow) vs Direct (blue) and CoT (orange).</em>
+</p>
+
 <p align="center">
   <img src="figures/phase3_attention_pair_hindi_v1_direct.png" alt="Hindi V1 attention before and after Direct fine-tuning" width="900"/>
   <br/>

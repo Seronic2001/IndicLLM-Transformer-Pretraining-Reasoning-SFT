@@ -122,6 +122,20 @@ The Assamese training files were built from a larger set of cleaned sources than
 ![Attention shift](figures/phase3_attention_shift.png)
 *Figure 7: per-layer change of attention after fine-tuning (top) and last-token attention on entity names (bottom).*
 
+Figure 8 breaks the change down by layer for all eight fine-tuned models. JSD peaks at layer 6 or 7 for every model (0.15–0.29 in layers 5–7 against 0.03–0.05 at layer 0); entropy falls in 60 of the 64 layer–model cells, so attention becomes sharper almost everywhere; and layers 1–5 become more local (36 of 40 cells), while layer 6 attends farther in 7 of the 8 models. Figure 9 isolates the answer position: Direct fine-tuning raises its final-layer attention on entity names in every model (to 0.72–0.99), CoT raises it for Assamese but lowers it for both Hindi models.
+
+![Attention change map](figures/phase3_attention_change_map.png)
+*Figure 8: per-layer change of attention after fine-tuning for each fine-tuned model: JSD from the pretrained model (left), change in entropy (middle) and in mean attention distance (right); blue means sharper or more local.*
+
+![Entity-name attention](figures/phase3_entity_attention_dumbbell.png)
+*Figure 9: share of the last prompt token's final-layer attention on entity names, pretrained (hollow) and after Direct (blue) or CoT (orange) fine-tuning.*
+
+The heatmaps below show the same change on a single prompt. In both languages the pretrained last layer spreads its weight thinly over the whole context, apart from a column on the first token; after Direct fine-tuning that first-token column remains, but the diffuse spread gives way to a few strong links per row.
+
+![Hindi V1 attention before and after Direct fine-tuning](figures/phase3_attention_pair_hindi_v1_direct.png)
+![Assamese V1 attention before and after Direct fine-tuning](figures/phase3_attention_pair_assamese_v1_direct.png)
+*Figures 10–11: last-layer attention (mean over heads) on the first depth-4 test prompt, pretrained (left) and after Direct fine-tuning (right): Hindi V1, then Assamese V1. These two figures were drawn by the `lma-eval-attention` run (`common/attention_shift.py`), not by `make_figures.py`.*
+
 ---
 
 ## 4. Artifacts and Reproduction

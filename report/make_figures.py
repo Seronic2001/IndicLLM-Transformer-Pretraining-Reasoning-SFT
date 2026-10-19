@@ -276,6 +276,104 @@ def phase3() -> None:
     fig.suptitle("Attention on 200 depth-4 reasoning prompts, mean over heads")
     fig.tight_layout()
     save(fig, "phase3_attention_shift.png")
+    attention_change_map()
+    entity_attention_dumbbell()
+
+
+# Attention diagrams: colours from the dataviz reference palette (blue sequential ramp,
+# blue <-> red diverging around a grey zero, categorical blue / orange for Direct / CoT).
+INK, INK_2, MUTED, GRID = "#0b0b0b", "#52514e", "#898781", "#e1e0d9"
+MODE_COLOR = {"direct": "#2a78d6", "cot": "#eb6834"}
+MODE_LABEL = {"direct": "Direct", "cot": "CoT"}
+
+
+def attention_change_map() -> None:
+    """Per layer and fine-tuned model: how far attention moved from the pretrained model
+    (JSD), and how its entropy and mean distance changed (fine-tuned minus pretrained)."""
+    from matplotlib.colors import LinearSegmentedColormap, TwoSlopeNorm
+
+    rows, labels = {"jsd": [], "entropy": [], "distance": []}, []
+    for m in MODELS:
+        shift = load(f"phase3_attention_shift_{m}.json")["per_layer"]
+        base = shift["pretrained"]
+        for mode in ("direct", "cot"):
+            cur = shift[mode]
+            rows["jsd"].append(cur["jsd_vs_pretrained"])
+            rows["entropy"].append(np.subtract(cur["entropy"], base["entropy"]))
+            rows["distance"].append(np.subtract(cur["mean_distance"], base["mean_distance"]))
+            labels.append(f"{LABEL[m]} · {MODE_LABEL[mode]}")
+    sequential = LinearSegmentedColormap.from_list("blue", ["#f0efec", "#9ec5f4", "#3987e5", "#184f95"])
+    diverging = LinearSegmentedColormap.from_list("blue_red", ["#1c5cab", "#86b6ef", "#f0efec", "#f2a3a2", "#e34948"])
+    panels = (
+        ("jsd", "Change from pretrained (JSD, nats)", sequential, None, "{:.2f}"),
+        ("entropy", "Δ entropy (nats)\nblue = sharper", diverging, "sym", "{:+.2f}"),
+        ("distance", "Δ mean distance (tokens)\nblue = more local", diverging, "sym", "{:+.1f}"),
+    )
+    fig, axes = plt.subplots(1, 3, figsize=(15, 5.2), sharey=True)
+    for ax, (key, title, cmap, mode, fmt) in zip(axes, panels):
+        data = np.array(rows[key], dtype=float)
+        if mode == "sym":
+            lim = float(np.abs(data).max())
+            norm = TwoSlopeNorm(vmin=-lim, vcenter=0.0, vmax=lim)
+        else:
+            norm = plt.Normalize(0.0, float(data.max()))
+        mesh = ax.pcolormesh(data, cmap=cmap, norm=norm, edgecolors="white", linewidth=1.5)
+        for (r, c), v in np.ndenumerate(data):
+            r_, g_, b_, _ = cmap(norm(v))
+            light = 0.2126 * r_ + 0.7152 * g_ + 0.0722 * b_ > 0.55
+            ax.text(c + 0.5, r + 0.5, fmt.format(v), ha="center", va="center", fontsize=7,
+                    color=INK if light else "white")
+        ax.set_xticks(np.arange(data.shape[1]) + 0.5, range(data.shape[1]))
+        ax.set_xlabel("layer", color=INK_2)
+        ax.set_title(title, fontsize=10, color=INK)
+        ax.tick_params(length=0, colors=INK_2)
+        for spine in ax.spines.values():
+            spine.set_visible(False)
+        for y in (2, 4, 6):  # one band per pretrained model
+            ax.axhline(y, color="white", linewidth=4)
+        cbar = fig.colorbar(mesh, ax=ax, fraction=0.05, pad=0.02)
+        cbar.outline.set_visible(False)
+        cbar.ax.tick_params(labelsize=8, colors=INK_2, length=0)
+    axes[0].set_yticks(np.arange(len(labels)) + 0.5, labels)
+    axes[0].invert_yaxis()
+    fig.suptitle("Where fine-tuning changes attention: 200 depth-4 prompts, mean over heads", color=INK)
+    fig.tight_layout()
+    save(fig, "phase3_attention_change_map.png")
+
+
+def entity_attention_dumbbell() -> None:
+    """Share of the last prompt token's final-layer attention on entity names,
+    pretrained vs each fine-tuned model."""
+    fig, ax = plt.subplots(figsize=(8, 4.2))
+    offsets = {"direct": -0.14, "cot": 0.14}
+    for i, m in enumerate(MODELS):
+        shift = load(f"phase3_attention_shift_{m}.json")["per_layer"]
+        base = shift["pretrained"]["entity_mass_last"][-1]
+        for mode, dy in offsets.items():
+            v, y = shift[mode]["entity_mass_last"][-1], i + dy
+            ax.plot([base, v], [y, y], color=MODE_COLOR[mode], linewidth=2, solid_capstyle="round", zorder=1)
+            ax.scatter([v], [y], s=64, color=MODE_COLOR[mode], edgecolors="white", linewidths=2, zorder=3,
+                       label=MODE_LABEL[mode] if i == 0 else None)
+            ax.text(v + (0.025 if v >= base else -0.025), y, f"{v:.2f}", va="center",
+                    ha="left" if v >= base else "right", fontsize=8, color=INK)
+        ax.scatter([base] * 2, [i + dy for dy in offsets.values()], s=64, facecolors="white", edgecolors=MUTED,
+                   linewidths=2, zorder=2, label="pretrained" if i == 0 else None)
+        ax.text(base, i - 0.3, f"{base:.2f}", va="center", ha="center", fontsize=8, color=INK_2)
+    ax.set_yticks(range(len(MODELS)), [LABEL[m] for m in MODELS])
+    ax.invert_yaxis()
+    ax.set_xlim(0, 1.05)
+    ax.set_xlabel("final-layer attention of the last prompt token on entity names", color=INK_2)
+    ax.grid(axis="x", color=GRID, linewidth=0.8)
+    ax.set_axisbelow(True)
+    ax.tick_params(length=0, colors=INK_2)
+    for side in ("top", "right", "left"):
+        ax.spines[side].set_visible(False)
+    ax.spines["bottom"].set_color("#c3c2b7")
+    ax.legend(loc="lower center", bbox_to_anchor=(0.5, 1.0), ncol=3, fontsize=8, frameon=False)
+    ax.set_title("Direct fine-tuning points the answer position at the names; CoT less so", fontsize=10, color=INK,
+                 pad=24)
+    fig.tight_layout()
+    save(fig, "phase3_entity_attention_dumbbell.png")
 
 
 def main() -> int:
