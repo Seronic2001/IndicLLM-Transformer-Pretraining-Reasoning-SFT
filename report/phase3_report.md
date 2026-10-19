@@ -1,639 +1,241 @@
-# Phase 3 Technical Report: Symbolic Reasoning via Direct SFT vs. Chain-of-Thought
+# Phase 3 Technical Report: Relational Reasoning via Direct SFT vs. Chain-of-Thought
 
 **Course**: Language Models and Agents (Monsoon 2026)  
 **Author**: Shubhadeep Mandal (Roll No: 2025201056)  
-**Evaluation Scope**: 8 Fine-Tuned Models ($4 \times 2$ Matrix: V1 Baseline vs. V2 Modern $\times$ Direct SFT vs. CoT)  
-**Target Languages**: Hindi (Devanagari script) and Assamese (Eastern Nagari script `অসমীয়া`)  
+**Scope**: Baseline V1 and Modern V2 (Phase 2) in Hindi and Assamese, each fine-tuned with Direct SFT and CoT SFT; 44 fine-tuning runs (2 seeds per recipe), plus harder evaluation splits, a leakage analysis and an attention analysis.
+
+Every number below is read from [`report/results/`](results/) and every figure is drawn from it by [`report/make_figures.py`](make_figures.py) (provenance: [`report/results/README.md`](results/README.md)).
 
 ---
 
-## 1. Executive Summary & Experimental Design
+## 1. Executive Summary
 
-Phase 3 evaluates the acquisition of symbolic relational and multi-hop reasoning in compact, monolingual Transformer Language Models (~25M parameters: 24.98M for V1, 25.17M for V2) trained from scratch without pretrained initialization. We conduct a rigorous head-to-head empirical investigation contrasting:
-1. **Direct Supervised Fine-Tuning (Direct SFT)**: Autoregressively mapping a multi-premise reasoning prompt directly to the final deductive answer.
-2. **Chain-of-Thought Supervised Fine-Tuning (CoT SFT)**: Autoregressively producing intermediate reasoning traces (premise formalization, step-by-step transitive chaining, and negation resolution) before committing to the final answer.
+| Model | Best Direct recipe (test relation acc.) | Best CoT recipe | Depth 4 / 5 / 10 (kept Direct checkpoint) |
+|---|---|---|---|
+| Hindi V1 | **0.945 ± 0.016** (realmix) | 0.754 ± 0.044 (realmix) | 0.974 / 0.986 / 0.846 |
+| Hindi V2 | 0.880 ± 0.029 (realmix) | 0.688 ± 0.027 (realmix) | 0.952 / 0.968 / 0.856 |
+| Assamese V1 | 0.831 ± 0.003 (CoT warm-up) | 0.703 ± 0.001 (realmix) | 0.874 / 0.788 / 0.296 |
+| Assamese V2 | 0.631 ± 0.042 (CoT warm-up) | 0.577 ± 0.003 (realmix) | 0.746 / 0.752 / 0.662 |
 
-Across both **Hindi** (Model H, higher-resource) and **Assamese** (Model L, lower-resource), we fine-tune and evaluate across two distinct architectural generations:
-* **Version 1.0 (Baseline LM)**: Hand-written Pre-LN Transformer, GELU activation ($d_{\text{ff}}=2240$), Absolute Learned Positional Embeddings.
-* **Version 2.0 (Modern LM)**: Pre-RMSNorm, SwiGLU Gated Multi-Layer Perceptrons ($d_{\text{ff}}=1536$), Rotary Position Embeddings (RoPE), Greedy Argmax Decoding.
+*Mean ± std over seeds 42 and 43; the majority-relation baseline is 0.481; before fine-tuning every model scores 0.000–0.049 (it does not produce answers in the required form).*
 
-```
-+---------------------------------------------------------------------------------------+
-|                                Phase 3 Evaluation Matrix                              |
-+------------------------------------+--------------------------------------------------+
-| Language Tier                      | Models Evaluated (8 Total)                       |
-+------------------------------------+--------------------------------------------------+
-| Hindi (Higher-Resource Model H)    | 1. Hindi V1 Direct SFT      2. Hindi V1 CoT SFT  |
-|                                    | 3. Hindi V2 Direct SFT      4. Hindi V2 CoT SFT  |
-+------------------------------------+--------------------------------------------------+
-| Assamese (Lower-Resource Model L)  | 5. Assamese V1 Direct SFT   6. Assamese V1 CoT   |
-|                                    | 7. Assamese V2 Direct SFT   8. Assamese V2 CoT   |
-+------------------------------------+--------------------------------------------------+
-```
+1. **The models learn the task and generalise beyond their training depth.** Training queries span at most 3 hops; Hindi V1 Direct scores 0.974, 0.986, 0.960, 0.906 and 0.846 at 4, 5, 6, 8 and 10 hops. On these deeper splits a lookup of training answers scores at chance (Section 5), so the accuracy is not memorisation.
+2. **Direct SFT beats CoT SFT** for every model in both languages, on every split but one (Assamese V1 at 10 hops: CoT 0.380, Direct 0.296).
+3. **V1 beats V2 in both languages**, the reverse of their pretraining perplexity ranking (Phase 2).
+4. **The recipe matters more than the architecture**: mixing real names into training (realmix) adds 0.07–0.10 for Hindi Direct; a CoT warm-up adds 0.18 for Assamese V1 Direct; dropout 0.1 hurts every cell it was tried in.
+5. **Weak spots**: premises about a *different* attribute mislead every model (Hindi Direct falls to 0.73), and the weaker models' answers stop naming the queried pair on 10-hop chains (Assamese V1 Direct 0.296).
+6. **Fine-tuning re-wires the later layers**: attention in layers 5–7 changes most, and in Direct models the last prompt token puts 0.72–0.99 of its final-layer attention on entity names (Section 7).
 
 ---
 
-## 2. Synthetic Reasoning Dataset & Anti-Leakage Protocol
+## 2. Synthetic Reasoning Dataset
 
-In strict adherence to assignment guidelines (Section 3.1), we constructed fully synthetic relational reasoning datasets programmatically from scratch in both languages, avoiding public benchmark contamination.
+The generator ([`<lang>/finetune/generate_reasoning.py`](../hindi/finetune/generate_reasoning.py)) produces examples whose answers are computed by a symbolic solver over a relation graph ($>$, $<$, $=$), never written by hand or by an LLM.
 
-### 2.1 Symbolic Task Specification
-The reasoning suite covers six distinct comparative and deductive logic paradigms:
-1. **Transitive Chain Reasoning**: Given $A > B$ and $B > C$, determine the extremity or ordering between $A$ and $C$.
-2. **Multi-Hop Relational Deduction**: Two-hop relational chains across three entities ($A > B, B > C \implies A \text{ vs. } C$) with distractor premises and non-linear premise presentation:
-   $$\text{Premises}: X > Y, Y > Z \implies \text{Query}: X \text{ vs. } Z$$
-3. **Word Problems**: Narrative framing over three attributes:
-   * **Hindi**: उम्र (age), लंबाई (height), बचत (savings).
-   * **Assamese**: বয়স (age), উচ্চতা (height), সঞ্চয় (savings).
-4. **Conversational Multi-Party Reasoning**: Multi-turn dialogue scenarios involving comparative claims between dialogue participants.
-5. **Bidirectional Negation Curriculum**: Controlled negation statements (e.g., "A, B से छोटा नहीं है") requiring polarity inversion.
-6. **Indeterminate Logic (Disjoint Component Deduction)**: Premise graphs where the queried pair belongs to disjoint, disconnected relational clusters ($A \mathrel{\text{disjoint}} B$), requiring the model to deduce indeterminate stance ("दी गई जानकारी से यह तय नहीं किया जा सकता है।" / "দিয়া তথ্যৰ পৰা এইটো নিৰ্ধাৰণ কৰিব নোৱাৰি।").
+### 2.1 Task
+Each example states premises comparing named people on one attribute (Hindi उम्र, लंबाई, बचत; Assamese বয়স, উচ্চতা, সঞ্চয়) and asks about one pair. A Hindi test example (conversational paradigm, 3 hops):
 
-### 2.2 Anti-Leakage Protocol & Train/Val/Test Splits
-To prevent models from solving reasoning questions through memorization:
-* **Strictly Disjoint Entity Sets**: The entity vocabulary is partitioned into disjoint pools (asserted in `generate_reasoning.py`). No held-out entity ever appears during training:
-  * *Training Pool*: 236 names per language (e.g. राम, सीता, अमित, राहुल, नेहा...), plus about 30 abstract symbols (single letters such as क, ख, A, B) that replace names in 30% of training examples.
-  * *Held-Out Pools (15 names per language)*: 7 validation names (e.g. अर्जुन, लता, किशोर, माला / অৰ্জুন, লতা, কিশোৰ, মালা) and 8 test names (e.g. सरिता, प्रमोद, विनीता, कमल / সৰিতা, প্ৰমোদ, বিনীতা, কমল).
-* **Dataset Scale**:
-  * **Training Split**: 20,000 synthetic reasoning examples.
-  * **Validation Split**: 1,000 synthetic reasoning examples (a stratified sample of 200 is used for early stopping).
-  * **Held-Out Test Split**: 2,000 synthetic reasoning examples (N=500 sampled per evaluation matrix condition).
-* **Negation Curriculum**: Models trained without negated premises scored 0.0% on negative-polarity queries. Negated premises now make up about 18% of training examples (paradigm sampling weights: transitive 20%, multi-hop 20%, negation 18%, word problem 16%, conversational 16%, indeterminate 10%), all drawn from the training entity pool.
+> **Prompt:** नरेन ने कहा कि नरेन की बचत देवयानी की बचत से कम है। अपराजिता ने कहा कि देवयानी की बचत अपराजिता की बचत से कम है। अपराजिता ने कहा कि अपराजिता की बचत सुचित्रा की बचत से कम है। सुचित्रा ने पूछा कि क्या सुचित्रा की बचत नरेन की बचत से कम है?  
+> **Direct target:** सुचित्रा की बचत नरेन की बचत से अधिक है।  
+> **CoT target:** [कारण: सुचित्रा > अपराजिता और अपराजिता > देवयानी और देवयानी > नरेन इसलिए सुचित्रा > नरेन] सुचित्रा की बचत नरेन की बचत से अधिक है।
 
-### 2.3 Dataset Design Choices, Assignment Baseline Contrast & Case Studies
+The Assamese generator mirrors it (`[কাৰণ: … সেয়ে সুচিত্ৰা > নৰেন] সুচিত্ৰাৰ সঞ্চয় নৰেনৰ সঞ্চয়তকৈ বেছি।`).
 
-The assignment specification establishes a foundational requirement for synthetic comparative reasoning: generating programmatically controlled templates in the target language (e.g., *"Given $A > B$ and $B > C$, which is smallest / largest?"*, comparisons of heights/ages/quantities, and short multi-hop transitive chains). 
+Paradigms: **transitive**, **word problem**, **conversational** (train and eval), **negation** (5% of train, "A is not less than B"), and **multi-hop** (eval only, held out from training).
 
-While a minimal implementation satisfying this spec would consist of canonical, 2-premise linear chains, our empirical investigation revealed that such toy datasets suffer from severe **shortcut vulnerability**: compact 25M models achieve deceptively high scores ($\ge 85\%$) simply by memorizing positional coordinates (e.g., always selecting the entity at token index 0) without performing actual deduction. To build an academically rigorous benchmark, we expanded the dataset across several critical dimensions beyond the minimal spec.
+### 2.2 Anti-leakage design
+* **Disjoint names**: separate train, validation and test name pools; training also uses freshly generated syllable-built names, filtered against the val/test pools. *Realmix* replaces half of the training names with real names from the curated train pool.
+* **No shortcut through wording**: premises are stated in random direction and order; the question asks about a relation (more / less / equal, 0.4/0.4/0.2) drawn independently of the answer, so echoing the question's relation word scores below the majority baseline.
+* **Depth**: half of the training queries are at least 2 hops apart; no training query exceeds 3 hops.
+* **Sizes**: 300,000 (Hindi) / 480,000 (Assamese) training examples; 1,000 validation; 2,000 test; 500 per extra split.
 
-#### Assignment Baseline Specification vs. Our Hardened Implementation
-
-| Architectural Dimension | Assignment Baseline (Minimum Spec) | Our Hardened Implementation | Cognitive & Diagnostic Impact |
-| :--- | :--- | :--- | :---: |
-| **Logic Taxonomy** | Basic ordering / transitive comparisons ($A > B > C$). | **6 distinct reasoning paradigms**: Transitive Chains, Multi-Hop Chains, Word Problems, Conversational Scenarios, Negated Relational Logic, and Indeterminate Deduction. | Multi-dimensional evaluation across formal and naturalistic registers. |
-| **Premise Topology** | Canonical linear presentation ($E_1 > E_2, E_2 > E_3$). | **Permuted & shuffled premise graphs**: Premise clauses are randomized (e.g., $E_2 > E_3$ presented before $E_1 > E_2$, or reversed polarity $E_3 < E_2$ mixed with $E_1 > E_2$). | Breaks positional memorization shortcuts; forces relational graph construction. |
-| **Premise Negation** | Unspecified / Positive comparisons only. | **Controlled Negation Curriculum**: Inversion using native language particles (`नहीं` in Hindi, sentence-final `নহয়` in Assamese). | Tests true semantic polarity inversion ($A \not> B \implies A \le B$) vs. lexical echoing. |
-| **Indeterminate Scenarios** | Unspecified (always assumes solvable relations). | **Disjoint Relational Subgraphs**: Premise pairs belonging to disconnected clusters ($A > B, C > D$; query asks $A \text{ vs } D$). | Measures resistance to hallucination when no deductive bridge exists. |
-| **Target Output Format** | Direct answer only (greater, smaller, equal). | **Dual Evaluation**: Direct SFT vs. Formal **Chain-of-Thought (CoT)** scratchpads with strict operator token grammar (`<COT_START> ... <COT_END>`). | Isolates superficial answer guessing from verifiable step-by-step reasoning. |
-| **Question Balancing** | Unspecified. | **Random polarity plus contrastive twins**: The question polarity ("Is $A > B$?" vs. "Is $A < B$?") is sampled at random, and 85% of training chains also get a twin (the reversed query or the opposite framing) over the same premise facts. | Prevents the model from just echoing the question's wording. |
+### 2.3 Evaluation splits
+| Split | What it tests |
+|---|---|
+| `test` | 2,000 examples, all paradigms, test names, queries ≥ 2 hops |
+| `test_depth2` … `test_depth5` | queries exactly 2–5 hops apart |
+| `test_depth6`, `8`, `10` | longer chains than any training or earlier test chain |
+| `test_branch` | a 3-hop chain plus 3 entities hung off it (irrelevant premises) |
+| `test_distractor_attr` | a 3-hop chain plus 3 premises about **another attribute** |
+| `test_redundant` | a 4-hop chain plus 3 true shortcut premises (never linking the query pair) |
+| `test_balanced` | equal numbers of $>$, $<$, $=$ answers |
+| `val_train_names` | validation built with training names (separates name copying from reasoning) |
 
 ---
 
-#### Detailed Case Studies for Each Design Consideration
+## 3. Fine-Tuning Method
 
-To illustrate how each design choice elevates the benchmark beyond simple template matching, we examine representative test cases from the active evaluation suite:
+* **Loss**: next-token cross-entropy on the target only; prompt tokens are masked (`ignore_index = -100`). Direct targets are the answer sentence; CoT targets are the `[कारण: …]` rationale followed by the answer.
+* **Optimisation** ([`<lang>/finetune/finetune.py`](../hindi/finetune/finetune.py)): AdamW, weight decay 0.1, batch 32, sequence length 192, 300 warmup steps. Hindi: cosine decay over up to 12,000 steps, lr $3 \times 10^{-5}$ (Direct) / $5 \times 10^{-5}$ (CoT). Assamese: warmup-stable-decay over up to 15,000 steps, lr $3 \times 10^{-5}$ (Direct) / $2 \times 10^{-5}$ (CoT). Minimum lr = lr / 10.
+* **Checkpoint selection on generated answers**: every 500 steps the model answers all 1,000 validation questions greedily and the best relation accuracy is kept; training stops after 3 probes without improvement, counted only once validation accuracy exceeds the majority rate by 0.1 (some runs sit at chance for thousands of steps before learning). Validation loss is not used: it rises while answers keep improving.
+* **Variants** (each with seeds 42 and 43):
 
-##### Case 1: Breaking Positional Shortcut Exploitation (Premise Shuffling & Permutation)
-* **Design Motivation**: In canonical ordering ($E_1 > E_2, E_2 > E_3$), the global maximum is always the very first token in the prompt. Models using absolute positional embeddings (like Baseline V1) easily memorize that coordinate $0$ yields the correct answer without reading the relations. We shuffle premise presentation order to decouple spatial position from logical extremity.
-* **Concrete Input (Hindi Permuted Transitive)**:
-  ```text
-  प्रमोद की बचत अर्जुन की बचत से अधिक है। विनीता की बचत प्रमोद की बचत से अधिक है। क्या विनीता की बचत अर्जुन की बचत से अधिक है?
-  ```
-  *(Note: Premise 1 introduces प्रमोद > अर्जुन, and Premise 2 introduces the true maximum विनीता > प्रमोद afterwards).*
-* **Gold Ground-Truth Target**:
-  ```text
-  <COT_START> विनीता <REL_GT> प्रमोद और प्रमोद <REL_GT> अर्जुन <COT_END> विनीता की बचत अर्जुन की बचत से अधिक है।
-  ```
-* **Failure Mode of a Positional Shortcut**: A model that copies the entity at absolute coordinate index 0 would output `प्रमोद की बचत अर्जुन की बचत से अधिक है।`, which is wrong here.
+| Variant | Change |
+|---|---|
+| plain | fresh synthetic training names |
+| realmix | half of the training names are real names |
+| dropout | dropout 0.1 (Hindi) |
+| curriculum | 1-hop queries for 2,000 steps, ≤ 2 hops until step 4,000 (Assamese Direct) |
+| cot_warmup | Direct, but trained on CoT targets for the first 5,000 steps (Assamese Direct) |
 
-##### Case 2: Linguistic Polarity Inversion (Controlled Negation Curriculum)
-* **Design Motivation**: Without negative examples during training, models suffer from 100% negation collapse, assuming every stated comparison is positive. Furthermore, in Assamese, the negative particle `নহয়` ("is not") appears sentence-finally, creating surface-form entanglement.
-* **Concrete Input (Assamese Negated Relational)**:
-  ```text
-  প্ৰমোদৰ সঞ্চয় ইন্দুৰ সঞ্চয়তকৈ অধিক নহয়। ইন্দুৰ সঞ্চয় মালাৰ সঞ্চয়তকৈ অধিক নহয়। কি প্ৰমোদৰ সঞ্চয় মালাৰ সঞ্চয়তকৈ কম?
-  ```
-  *(Logical Structure: প্ৰমোদ \not> ইন্দু \implies প্ৰমোদ \le ইন্দু; ইন্দু \not> মালা \implies ইন্দু \le মালা).*
-* **Gold Ground-Truth Target**:
-  ```text
-  <COT_START> প্ৰমোদ <REL_LT> ইন্দু আৰু ইন্দু <REL_LT> মালা <COT_END> প্ৰমোদৰ সঞ্চয় মালাৰ সঞ্চয়তকৈ কম।
-  ```
-* **Mechanistic Significance**: The model must perform a double operation: first syntactically normalize negative natural language (`অধিক নহয়`) into strict symbolic inequality (`<REL_LT>`), then deduce the transitive relation to confirm the query direction (`কম`).
+* **Kept checkpoint**: for each model and mode, the run with the best **validation** accuracy across variants and seeds; its weights are scored on every split.
 
-##### Case 3: Indeterminate / Disjoint Relational Subgraphs (Adversarial Hallucination Defense)
-* **Design Motivation**: Standard datasets teach models that every query possesses a deterministic answer. When faced with disconnected entities, models hallucinate relationships. We introduce decoupled premise clusters where the query spans disconnected components.
-* **Concrete Input (Hindi Indeterminate Deduction, illustrative, in generator format)**:
-  ```text
-  सरिता की लंबाई प्रमोद की लंबाई से अधिक है। कमल की लंबाई सुधा की लंबाई से अधिक है। क्या सरिता की लंबाई सुधा की लंबाई से अधिक है?
-  ```
-  *(Logical Structure: Graph Cluster 1 = {सरिता > प्रमोद}; Graph Cluster 2 = {कमल > सुधा}; Query asks सरिता vs. सुधा).*
-* **Gold Ground-Truth Target**:
-  ```text
-  <COT_START> सरिता <REL_DISJOINT> सुधा <COT_END> दी गई जानकारी से यह तय नहीं किया जा सकता है।
-  ```
-* **Mechanistic Significance**: The model must emit `<REL_DISJOINT>` upon recognizing that no path connects the two entities in the premise graph, which the graph-validity metric can then check.
-
-##### Case 4: Contrastive Question Sampling (Preventing Question Echoing)
-* **Design Motivation**: A Direct SFT model can score well by parroting whatever comparative word appeared in the question (e.g., outputting "कम" if the query asked "क्या A, B से कम है?"). The question polarity is therefore sampled at random, and 85% of training chains get a contrastive twin over identical premise facts.
-* **Premise Baseline**: $A$ is taller than $B$ (`A की लंबाई B की लंबाई से अधिक है।`).
-  * **Concordant Query**: `क्या A की लंबाई B की लंबाई से अधिक है?` $\implies$ **Target**: `A की लंबाई B की लंबाई से अधिक है।`
-  * **Discordant Query**: `क्या A की लंबाई B की लंबाई से कम है?` $\implies$ **Target**: `A की लंबाई B की लंबाई से अधिक है।`
-* **Mechanistic Significance**: The target is always the true relation in its canonical form, whichever way the question is phrased, so the comparative word in the question carries no information about the answer.
+### 3.1 Metrics
+* **Relation accuracy** (primary): the relation the generated answer asserts between the queried pair (> / < / =), matched to the gold relation; it tolerates misspelt names (character similarity ≥ 0.8), so it measures reasoning rather than name copying.
+* **Strict accuracy**: the answer sentence, including both names, exactly as in the gold answer.
+* **Name copy**: both queried names appear in the answer.
+* **Baselines**: majority relation (0.481 on `test`) and the structure lookup of Section 5.
 
 ---
 
-## 3. Supervised Fine-Tuning Methodology
+## 4. Results
 
-### 3.1 Target-Only Prompt-Masked Loss
-Standard causal language modeling trains on the entire sequence, which wastes parameter capacity memorizing prompt phrasing. We implement **Target-Only Prompt-Masked Loss**:
-$$\mathcal{L}_{\text{SFT}} = -\frac{1}{\sum_{t} \mathbb{I}[t \ge T_{\text{prompt}}]} \sum_{t=T_{\text{prompt}}}^{T_{\text{total}}} \log P(x_t \mid x_{<t})$$
-Tokens in the prompt prefix are masked with `ignore_index = -100`. Gradient updates are computed exclusively on intermediate Chain-of-Thought derivation tokens and final answer tokens.
+### 4.1 Sweep (test relation accuracy, mean over 2 seeds)
 
-### 3.2 Chain-of-Thought Autoregressive Scratchpads & Special Relational Tokens
-For CoT models, we registered explicit relational special tokens into each tokenizer vocabulary:
-* **Relational Operators**: `<COT_START>`, `<COT_END>`, `<REL_GT>` ($>$), `<REL_LT>` ($<$), `<REL_EQ>` ($=$), `<REL_DISJOINT>` ($?$).
-* **Target Sequence Encodings**:
-  * **Hindi CoT Format**: `<COT_START> अमित <REL_GT> सुमित और सुमित <REL_GT> राहुल <COT_END> अमित की लंबाई राहुल की लंबाई से अधिक है।`
-  * **Assamese CoT Format**: `<COT_START> ৰাহুল <REL_GT> বিকাশ আৰু বিকাশ <REL_GT> অনিল <COT_END> ৰাহুলৰ উচ্চতা অনিলৰ উচ্চতাতকৈ অধিক।`
+| Model | Mode | plain | realmix | dropout | curriculum | cot_warmup |
+|---|---|---|---|---|---|---|
+| Hindi V1 | Direct | 0.875 | **0.945** | 0.712 | | |
+| Hindi V1 | CoT | 0.715 | **0.754** | 0.514 | | |
+| Hindi V2 | Direct | 0.779 | **0.880** | 0.475 | | |
+| Hindi V2 | CoT | 0.640 | **0.688** | 0.472 | | |
+| Assamese V1 | Direct | 0.655 | | | 0.523 | **0.831** |
+| Assamese V1 | CoT | 0.633 | **0.703** | | | |
+| Assamese V2 | Direct | 0.585 | | | 0.583 | **0.631** |
+| Assamese V2 | CoT | 0.521 | **0.577** | | | |
 
-### 3.3 Training Hyperparameters & Decoding Settings
-* **Effective Batch Size**: 32 sequences (micro-batch size 32, no gradient accumulation).
-* **Max Sequence Length**: 128 tokens for Direct SFT, 160 tokens for CoT SFT.
-* **Optimizer**: AdamW ($\beta_1=0.9, \beta_2=0.95$), gradient clipping at 1.0, dropout 0.1 during fine-tuning.
-* **Learning Rate Schedule**: Cosine decay over up to 750 optimizer steps with linear warmup and early stopping on validation loss (patience 3 evaluations); the best-validation checkpoint is restored.
-  * *V1 Baseline*: Initial LR $3.0 \times 10^{-5}$, warmup 10 steps, weight decay 0.1.
-  * *V2 Modern*: Initial LR $2.55 \times 10^{-5}$, warmup 20 steps, weight decay 0.05.
-* **Auxiliary Losses**: Two terms are added to the prompt-masked loss of Section 3.1: a margin loss on the "more"/"less" token of the answer (weight 1.5, margin 2.0) and an entity-coverage term that rewards emitting the queried names (weight 0.3).
-* **Contrastive Question Sampling**: Question polarity is sampled at random, and 85% of training chains also get a contrastive twin (the reversed query or the opposite framing) for the same premise facts, preventing the model from simply echoing words from the question.
-* **Decoding Settings & Word Constraints**:
-  * **Greedy Decoding**: Standard greedy decoding ($\text{temperature} = 0.0$) with a repetition penalty of 1.15 to prevent repetitive generation loops.
-  * **Prompt Word Boosting & Allowed Comparison Words**: Applies a positive logit boost ($+3.5$ in Hindi, $+4.5$ in Assamese, with a further $+2$ inside the scratchpad) to tokens from the prompt to keep entity names grounded, while keeping core comparison words (`अधिक`, `कम`, `বেছি`, `সমান`) allowed so correct answer words are never penalized. The zero-shot baseline is decoded with the same settings.
+<p align="center">
+  <img src="figures/phase3_reasoning_accuracy_comparison.png" alt="Sweep results" width="900"/>
+  <br/>
+  <em>Figure 1: test relation accuracy of every recipe (bars: mean of 2 seeds; whiskers: range).</em>
+</p>
 
----
+* **Realmix** helps every cell it was tried in. Synthetic training names are unlike real test names; mixing real names teaches the model to copy names of the kind it is tested on.
+* **CoT warm-up** is the best Assamese Direct recipe and the most seed-stable (std 0.003 for V1). Five thousand steps of CoT targets followed by Direct targets reach 0.831, against 0.655 for plain Direct.
+* **Dropout 0.1** hurts every cell: three of the four stay near chance and Hindi V1 Direct falls from 0.875 to 0.712. The pretrained models were trained without dropout.
+* **Curriculum** (short queries first) did not help; Assamese V1 curriculum stayed at 0.523.
+* **Seed variance** is large for some Assamese recipes (plain Direct: 0.556 and 0.754), so single-seed comparisons would have been misleading.
+* Assamese V1 plain Direct and several Assamese CoT runs reached their best validation score at or near the last step (15,000), so they may be undertrained.
 
-## 4. Multi-Tier Evaluation Metric Suite
+### 4.2 Kept checkpoints on all splits (relation accuracy)
 
-Evaluating compact language models on complex Indic comparative reasoning using a single metric creates severe blind spots: binary exact match is overly punitive to minor linguistic inflections, while loose metrics fail to catch logical confabulations. To resolve this, we designed a **5-tier progressive evaluation suite**, where each tier directly addresses the failure mode and blind spot of the preceding one:
+| Model | Mode | test | d2 | d3 | d4 | d5 | d6 | d8 | d10 | branch | other-attr. | redundant |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| Hindi V1 | Direct | **0.961** | 0.988 | 0.986 | 0.974 | 0.986 | 0.960 | 0.906 | 0.846 | 0.880 | 0.736 | 0.990 |
+| Hindi V1 | CoT | 0.799 | 0.852 | 0.808 | 0.766 | 0.720 | 0.618 | 0.366 | 0.130 | 0.634 | 0.482 | 0.616 |
+| Hindi V2 | Direct | 0.909 | 0.960 | 0.952 | 0.952 | 0.968 | 0.922 | 0.888 | 0.856 | 0.816 | 0.734 | 0.958 |
+| Hindi V2 | CoT | 0.716 | 0.886 | 0.820 | 0.790 | 0.774 | 0.760 | 0.642 | 0.634 | 0.614 | 0.646 | 0.780 |
+| Assamese V1 | Direct | 0.833 | 0.918 | 0.922 | 0.874 | 0.788 | 0.726 | 0.598 | 0.296 | 0.642 | 0.628 | 0.726 |
+| Assamese V1 | CoT | 0.704 | 0.882 | 0.854 | 0.740 | 0.654 | 0.548 | 0.478 | 0.380 | 0.552 | 0.508 | 0.536 |
+| Assamese V2 | Direct | 0.689 | 0.810 | 0.796 | 0.746 | 0.752 | 0.742 | 0.698 | 0.662 | 0.654 | 0.664 | 0.826 |
+| Assamese V2 | CoT | 0.498 | 0.592 | 0.526 | 0.522 | 0.484 | 0.430 | 0.410 | 0.362 | 0.448 | 0.420 | 0.506 |
 
-### Tier 1: Strict Exact Match (Answer & Full Sequence)
-* **What it Measures**: Verbatim string equivalence between the model prediction and gold target ($p == g$), evaluated both on the final answer sentence alone and on the full sequence (including the CoT scratchpad).
-* **Failure Mode & Blind Spot**: Binary 0/1 exact match is excessively rigid for morphologically rich Indic languages. In Assamese and Hindi, case inflections (e.g., Assamese genitive `-ৰ` or ablative `-তকৈ`, Hindi postpositions `की` / `से`), minor punctuation variations (`।` vs. `.`), or synonymous comparative words (`ज्यादा` vs. `अधिक`) cause a model that made the 100% correct logical deduction to be scored **0.0%**. It cannot distinguish between a minor surface inflection and complete logical failure.
-* **Why Tier 2 is Needed**: We need a metric that isolates the actual logical deduction from surface-level formatting variations.
+Majority baseline: 0.46–0.54 on every split. Kept runs: Hindi V1 realmix seed 42 (both modes), Hindi V2 realmix seed 43 (both modes), Assamese V1 cot_warmup seed 42 (Direct) and realmix seed 42 (CoT), Assamese V2 plain seed 43 (Direct) and plain seed 42 (CoT). Re-scoring these checkpoints on Kaggle (`lma-eval-hard`) reproduced the sweep's logged test, depth-4 and depth-5 scores exactly for Direct and within 0.006 for CoT.
 
-### Tier 2: Decision Accuracy (Logical Stance)
-* **What it Measures**: Programmatically parses the predicted relational extremity or stance (`GREATER`, `LESS`, `EQUAL`, `UNDETERMINED`), crediting correct logical deduction regardless of minor surface formatting variations and eliminating 1-word substring loopholes.
-* **Failure Mode & Blind Spot**: Decision stance accuracy evaluates only the final concluded relation. It treats the model as a black box: a model can achieve a high score through lucky guessing, superficial token matching, or simply echoing comparative words from the question prompt (e.g., query asks "क्या A < B?" $\implies$ model echoes "कम"), without actually following the premise chain.
-* **Why Tier 3 is Needed**: For Chain-of-Thought (CoT) models, we need a mathematical guarantee that the intermediate derivation steps formally justify the conclusion.
+<p align="center">
+  <img src="figures/phase3_depth_generalisation.png" alt="Depth generalisation" width="720"/>
+  <br/>
+  <em>Figure 2: relation accuracy against the number of hops between the queried entities. Training covers 1–3 hops (shaded).</em>
+</p>
 
-### Tier 3: Reasoning Graph Validity
-* **What it Measures**: For CoT scratchpads, parses intermediate relational triples between `<COT_START>` and `<COT_END>` into a directed graph and runs a formal graph solver to mathematically prove whether the premise path strictly entails the queried relationship.
-* **Failure Mode & Blind Spot**: Graph validity is an unforgiving all-or-nothing test. In compact ~25M parameter models, low-resource subword tokenization often introduces a single minor typo in an entity name (e.g., subword boundary split in `বিকাশ`) or an unclosed delimiter (`<COT_END>`). When this occurs, formal parsing fails and awards **0%**, even if 95% of the intermediate reasoning steps and vocabulary were perfectly sound.
-* **Why Tier 4 is Needed**: We need continuous metrics that provide granular partial credit and measure text generation quality even when formal parsing encounters syntax errors.
+<p align="center">
+  <img src="figures/phase3_hard_splits.png" alt="Harder splits" width="820"/>
+  <br/>
+  <em>Figure 3: the kept checkpoints on the main test and the three harder premise-structure splits.</em>
+</p>
 
-### Tier 4: Token F1 & Character Similarity
-* **What it Measures**: Continuous partial-credit metrics capturing sequence overlap:
-  * **Token $F_1$**: Harmonic mean of precision and recall over whitespace-tokenized word sets:
-    $$F_1 = 2 \cdot \frac{\text{Precision} \cdot \text{Recall}}{\text{Precision} + \text{Recall}}$$
-  * **Normalized Character Similarity**: Levenshtein distance normalized by sequence length, capturing Indic matra/nukta orthographic variants:
-    $$\text{Sim}(p, g) = 1.0 - \frac{\text{Levenshtein}(p, g)}{\max(|p|, |g|, 1)}$$
-* **Failure Mode & Blind Spot**: Token $F_1$ and Character Similarity lump the entire output together as an undifferentiated bag of words or character sequence. They cannot distinguish between errors in the intermediate logical scratchpad and errors in the final concluded sentence, obscuring *where* the model failed (reasoning breakdown vs. final sentence verbalization).
-* **Why Tier 5 is Needed**: We need a decomposed metric that independently evaluates the scratchpad rationale and the final answer.
+### 4.3 Per-paradigm accuracy (main test)
 
-### Tier 5: Decomposed Score (Reasoning vs. Answer)
-* **What it Measures**: Explicitly decouples the output into the intermediate reasoning rationale $R$ (between `<COT_START>` and `<COT_END>`) and the concluding answer sentence $A$, computing a weighted balance:
-  $$\text{Score} = 0.4 \times F_1(R_{\text{pred}}, R_{\text{gold}}) + 0.6 \times F_1(A_{\text{pred}}, A_{\text{gold}})$$
-* **Diagnostic Value**: By separating rationale quality from conclusion phrasing, this tier provides an actionable diagnostic: we can immediately isolate whether a performance drop stems from scratchpad syntax collapse ($F_1(R) \approx 0$) or final lexical misalignment ($F_1(A)$).
-* **Applicability to Direct SFT (CoT-Specific Metric)**: Just like Tier 3 (Reasoning Graph Validity), Tier 5 is designed specifically for Chain-of-Thought models. Because Direct SFT models are never trained to produce a scratchpad, their output contains no rationale ($R_{\text{pred}} = \emptyset$). Evaluating them under this formula artificially zeroes out the 40% rationale weight ($0.4 \times 0.0$), trivially degenerating to $0.6 \times F_1(\text{Answer})$. In evaluation tables, Tier 5 is therefore properly reported as **N/A (`—`)** for Direct SFT models, avoiding misleading cross-paradigm comparisons.
+<p align="center">
+  <img src="figures/phase3_per_paradigm_breakdown.png" alt="Per-paradigm accuracy" width="820"/>
+  <br/>
+  <em>Figure 4: answer accuracy per paradigm. Multi-hop is never seen in training.</em>
+</p>
 
----
-
-## 5. Comprehensive Benchmark Results (Hardened 8-Model Suite)
-
-Evaluation was conducted on a hardened test suite of 2,000 queries ($N=500$ held-out queries per condition) featuring non-linear premise shuffling, distractor statement injection, and disconnected indeterminate logic under strictly calibrated 2-hop reasoning constraints.
-
-### 5.1 🇮🇳 Hindi 4-Model Suite Results
-
-| Model Variant | Architecture | SFT Mode | Strict Acc (Ans) | Decision Acc | Solver Graph Valid | Token $F_1$ (Ans) | Char Similarity | CoT Decomp Score |
-| :--- | :--- | :--- | :---: | :---: | :---: | :---: | :---: | :---: |
-| **Hindi V1 Direct** | Baseline V1 | Direct SFT | **44.00%** | 38.00% | — | **83.30%** | **85.10%** | — |
-| **Hindi V1 CoT** | Baseline V1 | CoT SFT | 40.60% | 40.40% | **9.40%** | 81.89% | 83.72% | 50.80% |
-| **Hindi V2 Direct** | Modern V2 | Direct SFT | 42.40% | **40.80%** | — | 82.27% | 84.19% | — |
-| **Hindi V2 CoT** | Modern V2 | CoT SFT | 38.20% | 38.00% | 6.40% | 82.04% | 84.51% | **51.64%** |
-
-### 5.2 🌿 Assamese 4-Model Suite Results
-
-| Model Variant | Architecture | SFT Mode | Strict Acc (Ans) | Decision Acc | Solver Graph Valid | Token $F_1$ (Ans) | Char Similarity | CoT Decomp Score |
-| :--- | :--- | :--- | :---: | :---: | :---: | :---: | :---: | :---: |
-| **Assamese V1 Direct** | Baseline V1 | Direct SFT | **29.40%** | 34.60% | — | **66.78%** | **75.36%** | — |
-| **Assamese V1 CoT** | Baseline V1 | CoT SFT | 24.60% | **34.80%** | 1.80% | 65.16% | 72.90% | **39.52%** |
-| **Assamese V2 Direct** | Modern V2 | Direct SFT | 21.00% | 30.40% | — | 56.33% | 66.36% | — |
-| **Assamese V2 CoT** | Modern V2 | CoT SFT | 11.80% | 29.20% | **3.00%** | 50.65% | 59.29% | 30.65% |
-
-![Answer Accuracy Comparison](figures/phase3_reasoning_accuracy_comparison.png)
-*Figure 1: Direct SFT vs. Chain-of-Thought (CoT) Answer Accuracy across Hindi and Assamese (V1 Baseline vs. V2 Modern).*
-
-![Continuous Multi-Tier Token F1 Comparison](figures/phase3_multi_tier_f1_comparison.png)
-*Figure 2: Answer-level Token F1 for Direct SFT and Chain-of-Thought models.*
-
-![Character Similarity & Decomposed Score](figures/phase3_char_similarity_and_decomp.png)
-*Figure 3: Character similarity for all models and the decomposed CoT step score for CoT models.*
-
-### 5.3 Zero-Shot Baseline (Pretrained, No SFT)
-
-The same 500 test queries were scored on each pretrained checkpoint before fine-tuning, with identical decoding. Each model has two baseline runs (one per SFT mode, which differ only in generation length); the ranges below cover both.
-
-| Pretrained Model | Strict Acc (Ans) | Decision Acc | Token $F_1$ (Ans) | Decision Acc after SFT (Direct / CoT) |
-| :--- | :---: | :---: | :---: | :---: |
-| **Hindi V1** | 0.20% | 16.0–16.4% | 32.9–34.3% | 38.0% / 40.4% |
-| **Hindi V2** | 0.00% | 29.8–30.2% | 47.3–48.6% | 40.8% / 38.0% |
-| **Assamese V1** | 0.00% | 20.2–20.4% | 23.7–24.4% | 34.6% / 34.8% |
-| **Assamese V2** | 0.00% | 32.6–34.0% | 26.0–27.5% | 30.4% / 29.2% |
-
-Strict answer accuracy is essentially zero before fine-tuning and 11.8–44.0% after it, so the exact-match scores come from SFT. Decision accuracy is a weaker signal: it rises clearly for both V1 models and for Hindi V2, but **not for Assamese V2**, whose fine-tuned decision accuracy (29.2–30.4%) is slightly below its zero-shot value (32.6–34.0%). For that model, fine-tuning taught the answer format more than the decision. All numbers in Sections 5 and 6 are taken from `report/finetuning_eval.json`.
+The held-out multi-hop paradigm is the hardest for all four Direct models but far above chance (Hindi V1 0.913, Hindi V2 0.799), and negation, only 5% of training, is solved as well as the other paradigms by the stronger models (Hindi V1 Direct 0.985).
 
 ---
 
-## 6. Per-Paradigm Breakdown & Negation Curriculum
+## 5. Is It Reasoning? Leakage Analysis
 
-Evaluating performance across fine-grained reasoning categories confirms distinct strengths across all 6 paradigms under hardened multi-hop constraints ($N=500$ test set):
+[`common/leakage_check.py`](../common/leakage_check.py) regenerates the data with the sweep's settings and asks how much of each split can be answered from the training split alone ([`report/results/phase3_leakage_<lang>.json`](results/)). The *structure lookup* replaces names by their order of first appearance and answers with the most common training answer for that premise graph, query and attribute: it reasons not at all, but would score highly wherever test structures also occur in training.
 
-### 6.1 Hindi Paradigm Breakdown (Strict Ans / Decision Stance Accuracy)
-| Reasoning Paradigm | Hindi V1 Direct | Hindi V1 CoT | Hindi V2 Direct | Hindi V2 CoT |
-| :--- | :---: | :---: | :---: | :---: |
-| **Conversational Scenario** | 48.9% / 44.3% | 45.5% / 44.3% | **51.1% / 47.7%** | 44.3% / 47.7% |
-| **Indeterminate Component** | 0.0% / 0.0% | 0.0% / **12.2%** | 0.0% / **12.2%** | 0.0% / 0.0% |
-| **Multi-Hop Deduction** | **47.9%** / 38.3% | 43.6% / 41.5% | 43.6% / 37.2% | 44.7% / **41.5%** |
-| **Negated Relational** | 50.6% / 50.6% | 50.6% / 50.6% | **55.4% / 56.6%** | 53.0% / 55.4% |
-| **Transitive Chain** | **56.4% / 47.4%** | 47.4% / 43.6% | 47.4% / 41.0% | 39.7% / 38.5% |
-| **Word Problem** | **55.4%** / 43.4% | 51.8% / 47.0% | 51.8% / 47.0% | 42.2% / 39.8% |
+| Split (Hindi; Assamese within 0.01) | Shared names | Duplicate prompts | Structures seen in train | Structure lookup | Majority |
+|---|---|---|---|---|---|
+| test | 0 | 0 | 0.898 | **0.952** | 0.464 |
+| test_depth2 | 0 | 0 | 1.000 | 1.000 | 0.488 |
+| test_depth3 | 0 | 0 | 0.990 | 0.998 | 0.466 |
+| test_depth4 | 0 | 0 | 0.000 | 0.522 | 0.522 |
+| test_depth5 | 0 | 0 | 0.000 | 0.516 | 0.516 |
+| test_depth6 / 8 / 10 | 0 | 0 | 0.000 | 0.512 / 0.530 / 0.512 | same |
+| test_branch | 0 | 0 | 0.000 | 0.462 | 0.462 |
+| test_redundant | 0 | 0 | 0.000 | 0.530 | 0.530 |
+| test_distractor_attr | 0 | 0 | 0.996 | 0.996\* | 0.522 |
 
-![Hindi Per-Paradigm Reasoning Accuracy](figures/phase3_per_paradigm_hindi.png)
-*Figure 4a: Hindi (Model H, Higher-Resource) symbolic reasoning accuracy across 6 logic paradigms (Direct SFT vs. CoT SFT, with CoT Decision Stance overlay).*
+\* The lookup is given only the real premises; the distractor premises it ignores are exactly what misleads the models.
 
-### 6.2 Assamese Paradigm Breakdown (Strict Ans / Decision Stance Accuracy)
-| Reasoning Paradigm | Assamese V1 Direct | Assamese V1 CoT | Assamese V2 Direct | Assamese V2 CoT |
-| :--- | :---: | :---: | :---: | :---: |
-| **Conversational Scenario** | **34.1% / 42.0%** | 30.7% / 36.4% | 28.4% / 37.5% | 14.8% / 30.7% |
-| **Indeterminate Component** | 0.0% / 8.1% | 0.0% / 8.1% | 0.0% / **36.5%** | 4.1% / 17.6% |
-| **Multi-Hop Deduction** | **36.2%** / 37.2% | **36.2% / 44.7%** | 21.3% / 21.3% | 8.5% / 30.9% |
-| **Negated Relational** | **36.1%** / 42.2% | 28.9% / **48.2%** | 24.1% / 32.5% | 8.4% / 30.1% |
-| **Transitive Chain** | **33.3% / 38.5%** | 17.9% / 30.8% | 21.8% / 25.6% | 14.1% / 35.9% |
-| **Word Problem** | **32.5% / 36.1%** | 28.9% / **36.1%** | 27.7% / 30.1% | 20.5% / 28.9% |
-
-![Assamese Per-Paradigm Reasoning Accuracy](figures/phase3_per_paradigm_assamese.png)
-*Figure 4b: Assamese (Model L, Lower-Resource) symbolic reasoning accuracy across 6 logic paradigms (Direct SFT vs. CoT SFT, with CoT Decision Stance overlay).*
-
-> **Continuous Metric Insights**: Answer-level Token $F_1$ is high for both modes and slightly higher for Direct SFT in every pair: **83.30%** vs. 81.89% in Hindi V1, **82.27%** vs. 82.04% in Hindi V2, **66.78%** vs. 65.16% in Assamese V1, and **56.33%** vs. 50.65% in Assamese V2. What Chain-of-Thought adds is a scratchpad that can be scored separately: the decomposed step score reaches **50.80%** in Hindi V1, **51.64%** in Hindi V2, **39.52%** in Assamese V1, and 30.65% in Assamese V2. The gap between high $F_1$ and low exact match indicates that models usually produce the right sentence frame and entities and slip on the relation word or an inflection.
-
-### 6.3 The "Indeterminate Paradox": Why Disjoint Logic Remains Challenging
-
-A key divergence in Tables 6.1 and 6.2 is the **Indeterminate Component**:
-* Across both Hindi and Assamese, strict word-for-word exact match on disconnected premise graphs ($A > B$ and $C > D$, querying $A$ vs. $D$) is near zero ($0.0\text{--}4.1\%$).
-* Under **Semantic Decision Stance**, however, models begin capturing disjoint logic:
-  * In Assamese, Decision Stance reaches **36.5%** in Assamese V2 Direct and **17.6%** in Assamese V2 CoT.
-  * In Hindi, Decision Stance reaches **12.2%** in Hindi V1 CoT and Hindi V2 Direct.
-
-The comparison between modes is mixed. For V2, CoT is below Direct on indeterminate stance (0.0% vs. 12.2% in Hindi, 17.6% vs. 36.5% in Assamese); for V1, CoT is equal or better (12.2% vs. 0.0% in Hindi, 8.1% for both in Assamese). On the solvable paradigms, Hindi models reach roughly 40–56% strict accuracy and Assamese models 8–36%. Three factors plausibly contribute to the difficulty with disconnected premise clusters; none of them was isolated experimentally:
-
-1. **A Strong Chaining Prior in the Scratchpad**:
-   Indeterminate items are only about 10% of the training mix, so after `<COT_START>` the model has mostly seen inequality chains. When no deductive path connects $A$ and $D$, CoT models often write a chain anyway instead of the disjoint marker `<REL_DISJOINT>`, sometimes with a reflexive step such as $A > A$ (see Failure Case 1 in Section 8.2).
-
-2. **Conditioning on the Model's Own Scratchpad**:
-   * In **Direct SFT**, the model maps the prompt straight to an answer sentence and can fall back on the learned refusal template (*"दी गई जानकारी से यह तय नहीं किया जा सकता है।"* / *"দিয়া তথ্যৰ পৰা এইটো নিৰ্ধাৰণ কৰিব নোৱাৰি।"*).
-   * In **CoT SFT**, the final answer is conditioned on the model's own scratchpad. Once an inequality step has been emitted, the answer sentence tends to follow it, so an early scratchpad error is carried into the conclusion.
-
-3. **Model Capacity (Untested)**:
-   Recognising the *absence* of a path may simply be harder for a ~25M-parameter model than following an existing chain. We did not train a larger model or raise the indeterminate share, so whether this is a capacity limit or a data-mix effect remains open.
+**Reading.** Names and prompts never leak. But the main test and the 2–3-hop splits are *structurally* covered by training: memorising which answer goes with which premise graph would already score 0.95. High main-test accuracy alone is therefore not evidence of reasoning. The evidence is the 4–10-hop, branch and redundant splits, where no test structure occurs in training and the lookup is at chance: there Hindi V1 Direct scores 0.85–0.99 and Hindi V2 Direct 0.82–0.97. These models apply the relation step by step to chains they have never seen.
 
 ---
 
-## 7. Section 3.2 Post-Finetune Attention Analysis (Test-Set-Averaged, All Layers)
+## 6. Error Analysis
 
-Assignment specification Section 3.2 asks us to *"compare pretrained vs. finetuned heatmaps for at least one early and one late layer per model"* and to *"comment on whether finetuning changed local vs. long-range attention or head specialization"*. We compare the serialized checkpoints directly:
-- **Hindi (Model H, Modern V2)**: Pretrained Base (`hindi_v2_modern_16k_best.pt`) vs. Finetuned CoT (`hindi_v2_sft_cot.zip`).
-- **Assamese (Model L, Modern V2)**: Pretrained Base (`assamese_v2_modern_16k_best.pt`) vs. Finetuned CoT (`assamese_v2_sft_cot.zip`).
-
-### 7.1 Method
-
-A single heatmap of one head on one sentence cannot separate a real change from noise, so the comparison is averaged:
-
-- **Inputs**: 200 held-out test examples per language (test entity pool, all six paradigms). Each input is the prompt followed by the gold CoT completion, exactly as the model sees it during fine-tuning.
-- **Coverage**: all 8 layers and all 6 heads. Every number below is the mean over the 200 examples and the 6 heads unless marked "max head".
-- **Two regions**: the fine-tuning loss is applied only to completion tokens (Section 3.1), so we report **prompt rows** (query token inside the prompt) and **answer rows** (query token inside the completion) separately.
-- **Both checkpoints load identically**: the pretrained model is loaded with the same 6-token vocabulary expansion used for the zero-shot baseline in Section 5.
-
-We report four measures:
-1. **Jensen–Shannon divergence** between the pretrained and finetuned attention distributions of the same query token. 0 means identical; the maximum is $\ln 2 \approx 0.693$ nats.
-2. **Attention entropy** $\mathcal{H}(A_h) = -\frac{1}{T}\sum_{i}\sum_{j \le i} A_{h,i,j} \ln A_{h,i,j}$. Lower means sharper.
-3. **Mean attention distance** $\bar{D}(A_h) = \frac{1}{T}\sum_{i}\sum_{j \le i} A_{h,i,j}\,|i - j|$ in tokens.
-4. **Attention to prompt**: the share of an answer token's attention mass that lands on prompt tokens rather than on earlier answer tokens.
-
-### 7.2 How Much Attention Changed, by Layer
-
-#### Table 7.1: Hindi V2 CoT — JS divergence, pretrained vs. finetuned (nats)
-| Layer | 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 |
-| :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
-| Prompt rows | 0.024 | 0.024 | 0.027 | 0.035 | 0.044 | 0.052 | 0.101 | 0.127 |
-| Answer rows | 0.029 | 0.034 | 0.064 | 0.052 | 0.060 | 0.082 | 0.159 | **0.280** |
-| Answer rows, max head | 0.038 | 0.055 | 0.087 | 0.080 | 0.105 | 0.138 | 0.217 | **0.369** |
-
-#### Table 7.2: Assamese V2 CoT — JS divergence, pretrained vs. finetuned (nats)
-| Layer | 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 |
-| :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
-| Prompt rows | 0.014 | 0.014 | 0.034 | 0.039 | 0.070 | 0.074 | 0.099 | 0.138 |
-| Answer rows | 0.023 | 0.024 | 0.047 | 0.062 | 0.107 | 0.130 | 0.140 | **0.267** |
-| Answer rows, max head | 0.060 | 0.038 | 0.055 | 0.117 | 0.160 | 0.186 | 0.213 | **0.305** |
-
-![Hindi V2 CoT: attention change by layer](figures/phase3_attn_hindi_v2_cot_jsd.png)
-*Figure 5: Hindi V2 CoT — JS divergence between pretrained and finetuned attention at every layer, for answer rows and prompt rows (200 test examples), and for a single prompt-only probe sentence outside the training templates (grey).*
-
-![Assamese V2 CoT: attention change by layer](figures/phase3_attn_assamese_v2_cot_jsd.png)
-*Figure 6: Assamese V2 CoT — same measurement as Figure 5.*
-
-The change grows monotonically with depth in both languages. Layers 0–1 are almost untouched (at most 0.034), and the last layer changes roughly ten times more on answer rows. The grey curve shows why an out-of-template, prompt-only sentence makes the two models look alike: it sits well below both test-set curves at the last layer (0.057 vs. 0.280 on answer rows in Hindi, 0.107 vs. 0.267 in Assamese).
-
-### 7.3 What the Change Looks Like (Answer Rows)
-
-#### Table 7.3: Hindi V2 CoT — pretrained → finetuned, answer rows
-| Layer | Entropy (nats) | $\Delta \mathcal{H}$ | Mean distance (tok) | $\Delta \bar{D}$ | Attention to prompt |
-| :--- | :---: | :---: | :---: | :---: | :---: |
-| **0** | 2.49 → 2.54 | $+2.3\%$ | 16.3 → 15.9 | $-2.6\%$ | 0.56 → 0.54 |
-| **2** | 3.13 → 3.06 | $-2.1\%$ | 19.4 → 18.3 | $-5.6\%$ | 0.66 → 0.61 |
-| **5** | 2.60 → 2.30 | $-11.5\%$ | 11.3 → 10.3 | $-8.2\%$ | 0.38 → 0.34 |
-| **6** | 2.69 → 2.55 | $-5.0\%$ | 15.4 → 16.8 | $+8.9\%$ | 0.49 → **0.59** |
-| **7** | 2.69 → 1.96 | **$-27.1\%$** | 22.2 → 22.0 | $-1.0\%$ | 0.69 → **0.82** |
-
-#### Table 7.4: Assamese V2 CoT — pretrained → finetuned, answer rows
-| Layer | Entropy (nats) | $\Delta \mathcal{H}$ | Mean distance (tok) | $\Delta \bar{D}$ | Attention to prompt |
-| :--- | :---: | :---: | :---: | :---: | :---: |
-| **0** | 2.62 → 2.83 | $+8.0\%$ | 17.3 → 17.1 | $-1.0\%$ | 0.63 → 0.62 |
-| **2** | 3.31 → 3.21 | $-2.9\%$ | 16.5 → 16.0 | $-2.8\%$ | 0.63 → 0.62 |
-| **5** | 3.19 → 2.79 | $-12.4\%$ | 14.8 → 15.1 | $+1.5\%$ | 0.57 → 0.60 |
-| **6** | 2.15 → 2.22 | $+3.3\%$ | 8.0 → 11.0 | **$+38.6\%$** | 0.32 → **0.44** |
-| **7** | 2.58 → 2.00 | **$-22.4\%$** | 14.2 → 16.8 | **$+18.2\%$** | 0.56 → **0.67** |
-
-### 7.4 Heatmaps: Early Layer vs. Late Layer
-
-The maps below use the first test example of each language (an *indeterminate* item) and show, for layer 0 and layer 7, the head that changed most on answer rows. Each layer has two figures on the same input: the pretrained and finetuned maps side by side on one colour scale, then the difference map (finetuned minus pretrained; red = attention gained, blue = attention lost). The red lines mark the prompt/answer boundary: rows below the horizontal line are answer tokens, columns left of the vertical line are prompt tokens.
-
-#### Hindi V2 — early layer (layer 0, head 1)
-
-![Hindi V2 layer 0: pretrained vs finetuned attention](figures/phase3_attn_hindi_v2_cot_L0_pair.png)
-*Figure 7a: Hindi V2, layer 0 head 1 — Pretrained Base (left) vs. Finetuned CoT (right).*
-
-![Hindi V2 layer 0: attention difference](figures/phase3_attn_hindi_v2_cot_L0_diff.png)
-*Figure 7b: Hindi V2, layer 0 head 1 — Finetuned minus pretrained.*
-
-#### Hindi V2 — late layer (layer 7, head 1)
-
-![Hindi V2 layer 7: pretrained vs finetuned attention](figures/phase3_attn_hindi_v2_cot_pair.png)
-*Figure 8a: Hindi V2, layer 7 head 1 — Pretrained Base (left) vs. Finetuned CoT (right).*
-
-![Hindi V2 layer 7: attention difference](figures/phase3_attn_hindi_v2_cot_diff.png)
-*Figure 8b: Hindi V2, layer 7 head 1 — Finetuned minus pretrained.*
-
-#### Assamese V2 — early layer (layer 0, head 2)
-
-![Assamese V2 layer 0: pretrained vs finetuned attention](figures/phase3_attn_assamese_v2_cot_L0_pair.png)
-*Figure 9a: Assamese V2, layer 0 head 2 — Pretrained Base (left) vs. Finetuned CoT (right).*
-
-![Assamese V2 layer 0: attention difference](figures/phase3_attn_assamese_v2_cot_L0_diff.png)
-*Figure 9b: Assamese V2, layer 0 head 2 — Finetuned minus pretrained.*
-
-#### Assamese V2 — late layer (layer 7, head 5)
-
-![Assamese V2 layer 7: pretrained vs finetuned attention](figures/phase3_attn_assamese_v2_cot_pair.png)
-*Figure 10a: Assamese V2, layer 7 head 5 — Pretrained Base (left) vs. Finetuned CoT (right).*
-
-![Assamese V2 layer 7: attention difference](figures/phase3_attn_assamese_v2_cot_diff.png)
-*Figure 10b: Assamese V2, layer 7 head 5 — Finetuned minus pretrained.*
+1. **Other-attribute premises mislead every model.** On `test_distractor_attr` the Hindi Direct models fall to 0.736 / 0.734 although their answers name the right pair (name copy 1.000 / 0.954): they combine premises about another attribute (e.g. height when the question is about savings) into the chain. The models track *who is compared with whom* but not reliably *on which attribute*.
+2. **Long chains break the answer format before the reasoning.** Below-chance scores on 10-hop chains (Hindi V1 CoT 0.130, Assamese V1 Direct 0.296) come with low name-copy rates (0.114 and 0.388): the answer no longer names the queried pair, so no relation can be read from it. Prompt truncation is ruled out: the longest 10-hop prompt is 213 tokens and the longest CoT rationale 114 tokens, within the 512-token context and the 192-token generation limit used for CoT.
+3. **CoT errors compound.** A CoT model must restate every premise of the chain; its accuracy falls steadily with depth (Hindi V1 CoT 0.852 at 2 hops, 0.618 at 6, 0.130 at 10), while the Direct model stays above 0.84. Strict accuracy, which requires the names spelt exactly, is below relation accuracy for every CoT model (Hindi V1 test: 0.741 vs 0.799; Assamese V2: 0.351 vs 0.498) and equal to it for Hindi V1 Direct: the CoT models also misspell names while copying them through the rationale.
+4. **Redundant true premises help the strong models only.** Compared with plain 4-hop chains, shortcut premises raise Hindi V1 Direct (0.974 → 0.990), Hindi V2 Direct (0.952 → 0.958) and Assamese V2 Direct (0.746 → 0.826), but lower Assamese V1 Direct (0.874 → 0.726) and the Hindi V1 and Assamese V1 CoT models (0.766 → 0.616, 0.740 → 0.536): weaker models are distracted even by true premises.
+5. **The "equal" relation is the weakest for the weaker models.** Assamese V2 Direct recalls `=` answers on the main test only 0.364 of the time (0.722 / 0.693 for `<` / `>`); equality is 5.5% of the main test and is learned last.
+6. **V2 copies names less reliably.** Hindi V2 Direct names the queried pair in 0.926–0.962 of answers against 0.996–1.000 for V1, and Assamese V2 CoT in about half; part of the V1–V2 gap is name copying rather than reasoning.
 
 ---
 
-### 7.5 Findings
+## 7. Attention Before and After Fine-Tuning
 
-1. **Early layers are preserved.**
-   Layers 0–2 change by at most 0.064 nats of JS divergence, with entropy and distance within a few percent. Fine-tuning leaves the local, lexical attention learned in pretraining intact, which is why the layer-0 difference maps (Figures 7b and 9b) are nearly blank apart from a few isolated cells.
-2. **The last two layers carry the change, and it is largest on answer tokens.**
-   Layer-7 divergence on answer rows reaches 0.280 (Hindi) and 0.267 (Assamese), against 0.127 and 0.138 on prompt rows. This matches the training objective: the loss is applied only to completion tokens, so the rows that produce the rationale and answer are reshaped most.
-3. **Late-layer attention becomes sharper (head specialization).**
-   Layer-7 entropy on answer rows drops by **27.1% in Hindi** and **22.4% in Assamese**; layer 5 drops by 11–12% in both. The finetuned heads concentrate on fewer keys.
-4. **Answer tokens look back at the premises more.**
-   The share of layer-7 answer-row attention that lands on the prompt rises from 0.69 to 0.82 (Hindi) and from 0.56 to 0.67 (Assamese), with a similar rise at layer 6. In Figure 8b the `<COT_START>`, `<COT_END>` and `<REL_DISJOINT>` rows gain weight on the two queried entity tokens inside the question clause.
-5. **Local vs. long-range: the shift is a redirection, not a uniform lengthening.**
-   In Assamese, mean attention distance on answer rows grows at layers 6 and 7 (+38.6% and +18.2%). In Hindi it is essentially flat at layer 7 (−1.0%) and up 8.9% at layer 6, even though attention to the prompt increases. Hindi's change is therefore better described as the same long-range budget being concentrated on specific premise tokens.
+[`common/attention_shift.py`](../common/attention_shift.py) ran each pretrained model and its kept Direct and CoT checkpoints on the same 200 depth-4 test prompts (Kaggle `lma-eval-attention`; [`report/results/phase3_attention_shift_*.json`](results/)). Per layer, averaged over heads, query positions and prompts: the Jensen–Shannon divergence of each attention row from the pretrained model's row (how much attention changed), and the share of the last prompt token's attention that falls on tokens of entity names (the information the answer depends on).
 
-### 7.6 Limitations
+<p align="center">
+  <img src="figures/phase3_attention_shift.png" alt="Attention shift by layer" width="980"/>
+  <br/>
+  <em>Figure 5: top, JSD from the pretrained attention per layer; bottom, last-token attention on entity names (grey: pretrained).</em>
+</p>
 
-- **Unfamiliar tokens in the pretrained model.** The pretrained checkpoint has never been trained on `<COT_START>` or the `<REL_*>` tokens, so part of the answer-row divergence reflects new input tokens and not learned reasoning. The prompt-row figures do not have this confound and still show a clear late-layer change.
-- **Gold completions.** Attention is measured with the correct completion fed in, not with the model's own generated output.
-- **Descriptive, not causal.** These statistics show where attention moved and by how much. They do not establish that a particular head implements a particular reasoning step; that would need ablation or patching experiments.
-- **Heatmaps are single examples.** Figures 7–10 illustrate the averaged result on one input each and should be read alongside Tables 7.1–7.4.
+| Model | JSD layers 0–2 | JSD layers 5–7 | Entity attention, last layer: pretrained → Direct (CoT) |
+|---|---|---|---|
+| Hindi V1 | 0.03–0.07 | 0.20–0.29 | 0.55 → **0.81** (0.38) |
+| Hindi V2 | 0.04–0.08 | 0.14–0.21 | 0.48 → **0.72** (0.45) |
+| Assamese V1 | 0.05–0.20 | 0.16–0.28 | 0.53 → **0.99** (0.80) |
+| Assamese V2 | 0.03–0.17 | 0.17–0.25 | 0.31 → **0.86** (0.62) |
 
----
+1. **Fine-tuning changes the late layers most.** Layer-0 attention is nearly unchanged (JSD 0.03–0.05) while layers 5–7 change three to nine times as much: the general language processing of the early layers is reused and the task is learned on top.
+2. **Direct models learn to read the names.** Before fine-tuning, the last prompt token (where the answer starts) puts 0.31–0.55 of its final-layer attention on entity-name tokens; after Direct fine-tuning, 0.72–0.99. CoT models shift less (0.38–0.80) because they generate a rationale before the answer and need not gather the answer's information at the prompt's last token.
+3. **Attention becomes sharper**: mean entropy falls in most layers after fine-tuning, most in the late layers (e.g. Hindi V1 layer 6: 1.96 → 1.03 nats for Direct).
 
-## 8. Qualitative Diagnostics: 5 Working Examples & 5 Failure Modes
-
-To understand the qualitative mechanics, reasoning capabilities, and architectural boundaries of the fine-tuned checkpoints, we analyze representative input prompts, ground-truth targets, and model generations across both languages.
-
----
-
-### 8.1 Five Qualitative Working Examples (Model Success Cases)
-
-#### Success Case 1: Multi-Hop Deduction with Distractor Filtering (Hindi V2 CoT)
-* **Input Prompt (Contains Injected Distractor Clause)**:
-  ```text
-  ज्योति की लंबाई नरेश की लंबाई से कम है। विनीता की लंबाई की तुलना में प्रमोद की लंबाई अधिक है। कमल की लंबाई प्रमोद की लंबाई से अधिक है। क्या यह सच है कि विनीता की लंबाई कमल की लंबाई से कम है?
-  ```
-  *(Injected Distractor: "ज्योति की लंबाई नरेश की लंबाई से कम है।" — completely unrelated to the query).*
-* **Query**: `('विनीता', 'कमल')` $\implies$ Target: `विनीता < कमल` (LESS)
-* **Gold Target**:
-  ```text
-  <COT_START> कमल <REL_GT> प्रमोद और प्रमोद <REL_GT> विनीता <COT_END> विनीता की लंबाई कमल की लंबाई से कम है।
-  ```
-* **Model Generation (Hindi V2 CoT SFT)**:
-  ```text
-  <COT_START>कमल<REL_GT>प्रमोद और प्रमोद<REL_LT>कमल<COT_END>विनीता की लंबाई कमल की लंबाई से कम है।
-  ```
-* **Direct Model Counterparts (Hindi V1 & V2 Direct SFT)**:
-  ```text
-  विनीता की लंबाई कमल की लंबाई से कम है।
-  ```
-* **Analytical Success**:
-  1. **Distractor Rejection**: Despite the distractor clause introducing Jyoti and Naresh into the prompt, the model completely filtered them out and grounded exclusively on Kamal, Pramod, and Vineeta.
-  2. **Deductive Correctness**: The model deduced that because Kamal > Pramod and Pramod > Vineeta, Vineeta is shorter than Kamal (`विनीता < कमल`), producing the exact ground-truth answer sentence in both CoT and Direct SFT modes.
+<p align="center">
+  <img src="figures/phase3_attention_pair_hindi_v1_direct.png" alt="Hindi V1 attention before and after Direct fine-tuning" width="900"/>
+  <br/>
+  <img src="figures/phase3_attention_pair_assamese_v1_direct.png" alt="Assamese V1 attention before and after Direct fine-tuning" width="900"/>
+  <br/>
+  <em>Figures 6–7: last-layer attention (mean over heads) on the first depth-4 prompt, pretrained (left) and after Direct fine-tuning (right). The other two models: <a href="figures/phase3_attention_pair_hindi_v2_direct.png">Hindi V2</a>, <a href="figures/phase3_attention_pair_assamese_v2_direct.png">Assamese V2</a>.</em>
+</p>
 
 ---
 
-#### Success Case 2: Multi-Hop Distractor Immunity in Low-Resource Assamese (Assamese V1 & V2 Direct)
-* **Input Prompt (Contains Injected Distractor Statement)**:
-  ```text
-  জ্যোতিৰ উচ্চতা নাৰেশৰ উচ্চতাতকৈ কম। বিনীতাৰ উচ্চতাৰ তুলনাত প্ৰমোদৰ উচ্চতা বেছি। কমলৰ উচ্চতা প্ৰমোদৰ উচ্চতাতকৈ বেছি। কোৱাচোন, কি বিনীতাৰ উচ্চতা কমলৰ উচ্চতাতকৈ কম?
-  ```
-  *(Injected Distractor: "জ্যোতিৰ উচ্চতা নাৰেশৰ উচ্চতাতকৈ কম।" — Jyoti and Naresh are distractors).*
-* **Query**: `('বিনীতা', 'কমল')` $\implies$ Target: `বিনীতা < কমল` (LESS)
-* **Gold Target**:
-  ```text
-  বিনীতাৰ উচ্চতা কমলৰ উচ্চতাতকৈ কম।
-  ```
-* **Model Generation (Assamese V1 Direct & Assamese V2 Direct SFT)**:
-  ```text
-  বিনীতাৰ উচ্চতা কমলৰ উচ্চতাতকৈ কম।
-  ```
-* **Analytical Success**:
-  Both Assamese V1 and modern V2 direct models produced a 100% word-for-word exact match. By restricting reasoning depth to 2 hops, the model retained sharp entity binding across Eastern Nagari case suffixes (`-ৰ`, `-তকৈ`), demonstrating that the calibrated depth resolved the severe degradation previously seen in Assamese.
+## 8. Conclusions
+
+* Small monolingual models (25M parameters, 500M pretraining tokens) can learn multi-step relational reasoning from synthetic supervision and apply it to chains three times longer than any in training, in both a higher- and a lower-resource language.
+* **Direct SFT is better than CoT SFT at this scale**: a rationale gives the model more tokens to get wrong, and errors in it compound with depth.
+* **The lower-resource language learns the task less well** (best 0.831 vs 0.945) and less stably across seeds, but the right recipe (CoT warm-up) closes much of the gap for V1.
+* **Main-test accuracy overstates reasoning on this benchmark**, because its structures occur in training; deeper and structurally new splits are needed, and are where the evidence for generalisation lies.
+* **Open weakness**: attribute binding. Premises about a different attribute are wrongly used by every model; a training set with mixed-attribute premises is the natural next step.
 
 ---
 
-#### Success Case 3: Transitive Relational Equality Deduction (Hindi V1 Direct)
-* **Input Prompt (Contrastive Polarity Inquiry on Equal Entities)**:
-  ```text
-  लता की बचत माला की बचत के समान है। क्या यह सच है कि लता की बचत माला की बचत से अधिक है?
-  ```
-* **Query**: `('लता', 'माला')` $\implies$ Target: `लता = माला` (EQUAL)
-* **Gold Target**:
-  ```text
-  लता की बचत माला की बचत के बराबर है।
-  ```
-* **Model Generation (Hindi V1 Direct SFT)**:
-  ```text
-  लता की बचत माला की बचत के बराबर है।
-  ```
-* **Analytical Success**:
-  The model resisted falling into the contrastive question trap (*"क्या ... अधिक है?"*), refusing to echo the question's polarity (`अधिक`). It correctly inferred that the equivalence premise (*"के समान है"*) dictates equality, generating the exact target conclusion (*"के बराबर है"*).
+## 9. Deliverables
 
----
-
-#### Success Case 4: Story Word Problem Entity Filtering (Assamese V2 CoT)
-* **Input Prompt (Narrative Word Problem Scenario)**:
-  ```text
-  এখন গাঁৱত মালা আৰু লতা আৰু প্ৰমোদ থাকে। প্ৰমোদৰ উচ্চতাৰ তুলনাত মালাৰ উচ্চতা কম। বিনীতাৰ উচ্চতাৰ তুলনাত যশৰ উচ্চতা বেছি। লতাৰ উচ্চতা মালাৰ উচ্চতাতকৈ অলপ কম। কোৱাচোন, কি লতাৰ উচ্চতা প্ৰমোদৰ উচ্চতাতকৈ কম?
-  ```
-  *(Distractor clause: "বিনীতাৰ উচ্চতাৰ তুলনাত যশৰ উচ্চতা বেছি।" — introduces Vineeta & Yash).*
-* **Query**: `('লতা', 'প্ৰমোদ')` $\implies$ Target: `লতা < প্ৰমোদ` (LESS)
-* **Gold Target**:
-  ```text
-  <COT_START> লতা <REL_LT> মালা আৰু মালা <REL_LT> প্ৰমোদ <COT_END> লতাৰ উচ্চতা প্ৰমোদৰ উচ্চতাতকৈ কম।
-  ```
-* **Model Generation (Assamese V2 CoT SFT)**:
-  ```text
-  <COT_START>লতাৰ উচ্চতা প্ৰমোদৰ উচ্চতাতকৈ কম।
-  ```
-* **Analytical Success**:
-  The model successfully parsed the story narrative, extracted the two-step inequality chain (Lata < Mala < Pramod), completely ignored the distractor characters Vineeta and Yash, and correctly concluded that Lata is shorter than Pramod (`LESS`).
-
----
-
-#### Success Case 5: Negation Grounding & Normalization (Hindi V2 CoT)
-* **Input Prompt (Negated Relational Statements)**:
-  ```text
-  माला की लंबाई कमल की लंबाई से अपेक्षाकृत अधिक नहीं है। प्रमोद की लंबाई विनीता की लंबाई से कम नहीं है। प्रमोद की लंबाई की तुलना में तारा की लंबाई कम नहीं है। क्या तारा की लंबाई विनीता की लंबाई से ज्यादा है?
-  ```
-* **Query**: `('तारा', 'विनीता')` $\implies$ Target: `तारा > विनीता` (GREATER)
-* **Gold Target**:
-  ```text
-  <COT_START> तारा <REL_GT> प्रमोद और प्रमोद <REL_GT> विनीता <COT_END> तारा की लंबाई विनीता की लंबाई से कम नहीं है।
-  ```
-* **Model Generation (Hindi V2 CoT SFT)**:
-  ```text
-  <COT_START>तारा<REL_LT>प्रमोद और प्रमोद<REL_GT>विनीता<COT_END>तारा की लंबाई विनीता की लंबाई से कम नहीं है।
-  ```
-* **Analytical Success**:
-  The model overcame the negative framing in the premises (*"कम नहीं है"*), maintaining entity identity across the intermediate scratchpad tokens and generating the proper grounded conclusion (*"तारा की लंबाई विनीता की लंबाई से कम नहीं है"*).
-
----
-
-### 8.2 Five Qualitative Failure Cases (Architectural & Capacity Boundaries)
-
-#### Failure Case 1: The "Indeterminate Paradox" & Compelled Bridge Hallucinations (Assamese V2 CoT)
-* **Input Prompt (Disconnected Relational Graph Clusters)**:
-  ```text
-  অৰ্জুনৰ সঞ্চয়ৰ তুলনাত যশৰ সঞ্চয় কম। কিশোৰৰ সঞ্চয়ৰ তুলনাত ইন্দুৰ সঞ্চয় বেছি। কোৱাচোন, কি কিশোৰৰ সঞ্চয় যশৰ সঞ্চয়তকৈ বেছি?
-  ```
-  *(Cluster 1: Arjun > Yash; Cluster 2: Indu > Kishor. No deductive path connects Kishor and Yash).*
-* **Query**: `('কিশোৰ', 'যশ')` $\implies$ Target: `কিশোৰ ? যশ` (UNDETERMINED)
-* **Gold Target**:
-  ```text
-  <COT_START> কিশোৰ <REL_DISJOINT> যশ <COT_END> দিয়া তথ্যৰ পৰা এইটো নিৰ্ধাৰণ কৰিব নোৱাৰি।
-  ```
-* **Model Generation (Assamese V2 CoT SFT — Failure)**:
-  ```text
-  <COT_START>কিশোৰ<REL_GT>কিশোৰ<COT_END>কিশোৰৰ সঞ্চয় যশৰ সঞ্চয়তকৈ বেছি।
-  ```
-* **Mechanistic Failure Diagnosis**:
-  * **Chaining Prior**: After `<COT_START>` the model has mostly seen inequality chains during training. When no connecting path exists between the query endpoints, the compact ~25M model struggles to emit `<REL_DISJOINT>`. Instead, it generates a self-referential reflexive step (`কিশোৰ > কিশোৰ`) and confabulates a positive inequality (`কিশোৰৰ সঞ্চয় যশৰ সঞ্চয়তকৈ বেছি`).
-  * In contrast, Direct SFT models can directly emit the learned fallback template (*"দিয়া তথ্যৰ পৰা এইটো নিৰ্ধাৰণ কৰিব নোৱাৰি"*), which is consistent with Assamese V2 Direct outscoring Assamese V2 CoT on indeterminate stance (36.5% vs. 17.6%).
-
----
-
-#### Failure Case 2: Double-Negation Directional Inversion (Hindi V2 Direct)
-* **Input Prompt (Double Negated Relational Query)**:
-  ```text
-  तारा की उम्र माला की उम्र से ज्यादा नहीं है। माला की उम्र सुधा की उम्र से ज्यादा नहीं है। क्या तारा की उम्र की तुलना में सुधा की उम्र कम है?
-  ```
-  *(Premises: Tara $\le$ Mala and Mala $\le$ Sudha $\implies$ Sudha $\ge$ Tara. Question asks: Is Sudha younger than Tara? Correct answer: No / Sudha is not younger).*
-* **Query**: `('सुधा', 'तारा')` $\implies$ Target: `सुधा > तारा` (NOT LESS / `कम नहीं है`)
-* **Gold Target**:
-  ```text
-  सुधा की उम्र तारा की उम्र से कम नहीं है।
-  ```
-* **Model Generation (Hindi V2 Direct SFT — Failure)**:
-  ```text
-  सुधा की उम्र तारा की उम्र से अधिक नहीं है।
-  ```
-* **Mechanistic Failure Diagnosis**:
-  * The model retained accurate syntax and entity binding, but flipped the polarity word (`अधिक` instead of `कम`).
-  * In double-negated prompts with directional question inversions (*"A is not greater than B; is B smaller than A?"*), these compact 8-layer transformers appear unable to execute both the relational inequality reversal and the syntactic negation binding simultaneously.
-
----
-
-#### Failure Case 3: Premature Bracket Cutoff & Syntax Truncation (Assamese V2 CoT)
-* **Input Prompt (Conversational Transitive Inquiry)**:
-  ```text
-  যশ কলে যে যশৰ সঞ্চয় জ্যোতিৰ সঞ্চয়তকৈ অধিক। কমল কলে যে জ্যোতিৰ সঞ্চয় কমলৰ সঞ্চয়তকৈ বেছি। মালা কলে যে মালাৰ সঞ্চয় হৰিশৰ সঞ্চয়তকৈ অলপ বেছি। কমল সুধিলে যে কি কমলৰ সঞ্চয় যশৰ সঞ্চয়তকৈ অধিক?
-  ```
-* **Query**: `('কমল', 'যশ')` $\implies$ Target: `কমল < যশ` (LESS)
-* **Gold Target**:
-  ```text
-  <COT_START> যশ <REL_GT> জ্যোতি আৰু জ্যোতি <REL_GT> কমল <COT_END> কমলৰ সঞ্চয় যশৰ সঞ্চয়তকৈ কম।
-  ```
-* **Model Generation (Assamese V2 CoT SFT — Truncation)**:
-  ```text
-  <COT_START>কমল<REL_LT>জ্যোতিৰ সঞ্চয় যশৰ সঞ্চয়তকৈ বেছি।
-  ```
-* **Mechanistic Failure Diagnosis**:
-  * In Assamese V2 CoT, the model emitted `<COT_START>` and intermediate tokens, but failed to emit `<COT_END>`, directly running into the answer phrasing.
-  * This occurs because the Assamese 16K vocabulary exhibits higher subword fragmentation across inflectional affixes (`-ৰ`, `-তকৈ`), causing the model to occasionally drop the special symbolic token delimiter under tight autoregressive budget limits.
-
----
-
-#### Failure Case 4: Equality vs. Strict Inequality Confusion (Hindi V1 CoT)
-* **Input Prompt (Equality Premise with Contrastive Greater-Than Query)**:
-  ```text
-  लता की बचत माला की बचत के समान है। क्या यह सच है कि लता की बचत माला की बचत से अधिक है?
-  ```
-* **Query**: `('लता', 'माला')` $\implies$ Target: `लता = माला` (EQUAL)
-* **Gold Target**:
-  ```text
-  <COT_START> लता <REL_EQ> माला <COT_END> लता की बचत माला की बचत के बराबर है।
-  ```
-* **Model Generation (Hindi V1 CoT SFT — Failure)**:
-  ```text
-  <COT_START>लता<REL_LT>माला<COT_END>लता की बचत माला की बचत से कम है।
-  ```
-* **Mechanistic Failure Diagnosis**:
-  * The CoT model overrode the explicit equality premise (*"के समान है"*) with a strict inequality relation (`<REL_LT>`), influenced by the contrastive query asking if Lata's savings were greater. The model defaulted to strict binary inequality rather than emitting `<REL_EQ>`.
-
----
-
-#### Failure Case 5: Question Polarity Echoing in Direct SFT (Assamese V1 Direct)
-* **Input Prompt (Two-Hop Transitive Word Problem)**:
-  ```text
-  এখন গাঁৱত লতা আৰু জ্যোতি আৰু তাৰা থাকে। জ্যোতিৰ উচ্চতা তাৰাৰ উচ্চতাতকৈ অলপ কম। হৰিশৰ উচ্চতা প্ৰমোদৰ উচ্চতাতকৈ বেছি। তাৰাৰ উচ্চতা লতাৰ উচ্চতাতকৈ কম। কি লতাৰ উচ্চতা জ্যোতিৰ উচ্চতাতকৈ বেছি?
-  ```
-  *(Deduction: Jyoti < Tara < Lata $\implies$ Lata > Jyoti. Question asks: Is Lata taller than Jyoti? Target: Yes / Lata is taller).*
-* **Query**: `('লতা', 'জ্যোতি')` $\implies$ Target: `লতা > জ্যোতি` (GREATER)
-* **Gold Target**:
-  ```text
-  লতাৰ উচ্চতা জ্যোতিৰ উচ্চতাতকৈ বেছি।
-  ```
-* **Model Generation (Assamese V1 Direct SFT — Failure)**:
-  ```text
-  লতাৰ উচ্চতা জ্যোতিৰ উচ্চতাতকৈ কম।
-  ```
-* **Mechanistic Failure Diagnosis**:
-  * In Direct SFT without an intermediate scratchpad, the language model head defaults to local token recency bias from the nearby premise token `"কম"` instead of computing the global transitive reversal, incorrectly concluding that Lata is shorter (`কম`) rather than taller (`বেছি`).
-
----
-
-
-
+| Deliverable | Location |
+|---|---|
+| Reasoning data generator (both languages) | `hindi/finetune/generate_reasoning.py`, `assamese/finetune/generate_reasoning.py` |
+| Fine-tuning pipeline | `hindi/finetune/finetune.py`, `assamese/finetune/finetune.py` |
+| Checkpoint scorer, leakage check, attention shift | `common/evaluate_finetuned.py`, `common/leakage_check.py`, `common/attention_shift.py` |
+| Tests | `common/test_reasoning_extras.py` |
+| Results and figures | `report/results/phase3_*.json`, `report/make_figures.py`, `report/figures/phase3_*.png` |
+| Kaggle runs | `seronic2001/lma-finetune`, `lma-finetune-assamese` (sweep), `lma-eval-hard` (harder splits), `lma-eval-attention` (attention) |

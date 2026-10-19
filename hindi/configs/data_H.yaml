@@ -18,4 +18,4 @@ clean:
 
 token_bin:
   dtype: "uint16"
-  append_eos: true
+  append_eos: true    # EOS after every document (make_token_bins default; --no-append-eos disables)

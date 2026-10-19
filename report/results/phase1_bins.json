@@ -1,0 +1,5 @@
+{
+  "note": "Sizes of the uint16 token files in the artifact datasets (kaggle datasets files, 2026-10-19); tokens = bytes / 2, EOS after every document included.",
+  "hindi": {"dataset": "shubhadeepmandal/lma-hindi-artifacts", "train_bytes": 1428031590, "val_bytes": 14687586, "test_bytes": 14701030},
+  "assamese": {"dataset": "shubhadeepmandal/lma-assamese-artifact", "train_bytes": 1434844016, "val_bytes": 14640960, "test_bytes": 14978888}
+}

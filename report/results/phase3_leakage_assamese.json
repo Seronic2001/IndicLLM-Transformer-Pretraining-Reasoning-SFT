@@ -1,0 +1,120 @@
+{
+  "train_examples": 480000,
+  "train_names": 1451049,
+  "train_structures": 10203,
+  "train_majority_relation": "<",
+  "splits": {
+    "test": {
+      "n": 2000,
+      "name_overlap": 0,
+      "exact_text_dup": 0,
+      "structure_seen": 0.9005,
+      "structure_lookup_acc": 0.953,
+      "majority_acc": 0.464
+    },
+    "test_balanced": {
+      "n": 500,
+      "name_overlap": 0,
+      "exact_text_dup": 0,
+      "structure_seen": 0.802,
+      "structure_lookup_acc": 0.83,
+      "majority_acc": 0.332
+    },
+    "test_branch": {
+      "n": 500,
+      "name_overlap": 0,
+      "exact_text_dup": 0,
+      "structure_seen": 0.0,
+      "structure_lookup_acc": 0.462,
+      "majority_acc": 0.462
+    },
+    "test_depth10": {
+      "n": 500,
+      "name_overlap": 0,
+      "exact_text_dup": 0,
+      "structure_seen": 0.0,
+      "structure_lookup_acc": 0.512,
+      "majority_acc": 0.512
+    },
+    "test_depth2": {
+      "n": 500,
+      "name_overlap": 0,
+      "exact_text_dup": 0,
+      "structure_seen": 1.0,
+      "structure_lookup_acc": 1.0,
+      "majority_acc": 0.488
+    },
+    "test_depth3": {
+      "n": 500,
+      "name_overlap": 0,
+      "exact_text_dup": 0,
+      "structure_seen": 0.992,
+      "structure_lookup_acc": 1.0,
+      "majority_acc": 0.466
+    },
+    "test_depth4": {
+      "n": 500,
+      "name_overlap": 0,
+      "exact_text_dup": 0,
+      "structure_seen": 0.0,
+      "structure_lookup_acc": 0.522,
+      "majority_acc": 0.522
+    },
+    "test_depth5": {
+      "n": 500,
+      "name_overlap": 0,
+      "exact_text_dup": 0,
+      "structure_seen": 0.0,
+      "structure_lookup_acc": 0.516,
+      "majority_acc": 0.516
+    },
+    "test_depth6": {
+      "n": 500,
+      "name_overlap": 0,
+      "exact_text_dup": 0,
+      "structure_seen": 0.0,
+      "structure_lookup_acc": 0.512,
+      "majority_acc": 0.512
+    },
+    "test_depth8": {
+      "n": 500,
+      "name_overlap": 0,
+      "exact_text_dup": 0,
+      "structure_seen": 0.0,
+      "structure_lookup_acc": 0.53,
+      "majority_acc": 0.53
+    },
+    "test_distractor_attr": {
+      "n": 500,
+      "name_overlap": 0,
+      "exact_text_dup": 0,
+      "structure_seen": 0.996,
+      "structure_lookup_acc": 0.996,
+      "majority_acc": 0.522
+    },
+    "test_redundant": {
+      "n": 500,
+      "name_overlap": 0,
+      "exact_text_dup": 0,
+      "structure_seen": 0.0,
+      "structure_lookup_acc": 0.53,
+      "majority_acc": 0.53
+    },
+    "val": {
+      "n": 1000,
+      "name_overlap": 0,
+      "exact_text_dup": 0,
+      "structure_seen": 0.906,
+      "structure_lookup_acc": 0.96,
+      "majority_acc": 0.46
+    },
+    "val_train_names": {
+      "n": 500,
+      "name_overlap": 352,
+      "exact_text_dup": 0,
+      "structure_seen": 0.904,
+      "structure_lookup_acc": 0.948,
+      "majority_acc": 0.472
+    }
+  }
+}

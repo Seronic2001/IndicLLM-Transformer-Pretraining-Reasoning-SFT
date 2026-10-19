@@ -33,6 +33,10 @@ _LANG_ROOT = Path(__file__).resolve().parents[1]
 if str(_LANG_ROOT) not in sys.path:
     sys.path.insert(0, str(_LANG_ROOT))
 
+from common.plot_fonts import use_indic_fonts  # noqa: E402
+
+use_indic_fonts()  # token labels are Devanagari
+
 
 def attention_entropy(attn_weights: torch.Tensor) -> torch.Tensor:
     """attn_weights: (n_head, T, T) post-softmax, rows sum to 1.
@@ -195,17 +199,18 @@ def main(argv: Optional[list[str]] = None) -> int:
         "बच्चे स्कूल में किताबें पढ़ते हैं और खेलते हैं",
         "सूरज पूर्व में उगता है और पश्चिम में अस्त होता है",
     ])
+    parser.add_argument(
+        "--arch", choices=["v1", "v2"], default=None,
+        help="model architecture (default: read from --model-config)",
+    )
     parser.add_argument("--device", default=None)
     args = parser.parse_args(argv)
 
     from tokenizer.tokenizer import Tokenizer
+    from eval.evaluate import load_model_for_eval
 
     device = args.device or ("cuda" if torch.cuda.is_available() else "cpu")
-    from model.gpt import GPTConfig, GPTLanguageModel
-    from common.checkpoint import load_checkpoint
-
-    model = GPTLanguageModel(GPTConfig.from_yaml(args.model_config)).to(device)
-    load_checkpoint(args.checkpoint, model, restore_rng=False)
+    model = load_model_for_eval(args.checkpoint, args.model_config, device, arch=args.arch)
     tok = Tokenizer(args.tokenizer)
     results = analyze_attention(model, tok, args.texts, args.out_dir, device=device)
     print(json.dumps(results["summary"], ensure_ascii=False, indent=2))

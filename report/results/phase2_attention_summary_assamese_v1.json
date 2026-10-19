@@ -1,0 +1,304 @@
+{
+  "layers_analyzed": [
+    0,
+    4,
+    7
+  ],
+  "heads_analyzed": [
+    0,
+    1,
+    2,
+    3
+  ],
+  "n_examples": 3,
+  "rows": [
+    {
+      "example": 0,
+      "layer": 0,
+      "head": 0,
+      "entropy": 1.2398383617401123,
+      "mean_distance": 2.2291576862335205,
+      "heatmap": "/kaggle/working/pretrained_attention/assamese_v1/ex0_layer0_head0.png"
+    },
+    {
+      "example": 0,
+      "layer": 0,
+      "head": 1,
+      "entropy": 1.2462961673736572,
+      "mean_distance": 1.73032808303833,
+      "heatmap": "/kaggle/working/pretrained_attention/assamese_v1/ex0_layer0_head1.png"
+    },
+    {
+      "example": 0,
+      "layer": 0,
+      "head": 2,
+      "entropy": 1.2083704471588135,
+      "mean_distance": 2.192936897277832,
+      "heatmap": "/kaggle/working/pretrained_attention/assamese_v1/ex0_layer0_head2.png"
+    },
+    {
+      "example": 0,
+      "layer": 0,
+      "head": 3,
+      "entropy": 1.2140953540802002,
+      "mean_distance": 2.222832679748535,
+      "heatmap": "/kaggle/working/pretrained_attention/assamese_v1/ex0_layer0_head3.png"
+    },
+    {
+      "example": 0,
+      "layer": 4,
+      "head": 0,
+      "entropy": 0.6853171586990356,
+      "mean_distance": 0.9187303185462952,
+      "heatmap": "/kaggle/working/pretrained_attention/assamese_v1/ex0_layer4_head0.png"
+    },
+    {
+      "example": 0,
+      "layer": 4,
+      "head": 1,
+      "entropy": 0.5542956590652466,
+      "mean_distance": 3.0454165935516357,
+      "heatmap": "/kaggle/working/pretrained_attention/assamese_v1/ex0_layer4_head1.png"
+    },
+    {
+      "example": 0,
+      "layer": 4,
+      "head": 2,
+      "entropy": 1.0485215187072754,
+      "mean_distance": 1.3294131755828857,
+      "heatmap": "/kaggle/working/pretrained_attention/assamese_v1/ex0_layer4_head2.png"
+    },
+    {
+      "example": 0,
+      "layer": 4,
+      "head": 3,
+      "entropy": 1.1529226303100586,
+      "mean_distance": 1.5805511474609375,
+      "heatmap": "/kaggle/working/pretrained_attention/assamese_v1/ex0_layer4_head3.png"
+    },
+    {
+      "example": 0,
+      "layer": 7,
+      "head": 0,
+      "entropy": 0.9186792373657227,
+      "mean_distance": 2.7369003295898438,
+      "heatmap": "/kaggle/working/pretrained_attention/assamese_v1/ex0_layer7_head0.png"
+    },
+    {
+      "example": 0,
+      "layer": 7,
+      "head": 1,
+      "entropy": 0.810117244720459,
+      "mean_distance": 2.897226333618164,
+      "heatmap": "/kaggle/working/pretrained_attention/assamese_v1/ex0_layer7_head1.png"
+    },
+    {
+      "example": 0,
+      "layer": 7,
+      "head": 2,
+      "entropy": 0.4645407795906067,
+      "mean_distance": 3.211005210876465,
+      "heatmap": "/kaggle/working/pretrained_attention/assamese_v1/ex0_layer7_head2.png"
+    },
+    {
+      "example": 0,
+      "layer": 7,
+      "head": 3,
+      "entropy": 0.07916812598705292,
+      "mean_distance": 3.4590888023376465,
+      "heatmap": "/kaggle/working/pretrained_attention/assamese_v1/ex0_layer7_head3.png"
+    },
+    {
+      "example": 1,
+      "layer": 0,
+      "head": 0,
+      "entropy": 1.2266385555267334,
+      "mean_distance": 2.0678224563598633,
+      "heatmap": "/kaggle/working/pretrained_attention/assamese_v1/ex1_layer0_head0.png"
+    },
+    {
+      "example": 1,
+      "layer": 0,
+      "head": 1,
+      "entropy": 1.2808555364608765,
+      "mean_distance": 2.0141441822052,
+      "heatmap": "/kaggle/working/pretrained_attention/assamese_v1/ex1_layer0_head1.png"
+    },
+    {
+      "example": 1,
+      "layer": 0,
+      "head": 2,
+      "entropy": 1.2113553285598755,
+      "mean_distance": 1.973689079284668,
+      "heatmap": "/kaggle/working/pretrained_attention/assamese_v1/ex1_layer0_head2.png"
+    },
+    {
+      "example": 1,
+      "layer": 0,
+      "head": 3,
+      "entropy": 1.2373507022857666,
+      "mean_distance": 2.0040366649627686,
+      "heatmap": "/kaggle/working/pretrained_attention/assamese_v1/ex1_layer0_head3.png"
+    },
+    {
+      "example": 1,
+      "layer": 4,
+      "head": 0,
+      "entropy": 0.6476945281028748,
+      "mean_distance": 0.8197734355926514,
+      "heatmap": "/kaggle/working/pretrained_attention/assamese_v1/ex1_layer4_head0.png"
+    },
+    {
+      "example": 1,
+      "layer": 4,
+      "head": 1,
+      "entropy": 0.7887133359909058,
+      "mean_distance": 2.295283794403076,
+      "heatmap": "/kaggle/working/pretrained_attention/assamese_v1/ex1_layer4_head1.png"
+    },
+    {
+      "example": 1,
+      "layer": 4,
+      "head": 2,
+      "entropy": 0.9118353128433228,
+      "mean_distance": 0.8503209352493286,
+      "heatmap": "/kaggle/working/pretrained_attention/assamese_v1/ex1_layer4_head2.png"
+    },
+    {
+      "example": 1,
+      "layer": 4,
+      "head": 3,
+      "entropy": 1.0739245414733887,
+      "mean_distance": 1.8437294960021973,
+      "heatmap": "/kaggle/working/pretrained_attention/assamese_v1/ex1_layer4_head3.png"
+    },
+    {
+      "example": 1,
+      "layer": 7,
+      "head": 0,
+      "entropy": 0.6410338282585144,
+      "mean_distance": 2.369385242462158,
+      "heatmap": "/kaggle/working/pretrained_attention/assamese_v1/ex1_layer7_head0.png"
+    },
+    {
+      "example": 1,
+      "layer": 7,
+      "head": 1,
+      "entropy": 0.7037286758422852,
+      "mean_distance": 2.6920788288116455,
+      "heatmap": "/kaggle/working/pretrained_attention/assamese_v1/ex1_layer7_head1.png"
+    },
+    {
+      "example": 1,
+      "layer": 7,
+      "head": 2,
+      "entropy": 0.7047899961471558,
+      "mean_distance": 2.621595859527588,
+      "heatmap": "/kaggle/working/pretrained_attention/assamese_v1/ex1_layer7_head2.png"
+    },
+    {
+      "example": 1,
+      "layer": 7,
+      "head": 3,
+      "entropy": 0.16686207056045532,
+      "mean_distance": 3.3600287437438965,
+      "heatmap": "/kaggle/working/pretrained_attention/assamese_v1/ex1_layer7_head3.png"
+    },
+    {
+      "example": 2,
+      "layer": 0,
+      "head": 0,
+      "entropy": 1.3873597383499146,
+      "mean_distance": 2.7044620513916016,
+      "heatmap": "/kaggle/working/pretrained_attention/assamese_v1/ex2_layer0_head0.png"
+    },
+    {
+      "example": 2,
+      "layer": 0,
+      "head": 1,
+      "entropy": 1.415183663368225,
+      "mean_distance": 2.6142735481262207,
+      "heatmap": "/kaggle/working/pretrained_attention/assamese_v1/ex2_layer0_head1.png"
+    },
+    {
+      "example": 2,
+      "layer": 0,
+      "head": 2,
+      "entropy": 1.4002714157104492,
+      "mean_distance": 2.6497254371643066,
+      "heatmap": "/kaggle/working/pretrained_attention/assamese_v1/ex2_layer0_head2.png"
+    },
+    {
+      "example": 2,
+      "layer": 0,
+      "head": 3,
+      "entropy": 1.3838609457015991,
+      "mean_distance": 2.7629239559173584,
+      "heatmap": "/kaggle/working/pretrained_attention/assamese_v1/ex2_layer0_head3.png"
+    },
+    {
+      "example": 2,
+      "layer": 4,
+      "head": 0,
+      "entropy": 0.5818493366241455,
+      "mean_distance": 0.8949621319770813,
+      "heatmap": "/kaggle/working/pretrained_attention/assamese_v1/ex2_layer4_head0.png"
+    },
+    {
+      "example": 2,
+      "layer": 4,
+      "head": 1,
+      "entropy": 0.7778142094612122,
+      "mean_distance": 2.8945233821868896,
+      "heatmap": "/kaggle/working/pretrained_attention/assamese_v1/ex2_layer4_head1.png"
+    },
+    {
+      "example": 2,
+      "layer": 4,
+      "head": 2,
+      "entropy": 1.0793412923812866,
+      "mean_distance": 1.399173617362976,
+      "heatmap": "/kaggle/working/pretrained_attention/assamese_v1/ex2_layer4_head2.png"
+    },
+    {
+      "example": 2,
+      "layer": 4,
+      "head": 3,
+      "entropy": 1.1632784605026245,
+      "mean_distance": 1.624376654624939,
+      "heatmap": "/kaggle/working/pretrained_attention/assamese_v1/ex2_layer4_head3.png"
+    },
+    {
+      "example": 2,
+      "layer": 7,
+      "head": 0,
+      "entropy": 0.7903386950492859,
+      "mean_distance": 3.514216661453247,
+      "heatmap": "/kaggle/working/pretrained_attention/assamese_v1/ex2_layer7_head0.png"
+    },
+    {
+      "example": 2,
+      "layer": 7,
+      "head": 1,
+      "entropy": 1.012917160987854,
+      "mean_distance": 2.696564197540283,
+      "heatmap": "/kaggle/working/pretrained_attention/assamese_v1/ex2_layer7_head1.png"
+    },
+    {
+      "example": 2,
+      "layer": 7,
+      "head": 2,
+      "entropy": 0.7486676573753357,
+      "mean_distance": 3.5290496349334717,
+      "heatmap": "/kaggle/working/pretrained_attention/assamese_v1/ex2_layer7_head2.png"
+    },
+    {
+      "example": 2,
+      "layer": 7,
+      "head": 3,
+      "entropy": 0.48218831419944763,
+      "mean_distance": 4.088972568511963,
+      "heatmap": "/kaggle/working/pretrained_attention/assamese_v1/ex2_layer7_head3.png"
+    }
+  ]
+}

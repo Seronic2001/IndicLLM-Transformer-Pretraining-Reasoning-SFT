@@ -4,6 +4,8 @@ BLEU / chrF / ROUGE-L are delegated to the standard libraries (sacrebleu, rouge-
 for correctness and reproducibility, pinned in ``requirements.txt``. For Devanagari /
 Bengali-Assamese script we pass ``tokenize="none"`` to sacrebleu: whitespace-aware
 tokenization is unreliable for Indic text, and chrF is character-based anyway.
+ROUGE-L is scored on whitespace tokens: rouge-score's default tokenizer keeps only
+``[a-z0-9]``, which reduces Indic text to nothing and scores every pair 0.
 
 All functions here are deterministic and free of model/checkpoint logic.
 """
@@ -114,6 +116,13 @@ def chrf(
     return float(score.score)
 
 
+class _WhitespaceTokenizer:
+    """Script-agnostic replacement for rouge-score's ASCII-only default tokenizer."""
+
+    def tokenize(self, text: str) -> list[str]:
+        return text.split()
+
+
 def rouge_l(
     hypotheses: Sequence[str],
     references: Sequence[str],
@@ -129,7 +138,9 @@ def rouge_l(
     if len(hypotheses) == 0:
         return 0.0
 
-    scorer = rouge_scorer.RougeScorer(["rougeL"], use_stemmer=False)
+    scorer = rouge_scorer.RougeScorer(
+        ["rougeL"], use_stemmer=False, tokenizer=_WhitespaceTokenizer()
+    )
     f1_sum = sum(
         scorer.score(ref, hyp)["rougeL"].fmeasure
         for hyp, ref in zip(hypotheses, references)

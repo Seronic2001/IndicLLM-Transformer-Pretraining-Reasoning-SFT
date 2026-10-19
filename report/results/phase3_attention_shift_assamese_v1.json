@@ -1,0 +1,130 @@
+{
+  "lang": "assamese",
+  "n_prompts": 200,
+  "data": "/kaggle/working/reasoning/assamese/test_depth4.jsonl",
+  "checkpoints": {
+    "pretrained": "/kaggle/input/notebooks/seronic2001/lma-pretrain-assamese-v1/checkpoints/best.pt",
+    "cot": "/kaggle/input/notebooks/seronic2001/lma-finetune-assamese/finetune/assamese_v1/realmix_cot_seed42/finetuned_cot.pt",
+    "direct": "/kaggle/input/notebooks/seronic2001/lma-finetune-assamese/finetune/assamese_v1/cot_warmup_direct_seed42/finetuned_direct.pt"
+  },
+  "per_layer": {
+    "pretrained": {
+      "entropy": [
+        2.9146,
+        2.3171,
+        2.1917,
+        2.3308,
+        1.2835,
+        1.8123,
+        1.8998,
+        2.0038
+      ],
+      "mean_distance": [
+        13.5936,
+        9.6952,
+        17.2637,
+        9.3006,
+        2.2297,
+        7.736,
+        17.2215,
+        17.1366
+      ],
+      "jsd_vs_pretrained": null,
+      "entity_mass_last": [
+        0.4056,
+        0.1762,
+        0.5391,
+        0.317,
+        0.0577,
+        0.1978,
+        0.4889,
+        0.5319
+      ]
+    },
+    "cot": {
+      "entropy": [
+        2.7764,
+        1.8085,
+        2.418,
+        2.1848,
+        1.0186,
+        1.3037,
+        1.2549,
+        1.4811
+      ],
+      "mean_distance": [
+        13.3485,
+        7.2791,
+        14.9708,
+        8.2285,
+        2.6621,
+        6.3615,
+        17.3187,
+        16.2962
+      ],
+      "jsd_vs_pretrained": [
+        0.0467,
+        0.1138,
+        0.0451,
+        0.0348,
+        0.1272,
+        0.1555,
+        0.175,
+        0.2002
+      ],
+      "entity_mass_last": [
+        0.3309,
+        0.1274,
+        0.4039,
+        0.3163,
+        0.0939,
+        0.1861,
+        0.7599,
+        0.8043
+      ]
+    },
+    "direct": {
+      "entropy": [
+        2.7698,
+        1.3075,
+        2.3517,
+        2.249,
+        0.9316,
+        1.0368,
+        1.6955,
+        1.8252
+      ],
+      "mean_distance": [
+        13.7815,
+        7.0489,
+        13.6599,
+        7.8514,
+        2.7191,
+        6.2541,
+        12.5505,
+        14.0736
+      ],
+      "jsd_vs_pretrained": [
+        0.0464,
+        0.1956,
+        0.0815,
+        0.0617,
+        0.2009,
+        0.224,
+        0.2761,
+        0.2277
+      ],
+      "entity_mass_last": [
+        0.345,
+        0.0994,
+        0.4057,
+        0.3158,
+        0.0549,
+        0.4105,
+        0.9184,
+        0.9867
+      ]
+    }
+  },
+  "first_prompt": "অনসূয়াৰ বয়স প্ৰতিভাৰ বয়সতকৈ কম। শৰ্মিষ্ঠাৰ বয়স প্ৰতিভাৰ বয়সতকৈ বেছি। শৰ্মিষ্ঠাৰ বয়স পৰাগৰ বয়সতকৈ কম। প্ৰমোদৰ বয়স অনসূয়াৰ বয়সতকৈ কম। কি পৰাগৰ বয়স প্ৰমোদৰ বয়সতকৈ কম?"
+}
